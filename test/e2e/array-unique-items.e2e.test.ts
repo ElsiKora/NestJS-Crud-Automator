@@ -144,11 +144,18 @@ describe("isUniqueItems on request arrays (E2E)", () => {
 		expect(response.json()).toEqual({ uniques: [7, 8] });
 	});
 
-	it("answers 400 for two spellings of one instant and of one UUID in a body", async () => {
-		const response = await fastify.inject({ method: "POST", payload: { dates: ["2026-01-01T00:00:00.000Z", "2026-01-01T03:00:00.000+03:00"], ids: [UUID_FIRST, UUID_FIRST.toUpperCase()] }, url: "/unique-items" });
+	it("answers 400 for one instant twice and for two spellings of one UUID in a body", async () => {
+		const response = await fastify.inject({ method: "POST", payload: { dates: ["2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"], ids: [UUID_FIRST, UUID_FIRST.toUpperCase()] }, url: "/unique-items" });
 
 		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
 		expect(response.json().message).toEqual(["dates must not contain duplicate items", "ids must not contain duplicate items"]);
+	});
+
+	it("answers 400 for another spelling of an instant before items are compared", async () => {
+		const response = await fastify.inject({ method: "POST", payload: { dates: ["2026-01-01T00:00:00.000Z", "2026-01-01T03:00:00.000+03:00"], ids: [UUID_FIRST, UUID_SECOND] }, url: "/unique-items" });
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(response.json().message).toEqual(["each value in dates must be in YYYY-MM-DDTHH:mm:ss.sssZ format"]);
 	});
 
 	it("accepts distinct body items", async () => {

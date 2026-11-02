@@ -1,4 +1,3 @@
-import type { EApiPropertyDateType } from "@enum/decorator/api";
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiControllerPropertiesRouteBaseRelationsResponse } from "@interface/decorator/api";
@@ -20,7 +19,7 @@ import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
-import { DtoGenerateGetListDateFormatDecorators, DtoGenerateGetListItemsResponse, DtoGenerateGetListNumericEnumValueDecorator, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
+import { DtoGenerateGetListItemsResponse, DtoGenerateGetListNumericEnumValueDecorator, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
 import { DtoGetRelationResponseMetadata } from "@utility/dto/get/relation-response-metadata.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
@@ -206,16 +205,8 @@ export function DtoGenerate<E>(
 			for (const property of queryFilterProperties) {
 				const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, property.entityMetadata, dtoType, property.name, currentGuard);
 
-				const dateFormat: EApiPropertyDateType | undefined = property.metadata.type === EApiPropertyDescribeType.DATE ? property.metadata.format : undefined;
-
 				if (decorators) {
 					for (const [, decorator] of decorators.entries()) {
-						decorator(GeneratedDTO.prototype, `${property.name}[value]`);
-					}
-				}
-
-				if (dateFormat) {
-					for (const decorator of DtoGenerateGetListDateFormatDecorators(dateFormat, false)) {
 						decorator(GeneratedDTO.prototype, `${property.name}[value]`);
 					}
 				}
@@ -238,12 +229,6 @@ export function DtoGenerate<E>(
 
 				if (decoratorsArray) {
 					for (const [, decorator] of decoratorsArray.entries()) {
-						decorator(GeneratedDTO.prototype, `${property.name}[values]`);
-					}
-				}
-
-				if (dateFormat) {
-					for (const decorator of DtoGenerateGetListDateFormatDecorators(dateFormat, true)) {
 						decorator(GeneratedDTO.prototype, `${property.name}[values]`);
 					}
 				}

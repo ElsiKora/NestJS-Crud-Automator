@@ -321,6 +321,18 @@ A plain-object repository mock or a mocked service in a test of such a controlle
 
 A CURSOR GET_LIST route on a database other than PostgreSQL, or with an order field whose storage CURSOR cannot prove, fails at application bootstrap with an error that names the route and the active driver. Before 5.0.0, the application started and every request to the route answered `500`. On a production database CURSOR cannot serve, switch such a route to PAGE. In a test, keep the route and run it on a PostgreSQL DataSource, which needs no connection: see [Testing: CURSOR Controllers](/docs/nestjs-crud-automator/guides/testing#cursor-controllers). See also [Pagination: Migration Notes](/docs/nestjs-crud-automator/guides/pagination#migration-notes).
 
+## Date Body Values
+
+Under a host `ValidationPipe`, a request value of an `@ApiPropertyDate` property, or a date property described with `@ApiPropertyDescribe`, takes the same published form as its list filter. That holds on generated CREATE, UPDATE, and PARTIAL_UPDATE bodies and on custom routes. Anything else returns `400` before any SQL runs:
+
+- A `DATE` value is `YYYY-MM-DD` text for a day that exists and stays that text. With `transform: true` it used to become a `Date` at UTC midnight, which stored the previous day in time zones west of UTC. A TypeORM value transformer on a `date` column now receives the text in `to` on writes too.
+- A `TIME` value is `HH:mm:ss` text and stays text. A valid time of day used to return `400`.
+- A `DATE_TIME` value is the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, as `Date.prototype.toISOString()` writes it. Any text `new Date()` could read used to pass, including `March 1 2026`, `1`, zone-less text read in the process time zone, and epoch numbers.
+- A one-element array on a single property returns `400`.
+- The message is `<property> must be in <form> format` with constraint `isDateFormatValue`, instead of `<property> must be a Date instance` with `isDate`.
+
+Type `DATE` and `TIME` properties of request DTOs as `string`, and change custom handlers that call `Date` methods on them. Without a host pipe a generated route does not check the body, as before, and stores the text as sent.
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

@@ -139,8 +139,12 @@ describe("isUniqueItems on request arrays", () => {
 		expect(getItemsConstraints(factory, true, items)).toEqual(["arrayUniqueItems"]);
 	});
 
-	it("compares ApiPropertyDate items by instant, not by spelling", () => {
-		expect(getItemsConstraints(buildDateDto, true, ["2026-01-01T00:00:00.000Z", "2026-01-01T03:00:00.000+03:00"])).toEqual(["arrayUniqueItems"]);
+	it("compares ApiPropertyDate items in the one published form of an instant", () => {
+		expect(getItemsConstraints(buildDateDto, true, ["2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"])).toEqual(["arrayUniqueItems"]);
+	});
+
+	it("refuses another spelling of an ApiPropertyDate instant before items are compared", () => {
+		expect(getItemsConstraints(buildDateDto, true, ["2026-01-01T00:00:00.000Z", "2026-01-01T03:00:00.000+03:00"])).toEqual(["isDateFormatValue"]);
 	});
 
 	it("compares ApiPropertyUUID items without regard to case", () => {

@@ -1,6 +1,7 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyDateProperties } from "@type/decorator/api/property";
+import type { ValidationOptions } from "class-validator";
 
 import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
@@ -12,10 +13,11 @@ import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-e
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { Exclude, Transform } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, Validate, ValidateIf } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, buildMessage, IsArray, Validate, ValidateBy, ValidateIf } from "class-validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
@@ -26,11 +28,11 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, Validate, V
  * - Predefined date types (createdAt, updatedAt, expiresIn, etc.)
  * - Single dates or arrays of dates
  * - Response/Request specific decorators
- * - Automatic transformation from string to Date objects
- * - Validation with appropriate patterns for each format
+ * - Request values held to the published text form of the format: `DATE` and `TIME` stay text, a `DATE_TIME` UTC instant becomes a Date
+ * - A request body is checked only where a host ValidationPipe validates it; GET_LIST filter values are checked by the route itself
  *
  * The decorator provides appropriate examples and validation patterns based on the format,
- * and handles string-to-Date transformation for request DTOs.
+ * and holds request values to that pattern.
  * @param {TApiPropertyDateProperties} properties - Configuration options for the date property
  * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date | API Reference - ApiPropertyDate}
@@ -44,7 +46,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, Validate, V
  *     format: EApiPropertyDateType.DATE,
  *     isRequired: true
  *   })
- *   date: Date;
+ *   date: string;
  * }
  *
  * // DateTime property for createdAt (ISO format)
@@ -69,7 +71,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, Validate, V
  *     maxItems: 10,
  *     isUniqueItems: true
  *   })
- *   availableTimes: Date[];
+ *   availableTimes: string[];
  * }
  * ```
  */
@@ -147,19 +149,34 @@ function buildDecorators(properties: TApiPropertyDateProperties, apiPropertyOpti
 }
 
 /**
- * Builds decorators for date format validation.
- * Applies IsDate validator with appropriate configuration for single values or arrays.
+ * Builds the validator that holds a request value to the published text form of its format.
+ * `DATE` is calendar text `YYYY-MM-DD` for an existing day and `TIME` is `HH:mm:ss` text within one day; both stay text.
+ * `DATE_TIME` is the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, which the request transform turns into a Date; a valid Date is a server-side value and passes as it is.
  * @param {TApiPropertyDateProperties} properties - The property configuration
- * @returns {Array<PropertyDecorator>} An array of date format validation decorators
+ * @returns {Array<PropertyDecorator>} The format validator, or none for a response property
  * @private
  */
 function buildFormatDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
-	const isArray: boolean = properties.isArray ?? false;
 
 	if (!properties.isResponse) {
+		const format: EApiPropertyDateType = properties.format;
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		decorators.push(IsDate({ each: isArray }));
+		const validationOptions: ValidationOptions = { each: properties.isArray ?? false };
+
+		decorators.push(
+			ValidateBy(
+				{
+					constraints: [format],
+					name: "isDateFormatValue",
+					validator: {
+						defaultMessage: buildMessage((eachPrefix: string): string => `${eachPrefix}$property must be in ${PROPERTY_DATE_DECORATOR_API_CONSTANT.TEMPLATE[format]} format`, validationOptions),
+						validate: (value: unknown): boolean => isPublishedValue(value, format),
+					},
+				},
+				validationOptions,
+			),
+		);
 	}
 
 	return decorators;
@@ -239,38 +256,33 @@ function buildResponseDecorators(properties: TApiPropertyDateProperties): Array<
 }
 
 /**
- * Builds decorators for type transformation from string to Date objects.
- * Handles both single values and arrays with appropriate transformers,
- * including special handling for null/undefined values.
+ * Builds the request transform. Only a `DATE_TIME` value in its published form becomes a Date; every other value stays as sent, so the validator names the published form.
+ * A `DATE` or `TIME` value is never converted, so the stored text does not depend on the process time zone. An array property wraps a single value.
  * @param {TApiPropertyDateProperties} properties - The property configuration
- * @returns {Array<PropertyDecorator>} An array of type transformation decorators
+ * @returns {Array<PropertyDecorator>} The request transform, or none for a response property
  * @private
  */
 function buildTransformDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
 	if (!properties.isResponse) {
+		const format: EApiPropertyDateType = properties.format;
+
 		if (properties.isArray) {
 			decorators.push(
 				Transform(
-					({ value }: { value: unknown }) => {
+					({ value }: { value: unknown }): unknown => {
 						if (value === undefined || value === null) {
 							return value;
 						}
 
-						if (!Array.isArray(value)) {
-							const singleValue: string = value as string;
-
-							return singleValue ? [new Date(singleValue)] : undefined;
-						}
-
-						return value.map((dateString: string) => (dateString ? new Date(dateString) : undefined));
+						return (Array.isArray(value) ? value : [value]).map((item: unknown): unknown => toRequestValue(item, format));
 					},
 					{ toClassOnly: true },
 				),
 			);
 		} else {
-			decorators.push(Transform(({ value }: { value: string }) => (value ? new Date(value) : undefined), { toClassOnly: true }));
+			decorators.push(Transform(({ value }: { value: unknown }): unknown => toRequestValue(value, format), { toClassOnly: true }));
 		}
 	}
 
@@ -360,6 +372,32 @@ function getExample(format: EApiPropertyDateType): string {
 			return startOfYearUTCDate.toISOString().split("T")[1]?.split(".")[0] ?? "00:00:00";
 		}
 	}
+}
+
+/**
+ * Checks a request value after the transform against the published form of its format.
+ * @param {unknown} value - One request value, or one item of an array property.
+ * @param {EApiPropertyDateType} format - Date property format whose published pattern applies.
+ * @returns {boolean} True for text in the published form, or a valid Date on a `DATE_TIME` property.
+ * @private
+ */
+function isPublishedValue(value: unknown, format: EApiPropertyDateType): boolean {
+	if (value instanceof Date) {
+		return format === EApiPropertyDateType.DATE_TIME && !Number.isNaN(value.getTime());
+	}
+
+	return IsDateFormatValue(value, format);
+}
+
+/**
+ * Turns a `DATE_TIME` value in its published form into the instant it names and returns every other value as sent.
+ * @param {unknown} value - One request value, or one item of an array property.
+ * @param {EApiPropertyDateType} format - Date property format whose published pattern applies.
+ * @returns {unknown} A Date for a published instant, otherwise the value as sent.
+ * @private
+ */
+function toRequestValue(value: unknown, format: EApiPropertyDateType): unknown {
+	return format === EApiPropertyDateType.DATE_TIME && IsDateFormatValue(value, format) ? new Date(value) : value;
 }
 
 /**

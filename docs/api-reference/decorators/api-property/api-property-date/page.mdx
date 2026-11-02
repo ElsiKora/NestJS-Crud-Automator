@@ -20,11 +20,24 @@ Formats, validates, and serializes date/time fields. Supports ISO date-time stri
 ## Behavior
 
 - Emits `@ApiProperty` with the correct ISO example, pattern, and min/max lengths.
-- Adds `IsDate`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` validators for request DTOs.
-- Leverages `Transform` to convert ISO strings into `Date` instances (both single values and arrays).
+- Holds request values to the published form of `format` and adds `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` for request arrays. See [Request values](#request-values).
 - Preserves missing optional array values as `undefined`/`null` instead of converting them to an empty array.
 - Adds `ApiResponseProperty` and exposure decorators on response DTOs.
 - Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies omit properties identified as `CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`, regardless of property name. Responses retain them; `DATE` and other business/range identifiers remain writable.
+
+## Request values
+
+A request value takes the form the OpenAPI pattern publishes, the same form a `GET_LIST` filter on the property takes:
+
+| `format`    | Value                                      | After transformation |
+| ----------- | ------------------------------------------ | -------------------- |
+| `DATE`      | `YYYY-MM-DD` text for a day that exists    | The same text        |
+| `DATE_TIME` | The UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ` | A `Date`             |
+| `TIME`      | `HH:mm:ss` text within one day             | The same text        |
+
+`DATE` and `TIME` values are never turned into a `Date`, so a calendar day or a time of day is stored as sent in every process time zone. Type such a property as `string`. Any other value fails with `<property> must be in <form> format` (constraint `isDateFormatValue`, or `each value in <property> must be in <form> format` on an array). That covers a date-time without milliseconds, with an offset or without a zone, an impossible day such as `2026-02-30`, a number, and a one-element array on a single property. A valid `Date` on a `DATE_TIME` property is a server-side value and passes.
+
+These are validators like the others. A request body is checked only where a host `ValidationPipe` validates it; a generated route without one stores the text as sent. `GET_LIST` filter values are checked by the route itself, with or without a pipe; see [Filtering and Sorting](/docs/nestjs-crud-automator/guides/filtering-and-sorting).
 
 ## Example
 
@@ -44,7 +57,7 @@ class AuditDto {
 		format: EApiPropertyDateType.DATE,
 		isRequired: false,
 	})
-	updatedAtFrom?: Date;
+	updatedAtFrom?: string;
 }
 ```
 
