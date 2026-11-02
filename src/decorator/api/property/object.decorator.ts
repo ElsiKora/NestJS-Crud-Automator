@@ -14,6 +14,7 @@ import { ApiPropertyGetTargetClassName } from "@utility/api/property-get-target-
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { DtoGenerateContextualManualDto } from "@utility/dto/generate/manual-child.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { DtoProjectOpenRequestObject } from "@utility/dto/project-open-request-object.utility";
@@ -23,7 +24,7 @@ import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
-import { Exclude, Transform, TransformationType, Type } from "class-transformer";
+import { Exclude, TransformationType, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, Validate, ValidateIf, ValidateNested } from "class-validator";
 
 /**
@@ -320,7 +321,7 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 		);
 	} else if (isFreeFormObjectProperties(properties)) {
 		decorators.push(
-			Transform(
+			ClassTransformerAutomatorTransform(
 				({ key, obj }: { key: string; obj: Record<string, unknown> }) => {
 					return obj[key];
 				},
@@ -333,7 +334,7 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 
 	if (properties.isResponse !== true && properties.additionalProperties === true && properties.shouldValidateNested === true) {
 		decorators.push(
-			Transform(
+			ClassTransformerAutomatorTransform(
 				({ type, value }: { type: TransformationType; value: unknown }) => {
 					return type === TransformationType.PLAIN_TO_CLASS ? DtoProjectOpenRequestObject(value) : value;
 				},

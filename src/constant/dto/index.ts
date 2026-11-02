@@ -1,4 +1,5 @@
 export { AUTO_CONTEXT_DTO_CONSTANT } from "./auto-context.constant";
+export { AUTOMATOR_TRANSFORM_DTO_CONSTANT } from "./automator-transform.constant";
 export { CONTEXTUAL_MANUAL_DTO_CONSTANT } from "./contextual-manual.constant";
 export { EXCEPTION_DTO_CONSTANT } from "./exception.constant";
 export { LIST_DTO_CONSTANT } from "./list.constant";

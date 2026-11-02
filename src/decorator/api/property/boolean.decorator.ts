@@ -9,11 +9,12 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
+import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
-import { Exclude, Transform } from "class-transformer";
+import { Exclude } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, Validate, ValidateIf } from "class-validator";
 
 /**
@@ -231,7 +232,7 @@ function buildTransformDecorators(properties: TApiPropertyBooleanProperties): Ar
 	if (!properties.isResponse) {
 		if (properties.isArray) {
 			decorators.push(
-				Transform(
+				ClassTransformerAutomatorTransform(
 					({ value }: { value: unknown }) => {
 						if (value === null || value === undefined) {
 							return value;
@@ -284,7 +285,7 @@ function buildTransformDecorators(properties: TApiPropertyBooleanProperties): Ar
 			);
 		} else {
 			decorators.push(
-				Transform(
+				ClassTransformerAutomatorTransform(
 					({ value }: { value: unknown }) => {
 						if (value === undefined || value === null) return value;
 

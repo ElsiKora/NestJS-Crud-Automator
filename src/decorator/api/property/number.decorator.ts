@@ -10,12 +10,13 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
+import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { IsDecimalDivisibleBy } from "@utility/is/decimal-divisible-by.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
-import { Exclude, Transform, Type } from "class-transformer";
+import { Exclude, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, buildMessage, IS_DIVISIBLE_BY, IsArray, IsInt, IsNumber, Max, Min, Validate, ValidateBy, ValidateIf } from "class-validator";
 import random from "lodash/random.js";
 
@@ -327,7 +328,7 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 	if (!properties.isResponse) {
 		if (properties.isArray) {
 			decorators.push(
-				Transform(
+				ClassTransformerAutomatorTransform(
 					({ value }: { value: Array<string> | null | string | undefined }) => {
 						if (value === undefined || value === null) {
 							return value;
@@ -340,7 +341,7 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 			);
 		} else {
 			decorators.push(
-				Transform(
+				ClassTransformerAutomatorTransform(
 					({ value }: { value: null | string | undefined }) => {
 						if (value === undefined || value === null) {
 							return value;

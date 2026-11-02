@@ -13,13 +13,14 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
+import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
-import { Exclude, Transform } from "class-transformer";
+import { Exclude } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, buildMessage, IsArray, Validate, ValidateBy, ValidateIf } from "class-validator";
 
 /**
@@ -275,7 +276,7 @@ function buildTransformDecorators(properties: TApiPropertyDateProperties): Array
 		const isArray: boolean = properties.isArray ?? false;
 
 		decorators.push((target: object, propertyKey: string | symbol): void => {
-			Transform(
+			ClassTransformerAutomatorTransform(
 				({ obj, value }: TransformFnParams): unknown => {
 					const sent: unknown = readSentValue(obj, target, propertyKey);
 

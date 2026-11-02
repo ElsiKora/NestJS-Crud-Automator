@@ -12,6 +12,7 @@ import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiRouteType } 
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiRouteResolveDiscriminatedDto, ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { DtoGenerateCacheClassIdentifier } from "@utility/dto/generate/cache-class-identifier.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
@@ -19,7 +20,6 @@ import { DtoGenerateGetListItemsResponse } from "@utility/dto/generate/get-list"
 import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
-import { Transform } from "class-transformer";
 
 // Keyed by root entity class, so a re-evaluated entity module generates its responses again.
 const tableInheritanceResponseCache: WeakMap<ObjectLiteral, Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>> = new WeakMap<ObjectLiteral, Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>>();
@@ -95,7 +95,7 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 	const listResponse: Type<unknown> = DtoGenerateGetListItemsResponse(entity, discriminatedResponse, schemaPrefix, queryPlan);
 
 	// class-transformer falls back to a plain object for an unmapped subtype, so each row is resolved first to fail closed.
-	Transform(
+	ClassTransformerAutomatorTransform(
 		({ key, obj, value }: { key: string; obj: Record<string, ReadonlyArray<unknown>>; value: unknown }): unknown => {
 			for (const item of obj[key] ?? []) {
 				ApiRouteResolveDiscriminatedDto(discriminatedResponse, item, "Table inheritance list response");
