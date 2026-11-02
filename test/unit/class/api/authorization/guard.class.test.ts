@@ -58,8 +58,19 @@ const defineRouteMetadata = (handler: () => void, action: string, routeType?: EA
 };
 
 describe("ApiAuthorizationGuard", () => {
-	it("refuses to be built without the path value rule registry", () => {
-		expect(() => new ApiAuthorizationGuard({} as never, undefined as never)).toThrow("ApiAuthorizationGuard needs ApiAuthorizationParametersRuleRegistry");
+	it("refuses to be built with something other than the path value rule registry", () => {
+		expect(() => new ApiAuthorizationGuard({} as never, {} as never)).toThrow("ApiAuthorizationGuard needs ApiAuthorizationParametersRuleRegistry");
+	});
+
+	it("refuses every securable request when it was built without the path value rule registry, so a missing module fails closed", async () => {
+		const runtime = { evaluate: vi.fn() };
+		const guard = new ApiAuthorizationGuard(runtime as never, undefined as never);
+		const handler = function get() {};
+		const controller = class {};
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
+
+		await expect(guard.canActivate({ getClass: () => controller, getHandler: () => handler, switchToHttp: () => ({ getRequest: () => ({}) }) } as never)).rejects.toThrow("ApiAuthorizationGuard needs ApiAuthorizationParametersRuleRegistry");
+		expect(runtime.evaluate).not.toHaveBeenCalled();
 	});
 
 	it("allows access when controller is not securable", async () => {
