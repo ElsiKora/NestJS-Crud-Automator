@@ -775,6 +775,48 @@ IAM policy documents are validated whenever a document source returns them: inva
 
 This keeps misconfiguration explicit and prevents silent fallback behavior.
 
+## Test Harness
+
+A test that should not evaluate real policies imports `ApiAuthorizationModule` and replaces two of its providers: `ApiAuthorizationBootstrapValidationService` with `{}`, and `ApiAuthorizationRuntime` with an object whose `evaluate` returns a complete `IApiAuthorizationDecision`:
+
+```typescript
+import type { IApiAuthorizationDecision } from "@elsikora/nestjs-crud-automator";
+
+import { ApiAuthorizationBootstrapValidationService, ApiAuthorizationModule, ApiAuthorizationRuntime, ApiSubscriberModule, EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@elsikora/nestjs-crud-automator";
+import { Test } from "@nestjs/testing";
+
+const allowDecision = (): IApiAuthorizationDecision<UserEntity> => ({
+	action: "test",
+	appliedRules: [],
+	effect: EApiPolicyEffect.ALLOW,
+	mode: EApiAuthorizationMode.HOOKS,
+	permissions: [],
+	policyId: "test",
+	policyIds: [],
+	principal: { attributes: {}, id: "test", roles: [], type: EApiAuthorizationPrincipalType.USER },
+	resourceType: "UserEntity",
+	trace: { decisionType: EApiAuthorizationDecisionType.EXPLICIT_ALLOW, mode: EApiAuthorizationMode.HOOKS },
+	transforms: [],
+});
+
+const moduleReference = await Test.createTestingModule({
+	controllers: [UserController],
+	imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
+	providers: [UserService],
+})
+	.overrideProvider(ApiAuthorizationBootstrapValidationService)
+	.useValue({})
+	.overrideProvider(ApiAuthorizationRuntime)
+	.useValue({ evaluate: async () => allowDecision() })
+	.compile();
+```
+
+- Build the decision with the enums, not string literals: `EApiPolicyEffect.ALLOW` is `"Allow"`.
+- Keep `transforms: []`. A generated route runs the `transforms` of the decision on the response, so a decision without them answers `500`.
+- To test a `403`, return `EApiPolicyEffect.DENY` with `EApiAuthorizationDecisionType.EXPLICIT_DENY` in the trace. The guard denies only that effect.
+- Keep the module import. A runtime stubbed as a provider without the module fails `app.init()` with the error that names the controller and `ApiAuthorizationModule`, and leaving the import out of the recipe above fails `compile()` with the Nest dependency error that names `ApiAuthorizationGuard`.
+- Replacing the validation service turns off every startup check, the one for plain routes included, so keep the recipe in tests. A plain route on a securable controller still answers `403`, because the class guard of `@ApiControllerSecurable()` stays on.
+
 ## Migration Notes
 
 When moving from the older authorization API:

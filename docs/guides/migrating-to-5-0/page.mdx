@@ -182,6 +182,25 @@ On a controller decorated with `@ApiControllerSecurable()`, every route Nest ser
 A test harness that stubs `ApiAuthorizationRuntime` without the module is refused too. Import the module and replace the validation service and the runtime:
 
 ```typescript
+import type { IApiAuthorizationDecision } from "@elsikora/nestjs-crud-automator";
+
+import { ApiAuthorizationBootstrapValidationService, ApiAuthorizationModule, ApiAuthorizationRuntime, ApiSubscriberModule, EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@elsikora/nestjs-crud-automator";
+import { Test } from "@nestjs/testing";
+
+const allowDecision = (): IApiAuthorizationDecision<UserEntity> => ({
+	action: "test",
+	appliedRules: [],
+	effect: EApiPolicyEffect.ALLOW,
+	mode: EApiAuthorizationMode.HOOKS,
+	permissions: [],
+	policyId: "test",
+	policyIds: [],
+	principal: { attributes: {}, id: "test", roles: [], type: EApiAuthorizationPrincipalType.USER },
+	resourceType: "UserEntity",
+	trace: { decisionType: EApiAuthorizationDecisionType.EXPLICIT_ALLOW, mode: EApiAuthorizationMode.HOOKS },
+	transforms: [],
+});
+
 const moduleReference = await Test.createTestingModule({
 	controllers: [UserController],
 	imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
@@ -190,9 +209,11 @@ const moduleReference = await Test.createTestingModule({
 	.overrideProvider(ApiAuthorizationBootstrapValidationService)
 	.useValue({})
 	.overrideProvider(ApiAuthorizationRuntime)
-	.useValue({ evaluate: async () => ({ effect: "allow", principal: { id: "test" } }) })
+	.useValue({ evaluate: async () => allowDecision() })
 	.compile();
 ```
+
+The replaced runtime returns a complete `IApiAuthorizationDecision`, with the enums rather than string literals: `EApiPolicyEffect.ALLOW` is `"Allow"`. A generated route runs the `transforms` of the decision on the response, so an object without them, such as `{ effect: "allow", principal: { id: "test" } }`, answers `500`. To test a `403`, return `EApiPolicyEffect.DENY` with `EApiAuthorizationDecisionType.EXPLICIT_DENY` in the trace. See [Authorization: Test Harness](/docs/nestjs-crud-automator/guides/authorization#test-harness).
 
 This turns off every startup check, the one for plain routes included, so keep it in tests. A plain route still answers `403` there, because the class guard of `@ApiControllerSecurable()` stays on.
 
