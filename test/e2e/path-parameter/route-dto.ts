@@ -364,7 +364,7 @@ export const E2E_PATH_PARAMETER_ROUTE_DTO_CASES: Array<IE2ePathParameterRouteDto
 	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: OmittedUuidDto, invalid: ["not-a-uuid"], name: "omitted-uuid", value: DENIED_UUID },
 	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: PartialUuidDto, invalid: ["not-a-uuid"], name: "partial-uuid", value: DENIED_UUID },
 	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: IntersectedUuidDto, invalid: ["not-a-uuid"], name: "intersected-uuid", value: DENIED_UUID },
-	{ allowed: { piped: { id: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00Z" }, denied: [DENIED_AT, "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], dto: PickedMomentDto, invalid: ["garbage"], name: "picked-moment", value: DENIED_AT },
+	{ allowed: { piped: { id: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00.000Z" }, denied: [DENIED_AT], dto: PickedMomentDto, invalid: ["garbage", "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], name: "picked-moment", value: DENIED_AT },
 	{ allowed: { piped: { id: 17 }, raw: { id: "17" }, sent: "0x11" }, denied: ["16", "016", "0x10", "1.6e1"], dto: IsIntTypeDto, invalid: ["abc", "1.5"], name: "is-int-type", value: "16" },
 	{ allowed: { piped: { id: 17 }, pipes: TEXT_REJECTED_PIPES, raw: { id: "17" }, sent: "017" }, denied: ["16", "016", "0x10", "1.6e1"], dto: IsIntOnlyDto, invalid: ["abc", "1.5"], name: "is-int-only", value: "16" },
 	{ allowed: { piped: { id: "xyz" }, raw: { id: "xyz" }, sent: "XYZ" }, denied: ["abc", "ABC"], dto: LowerCasedStringDto, invalid: ["toolongvalue"], name: "lower-cased-string", value: "abc" },

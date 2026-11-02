@@ -79,7 +79,7 @@ const PROVIDERS: Array<new () => unknown> = [E2ePathParameterIntItemService, E2e
 const NOT_UUID_MESSAGE: (property: string) => string = (property: string): string => `${property} must be a UUID`;
 const NOT_INTEGER_MESSAGE: (property: string) => string = (property: string): string => `${property} must be an integer number`;
 const TOO_LARGE_MESSAGE: (property: string) => string = (property: string): string => `${property} must not be greater than ${String(E2E_PATH_PARAMETER_INT_MAXIMUM)}`;
-const NOT_DATE_MESSAGE: (property: string) => string = (property: string): string => `${property} must be a valid ISO 8601 date string`;
+const NOT_DATE_MESSAGE: (property: string) => string = (property: string): string => `${property} must be in YYYY-MM-DD format`;
 
 const buildRowCases = (resource: string, value: string, message: string): Array<IPathParameterCase> => [
 	{ message, method: "GET", name: `GET /${resource}/${value}`, url: `/path-parameter/${resource}/${value}` },

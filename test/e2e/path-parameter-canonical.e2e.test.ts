@@ -222,18 +222,18 @@ describe.each([
 		await container?.stop();
 	});
 
-	it("gives IAM the ISO 8601 UTC text of a DATE_TIME path value", async () => {
+	it("gives IAM the ISO 8601 UTC text of a DATE_TIME path value, and refuses another spelling of it", async () => {
 		await expectStatus(`/path-parameter/canonical/dt-deny/${E2E_PATH_PARAMETER_CANONICAL_AT}/items/1`, HttpStatus.FORBIDDEN);
-		await expectStatus(`/path-parameter/canonical/dt-deny/${AT_WITHOUT_MILLISECONDS}/items/1`, HttpStatus.FORBIDDEN);
+		await expectStatus(`/path-parameter/canonical/dt-deny/${AT_WITHOUT_MILLISECONDS}/items/1`, HttpStatus.BAD_REQUEST);
 		await expectStatus(`/path-parameter/canonical/dt-deny/${OTHER_AT}/items/2`, HttpStatus.OK);
 		await expectStatus(`/path-parameter/canonical/dt-res/${E2E_PATH_PARAMETER_CANONICAL_AT}/items/1`, HttpStatus.FORBIDDEN);
-		await expectStatus(`/path-parameter/canonical/dt-res/${AT_WITHOUT_MILLISECONDS}/items/1`, HttpStatus.FORBIDDEN);
+		await expectStatus(`/path-parameter/canonical/dt-res/${AT_WITHOUT_MILLISECONDS}/items/1`, HttpStatus.BAD_REQUEST);
 		await expectStatus(`/path-parameter/canonical/dt-res/${OTHER_AT}/items/2`, HttpStatus.OK);
 	});
 
 	it("matches the resource recipe on a DATE_TIME path value", async () => {
 		expect(await expectStatus(`/path-parameter/canonical/dt-recipe/${E2E_PATH_PARAMETER_CANONICAL_AT}/items/1`, HttpStatus.OK)).toMatchObject({ id: 1, label: "first" });
-		expect(await expectStatus(`/path-parameter/canonical/dt-recipe/${AT_WITHOUT_MILLISECONDS}/items/1`, HttpStatus.OK)).toMatchObject({ id: 1 });
+		await expectStatus(`/path-parameter/canonical/dt-recipe/${AT_WITHOUT_MILLISECONDS}/items/1`, HttpStatus.BAD_REQUEST);
 		await expectStatus(`/path-parameter/canonical/dt-recipe/${OTHER_AT}/items/1`, HttpStatus.NOT_FOUND);
 	});
 

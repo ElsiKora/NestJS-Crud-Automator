@@ -1092,7 +1092,7 @@ describe("CRUD routes (E2E)", () => {
 		expect(response.json().message).toBe(errorCode);
 	});
 
-	it("rejects a null inherited route parameter with PARAMETERS_NOT_VALID", async () => {
+	it("rejects a null route parameter a transformer writes with the column rule body", async () => {
 		const response = await fastify.inject({
 			headers: adminHeaders,
 			method: "GET",
@@ -1100,7 +1100,7 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(response.json().message).toBe("PARAMETERS_NOT_VALID");
+		expect(response.json()).toMatchObject({ error: "Bad Request", message: expect.arrayContaining(["ownerId must be a string"]), statusCode: HttpStatus.BAD_REQUEST });
 	});
 
 	it("rejects a malformed relation reference with the entity REFERENCE_NOT_VALID code", async () => {
