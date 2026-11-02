@@ -212,7 +212,8 @@ describe.each([
 		beforeAll(async () => {
 			const entities: Array<new () => unknown> = [E2eListHiddenOwnerEntity, E2eListHiddenItemEntity];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eListHiddenItemController, E2eListHiddenTypedItemController, E2eListHiddenCursorItemController, E2eListHiddenManualResponseItemController],
+				// A CURSOR route boots only against PostgreSQL.
+				controllers: [E2eListHiddenItemController, E2eListHiddenTypedItemController, ...(isPostgres ? [E2eListHiddenCursorItemController] : []), E2eListHiddenManualResponseItemController],
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListHiddenItemPolicy, E2eListHiddenItemService, E2eListHiddenUserGuard],
 			}).compile();
