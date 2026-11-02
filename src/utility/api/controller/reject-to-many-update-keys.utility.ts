@@ -1,6 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type } from "@nestjs/common";
-import type { TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
+import type { TTypeOrmRelationMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
 import type { DeepPartial } from "typeorm";
 
 import { EErrorStringAction } from "@enum/utility";
@@ -12,8 +12,8 @@ import { getMetadataArgsStorage } from "typeorm";
 
 const TO_MANY_UPDATE_REJECTION_REASON: string = "to-many reference is not allowed on update";
 
-/** To-many paths per route entity class, split into segments; TypeORM metadata no longer changes once the app has bootstrapped. */
-const TO_MANY_PATHS_BY_ENTITY: WeakMap<IApiBaseEntity, ReadonlyArray<ReadonlyArray<string>>> = new WeakMap<IApiBaseEntity, ReadonlyArray<ReadonlyArray<string>>>();
+/** To-many paths per route entity class, split into segments, with the TypeORM table and relation counts they were read at. */
+const TO_MANY_PATHS_BY_ENTITY: WeakMap<IApiBaseEntity, { paths: ReadonlyArray<ReadonlyArray<string>>; relationCount: number; tableCount: number }> = new WeakMap<IApiBaseEntity, { paths: ReadonlyArray<ReadonlyArray<string>>; relationCount: number; tableCount: number }>();
 
 /**
  * Rejects an UPDATE or PARTIAL_UPDATE body, generated or custom, that carries a to-many relation key, `null` included.
@@ -76,15 +76,17 @@ function collectToManyPaths(target: unknown, prefix: Array<string>, visiting: Se
 }
 
 /**
- * Returns the to-many paths of an entity class and every `@ChildEntity` that extends it, read from TypeORM on first use and cached per class.
+ * Returns the to-many paths of an entity class and every `@ChildEntity` that extends it, cached per class.
+ * The cache is read again when TypeORM has registered a table or a relation since, such as a child entity imported after the first request.
  * @param {IApiBaseEntity} entity - Entity class of the route.
  * @returns {ReadonlyArray<ReadonlyArray<string>>} Property paths split into segments.
  */
 function getToManyPaths(entity: IApiBaseEntity): ReadonlyArray<ReadonlyArray<string>> {
-	const cachedPaths: ReadonlyArray<ReadonlyArray<string>> | undefined = TO_MANY_PATHS_BY_ENTITY.get(entity);
+	const { relations, tables }: { relations: Array<TTypeOrmRelationMetadataArguments>; tables: Array<TTypeOrmTableMetadataArguments> } = getMetadataArgsStorage();
+	const cached: { paths: ReadonlyArray<ReadonlyArray<string>>; relationCount: number; tableCount: number } | undefined = TO_MANY_PATHS_BY_ENTITY.get(entity);
 
-	if (cachedPaths) {
-		return cachedPaths;
+	if (cached?.relationCount === relations.length && cached.tableCount === tables.length) {
+		return cached.paths;
 	}
 
 	const toManyPaths: Set<string> = new Set<string>();
@@ -95,7 +97,7 @@ function getToManyPaths(entity: IApiBaseEntity): ReadonlyArray<ReadonlyArray<str
 
 	const paths: ReadonlyArray<ReadonlyArray<string>> = [...toManyPaths].map((path: string): ReadonlyArray<string> => path.split("."));
 
-	TO_MANY_PATHS_BY_ENTITY.set(entity, paths);
+	TO_MANY_PATHS_BY_ENTITY.set(entity, { paths, relationCount: relations.length, tableCount: tables.length });
 
 	return paths;
 }
