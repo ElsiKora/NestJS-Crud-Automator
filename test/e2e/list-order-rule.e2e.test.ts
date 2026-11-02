@@ -15,7 +15,21 @@ import { DataSource } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eListOrderRuleAllowHiddenItemController, E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleDefaultOrderItemController, E2eListOrderRuleItemController, E2eListOrderRuleItemEntity, E2eListOrderRuleItemService, E2eListOrderRuleManualItemController, E2eListOrderRuleOwnerEntity, E2eListOrderRulePlainCustomController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController } from "./list-order-rule";
+import {
+	E2eListOrderRuleAliasDefaultItemController,
+	E2eListOrderRuleAliasItemController,
+	E2eListOrderRuleAllowHiddenItemController,
+	E2eListOrderRuleDefaultDirectionItemController,
+	E2eListOrderRuleDefaultOrderItemController,
+	E2eListOrderRuleItemController,
+	E2eListOrderRuleItemEntity,
+	E2eListOrderRuleItemService,
+	E2eListOrderRuleManualItemController,
+	E2eListOrderRuleOwnerEntity,
+	E2eListOrderRulePlainCustomController,
+	E2eListOrderRuleTypedItemController,
+	E2eListOrderRuleVariantController,
+} from "./list-order-rule";
 
 class ListOrderRuleLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -49,6 +63,8 @@ const ITEMS: string = "/list-order-rule/items";
 const TYPED_ITEMS: string = "/list-order-rule/typed-items";
 const MANUAL_ITEMS: string = "/list-order-rule/manual-items";
 const DEFAULT_DIRECTION_ITEMS: string = "/list-order-rule/default-direction-items";
+const ALIAS_ITEMS: string = "/list-order-rule/alias-items";
+const ALIAS_DEFAULT_ITEMS: string = "/list-order-rule/alias-default-items";
 
 describe.each([
 	{ databaseName: "SQLite", isPostgres: false },
@@ -76,7 +92,7 @@ describe.each([
 			const entities: Array<new () => unknown> = [E2eListOrderRuleItemEntity, E2eListOrderRuleOwnerEntity];
 			const connection = { dropSchema: true, entities, logger: queryLogger, logging: true, synchronize: true } as const;
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eListOrderRuleAllowHiddenItemController, E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleDefaultOrderItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRulePlainCustomController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController],
+				controllers: [E2eListOrderRuleAliasDefaultItemController, E2eListOrderRuleAliasItemController, E2eListOrderRuleAllowHiddenItemController, E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleDefaultOrderItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRulePlainCustomController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController],
 				imports: [TypeOrmModule.forRoot(container ? { ...connection, type: "postgres", url: container.getConnectionUri() } : { ...connection, database: ":memory:", type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListOrderRuleItemService],
 			}).compile();
@@ -144,6 +160,39 @@ describe.each([
 
 		it("orders a manual QUERY DTO by an orderable field", async () => {
 			expect(await listLabels(`${MANUAL_ITEMS}?${PAGE}&orderBy=rank&orderDirection=asc`)).toEqual(["Beta", "Alpha", "Gamma", "Delta"]);
+		});
+
+		it.each(["secret", "missing", "owner", "owner.level"])("rejects an aliased orderBy of %s on a manual QUERY DTO without any query", async (field: string) => {
+			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&sort=${field}&dir=asc`)).toContain("INVALID_ORDER");
+		});
+
+		it("rejects the property name of an aliased orderBy on a hidden field without any query", async () => {
+			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("INVALID_ORDER");
+		});
+
+		it("orders by an orderable field through the aliases of a manual QUERY DTO", async () => {
+			expect(await listLabels(`${ALIAS_ITEMS}?${PAGE}&sort=rank&dir=asc`)).toEqual(["Beta", "Alpha", "Gamma", "Delta"]);
+			expect(await listLabels(`${ALIAS_ITEMS}?${PAGE}&sort=rank&dir=desc`)).toEqual(["Delta", "Gamma", "Alpha", "Beta"]);
+		});
+
+		it.each(["ASC", "nope", "asc,desc"])("rejects an aliased orderDirection of %s without any query", async (direction: string) => {
+			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&sort=rank&dir=${direction}`)).toContain("INVALID_ORDER");
+		});
+
+		it.each(["sort=rank", "dir=asc"])("rejects %s alone through the aliases of a manual QUERY DTO", async (order: string) => {
+			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&${order}`)).toContain("INVALID_ORDER");
+		});
+
+		it("rejects an orderDirection a manual QUERY DTO leaves unchecked without any query", async () => {
+			expect(await expectRejected(`${MANUAL_ITEMS}?${PAGE}&orderBy=rank&orderDirection=ASC`)).toContain("INVALID_ORDER");
+		});
+
+		it("keeps the class default of an aliased order as the route's own order, which a client cannot name", async () => {
+			expect(await listLabels(`${ALIAS_DEFAULT_ITEMS}?${PAGE}`)).toEqual(["Beta", "Gamma", "Alpha", "Delta"]);
+			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret&dir=asc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("INVALID_ORDER");
+			expect(await listLabels(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=rank&dir=desc`)).toEqual(["Delta", "Gamma", "Alpha", "Beta"]);
 		});
 
 		it("keeps a manual QUERY DTO class default as the route's own order, which a client cannot name", async () => {
