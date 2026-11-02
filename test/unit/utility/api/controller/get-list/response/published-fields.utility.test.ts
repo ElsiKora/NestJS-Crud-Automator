@@ -92,6 +92,6 @@ describe("ApiControllerGetListResponsePublishedFields", () => {
 		const dto = DtoGenerate(PublishedFieldEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "PublishedFieldDto", undefined, undefined, undefined, undefined, undefined, UndocumentedListDto) as new () => object;
 		const errors = await validate(plainToInstance(dto, { limit: 1, orderBy: "label", orderDirection: "asc", page: 1 }), { forbidUnknownValues: false });
 
-		expect(errors.map((error) => error.property)).toEqual(["orderBy"]);
+		expect(errors.map((error) => error.property)).toEqual(["orderBy", "orderDirection"]);
 	});
 });

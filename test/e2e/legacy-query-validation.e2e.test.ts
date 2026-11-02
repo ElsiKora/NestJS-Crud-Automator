@@ -14,7 +14,22 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eLegacyQueryCursorItemController, E2eLegacyQueryCustomSlimItemController, E2eLegacyQueryItemController, E2eLegacyQueryItemEntity, E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryTypedSlimItemController, EE2eLegacyQueryStatus } from "./legacy-query";
+import {
+	E2eLegacyQueryCursorItemController,
+	E2eLegacyQueryCustomSlimItemController,
+	E2eLegacyQueryItemController,
+	E2eLegacyQueryItemEntity,
+	E2eLegacyQueryItemService,
+	E2eLegacyQueryItemSubscriber,
+	E2eLegacyQueryManualItemController,
+	E2eLegacyQueryOrderOnlyItemController,
+	E2eLegacyQuerySlimItemController,
+	E2eLegacyQuerySummaryItemController,
+	E2eLegacyQueryTypedItemController,
+	E2eLegacyQueryTypedSlimItemController,
+	E2eLegacyQueryTypedSummaryItemController,
+	EE2eLegacyQueryStatus,
+} from "./legacy-query";
 
 class LegacyQueryLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -59,6 +74,7 @@ const LIMIT_TYPE_MESSAGES: Array<string> = ["limit must be an integer number", "
 const PAGE_TYPE_MESSAGES: Array<string> = ["page must be an integer number", "page must not be less than 1", "page must not be greater than 100", "page must be divisible by 1"];
 const RANK_OPERATOR_MESSAGE: string = "rank[operator] must be one of the following values: between, eq, gt, gte, in, isnull, lt, lte, ne, notin, notnull";
 
+const NO_ORDER_MESSAGE: (property: string) => string = (property: string): string => `${property} is not accepted because no field of this route is orderable`;
 const BETWEEN_MESSAGE: (group: string) => string = (group: string): string => `group "${group}" with between operation requires exactly 2 values`;
 
 const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
@@ -143,7 +159,7 @@ describe.each([
 		beforeAll(async () => {
 			const entities: Array<new () => unknown> = [E2eLegacyQueryItemEntity];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eLegacyQueryCustomSlimItemController, E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryCursorItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedSlimItemController],
+				controllers: [E2eLegacyQueryCustomSlimItemController, E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryCursorItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedSlimItemController, E2eLegacyQuerySummaryItemController, E2eLegacyQueryTypedSummaryItemController],
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber],
 			}).compile();
@@ -248,6 +264,27 @@ describe.each([
 			// A custom route leaves query validation to the host pipe, as before.
 			expect(rank.json()).toEqual(createPipe ? { error: "Bad Request", message: [SLIM_ORDER_BY_MESSAGE], statusCode: HttpStatus.BAD_REQUEST } : { count: 0, currentPage: 1, items: [], totalCount: 0, totalPages: 0 });
 			expect(label.statusCode, JSON.stringify(label.json())).toBe(HttpStatus.OK);
+		});
+
+		it("publishes no order parameters and refuses any order when nothing is orderable", async () => {
+			const document: OpenAPIObject = SwaggerModule.createDocument(app as INestApplication, new DocumentBuilder().build());
+
+			for (const path of ["/legacy-query/summary-items", "/legacy-query/typed-summary-items"]) {
+				const parameterNames: Array<string> = ((document.paths[path]?.get?.parameters ?? []) as Array<{ name: string }>).map((parameter: { name: string }): string => parameter.name);
+
+				expect(parameterNames).toEqual(expect.arrayContaining(["limit", "page"]));
+				expect(parameterNames).not.toContain("orderBy");
+				expect(parameterNames).not.toContain("orderDirection");
+				expect((await fastify.inject({ method: "GET", url: `${path}?${PAGE}` })).statusCode).toBe(HttpStatus.OK);
+			}
+
+			queryLogger.queries.length = 0;
+			await expectRejected(`/legacy-query/summary-items?${PAGE}&orderBy=label&orderDirection=asc`, [NO_ORDER_MESSAGE("orderBy"), NO_ORDER_MESSAGE("orderDirection")]);
+			await expectRejected(`/legacy-query/summary-items?${PAGE}&orderBy=`, [NO_ORDER_MESSAGE("orderBy")]);
+			const typed = await fastify.inject({ method: "GET", url: `/legacy-query/typed-summary-items?${PAGE}&orderBy=label&orderDirection=asc` });
+
+			expect(typed.json()).toEqual({ error: "Bad Request", message: createPipe ? [NO_ORDER_MESSAGE("orderBy"), NO_ORDER_MESSAGE("orderDirection")] : "INVALID_ORDER", statusCode: HttpStatus.BAD_REQUEST });
+			expect(queryLogger.queries).toEqual([]);
 		});
 
 		it("applies one membership rule and an exact between pair on the typed route", async () => {

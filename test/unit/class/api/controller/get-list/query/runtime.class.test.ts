@@ -967,7 +967,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 2, page: 1 }, plan)).toThrow("INVALID_CURSOR");
 	});
 
-	it("omits generated client-order controls when a CURSOR plan enables no client order fields", async () => {
+	it("omits generated client-order controls and refuses client order when a CURSOR plan enables no client order fields", async () => {
 		const plan = compileCursorPlan({ fields: {} });
 		const cursorEntityMetadata = GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity);
 		const baseDto = DtoGetGetListQueryBaseClass(CursorQueryEntity, cursorEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController", plan);
@@ -993,8 +993,9 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(Reflect.hasMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "orderDirection")).toBe(false);
 		expect(swaggerProperties).not.toContain(":orderBy");
 		expect(swaggerProperties).not.toContain(":orderDirection");
-		expect(validationMetadata.some((metadata): boolean => metadata.propertyName === "orderBy" || metadata.propertyName === "orderDirection" || (metadata.propertyName === "object" && metadata.constraints?.[0] === "orderBy" && metadata.constraints?.[1] === "orderDirection"))).toBe(false);
+		expect(validationMetadata.some((metadata): boolean => metadata.propertyName === "object" && metadata.constraints?.[0] === "orderBy" && metadata.constraints?.[1] === "orderDirection")).toBe(false);
 		expect(await validate(instance)).toHaveLength(0);
+		expect((await validate(Object.assign(new (dto as new () => Record<string, unknown>)(), { limit: 2, orderBy: "rank", orderDirection: "asc" }))).map((error): string => error.property)).toEqual(["orderBy", "orderDirection"]);
 		expect(result.orderBy).toBeUndefined();
 		expect(result.orderDirection).toBeUndefined();
 		expect(result.order).toEqual([

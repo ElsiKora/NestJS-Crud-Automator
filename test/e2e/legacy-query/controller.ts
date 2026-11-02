@@ -198,3 +198,40 @@ export class E2eLegacyQueryCustomSlimItemController {
 		return { count: 0, currentPage: Number(query.page), items: [], totalCount: 0, totalPages: 0 };
 	}
 }
+
+export class E2eLegacyQuerySummaryItemDto {
+	@ApiProperty()
+	@Expose()
+	public summary!: string;
+}
+
+@ApiController<E2eLegacyQueryItemEntity>({
+	entity: E2eLegacyQueryItemEntity,
+	name: "E2eLegacyQuerySummaryItems",
+	path: "legacy-query/summary-items",
+	routes: {
+		...disabledRoutes,
+		[EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: { itemType: E2eLegacyQuerySummaryItemDto } } },
+	},
+})
+export class E2eLegacyQuerySummaryItemController {
+	@Inject(E2eLegacyQueryItemService)
+	public readonly service!: E2eLegacyQueryItemService;
+}
+
+@ApiController<E2eLegacyQueryItemEntity>({
+	entity: E2eLegacyQueryItemEntity,
+	name: "E2eLegacyQueryTypedSummaryItems",
+	path: "legacy-query/typed-summary-items",
+	routes: {
+		...disabledRoutes,
+		[EApiRouteType.GET_LIST]: {
+			dto: { [EApiDtoType.RESPONSE]: { itemType: E2eLegacyQuerySummaryItemDto } },
+			request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } },
+		},
+	},
+})
+export class E2eLegacyQueryTypedSummaryItemController {
+	@Inject(E2eLegacyQueryItemService)
+	public readonly service!: E2eLegacyQueryItemService;
+}
