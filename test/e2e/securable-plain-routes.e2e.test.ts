@@ -8,7 +8,7 @@ import type { AddressInfo } from "node:net";
 import type { Observable } from "rxjs";
 import type { Socket } from "socket.io-client";
 
-import type { IApiAuthorizationPolicySubscriberContext } from "../../src/index";
+import type { IApiAuthorizationDecision, IApiAuthorizationPolicySubscriberContext } from "../../src/index";
 
 import { All, Controller, Get, Head, HttpStatus, Inject, Injectable, Module, Options, Post, Redirect, RequestMethod, Scope, Search, Sse, UseGuards, Version } from "@nestjs/common";
 import { PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
@@ -25,7 +25,30 @@ import { io } from "socket.io-client";
 import { Column, Entity, PrimaryColumn, Repository } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiAuthorizationBootstrapValidationService, ApiAuthorizationGuard, ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiAuthorizationRuntime, ApiController, ApiControllerSecurable, ApiMethod, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, ApiSubscriberModule, EApiAuthorizationMode, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType, METHOD_API_DECORATOR_CONSTANT } from "../../src/index";
+import {
+	ApiAuthorizationBootstrapValidationService,
+	ApiAuthorizationGuard,
+	ApiAuthorizationModule,
+	ApiAuthorizationPolicy,
+	ApiAuthorizationPolicyBase,
+	ApiAuthorizationRuntime,
+	ApiController,
+	ApiControllerSecurable,
+	ApiMethod,
+	ApiPropertyDescribe,
+	ApiRouteCustom,
+	ApiService,
+	ApiServiceBase,
+	ApiSubscriberModule,
+	EApiAuthorizationDecisionType,
+	EApiAuthorizationMode,
+	EApiAuthorizationPrincipalType,
+	EApiPolicyEffect,
+	EApiPropertyDescribeType,
+	EApiPropertyStringType,
+	EApiRouteType,
+	METHOD_API_DECORATOR_CONSTANT,
+} from "../../src/index";
 
 @Entity("securable_plain_route_items")
 class SecurablePlainRouteItemEntity {
@@ -1344,7 +1367,29 @@ describe("Served routes of securable controllers (E2E)", () => {
 
 	describe("a test harness that replaces the startup validation and the runtime", () => {
 		it("serves a declared route with the stubbed runtime", async () => {
-			const application: INestApplication = await bootWithoutStartupValidation([DeclaredRoutesController], [[ApiAuthorizationRuntime, { evaluate: async () => ({ effect: "allow", principal: { id: "test" } }) }]]);
+			const application: INestApplication = await bootWithoutStartupValidation(
+				[DeclaredRoutesController],
+				[
+					[
+						ApiAuthorizationRuntime,
+						{
+							evaluate: async (): Promise<IApiAuthorizationDecision<SecurablePlainRouteItemEntity>> => ({
+								action: "test",
+								appliedRules: [],
+								effect: EApiPolicyEffect.ALLOW,
+								mode: EApiAuthorizationMode.HOOKS,
+								permissions: [],
+								policyId: "test",
+								policyIds: [],
+								principal: { attributes: {}, id: "test", roles: [], type: EApiAuthorizationPrincipalType.USER },
+								resourceType: "SecurablePlainRouteItemEntity",
+								trace: { decisionType: EApiAuthorizationDecisionType.EXPLICIT_ALLOW, mode: EApiAuthorizationMode.HOOKS },
+								transforms: [],
+							}),
+						},
+					],
+				],
+			);
 
 			expect((await request(application, "POST", "/declared/denied")).status).toBe(HttpStatus.OK);
 		});
