@@ -83,10 +83,11 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	/**
 	 * Fails startup when a generated CREATE could never succeed, instead of failing every request.
 	 * @param {Repository<E>} repository - Repository of the controller's service.
+	 * @param {boolean} isSecurable - Whether the route runs under authorization.
 	 * @returns {void}
 	 * @throws {Error} When the route cannot own a transaction or cannot identify the row it creates.
 	 */
-	assertCreateRoute(repository: Repository<E>): void {
+	assertCreateRoute(repository: Repository<E>, isSecurable: boolean): void {
 		if (!this.isMethodGenerated(EApiRouteType.CREATE)) {
 			return;
 		}
@@ -97,7 +98,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			throw ErrorException(`${source} cannot use transaction mode NONE, because a generated create checks the stored row before it commits`);
 		}
 
-		ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, source);
+		ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, source, isSecurable);
 	}
 
 	/**
@@ -334,7 +335,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			ApiControllerAssertRouteRelationLoads(repository, this.properties.routes[routeType], `Controller "${this.target.name}" route "${routeType}"`);
 		}
 
-		this.assertCreateRoute(repository);
+		this.assertCreateRoute(repository, Boolean(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, controller.constructor)));
 		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
 		ApiControllerAssertRouteFunctions(this.properties, Reflect.get(controller, "service") as object, this.target.name);
 	}

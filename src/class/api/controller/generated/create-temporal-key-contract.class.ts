@@ -29,24 +29,45 @@ const DECIMAL_BASE: number = 10;
 // Drivers that read back a date and time primary key the database fills, proven by the temporal primary key matrix.
 const FILLED_KEY_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["cockroachdb", "mariadb", "postgres"]);
 
+// Column types without a declared default precision that still cannot store a finer value than a Date holds.
+const MILLISECOND_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["datetime", "smalldatetime"]);
+
 /**
  * Parses the date and time primary key values of a create body once, so the row the create writes and the key that identifies it hold the same value.
  * A value the column cannot store exactly is refused before the insert, because the stored key would no longer match it.
  */
 export class ApiControllerGeneratedCreateTemporalKeyContract {
 	/**
-	 * Fails when the database fills a date and time primary column on a driver that cannot read that value back, because the create could not tell which row it stored.
-	 * A key the body supplies is known without reading it back, so it works on every driver.
+	 * Fails when the create could not tell which row it stored, because the database fills a date and time primary column on a driver that cannot read that value back.
+	 * Under authorization it also fails for a date and time primary column that can hold a value finer than a millisecond: a Date cannot tell such rows apart, so the scope could be checked against another row of the same millisecond.
+	 * A key the body supplies is known without reading it back, so without authorization it works on every driver.
 	 * @template E The entity type
 	 * @param {Repository<E> | undefined} repository - Repository of the created entity; nothing is checked without one.
 	 * @param {string} source - Controller route named in the error.
-	 * @throws {Error} When the database fills a date and time primary column of an unsupported driver.
+	 * @param {boolean} isSecurable - Whether the route runs under authorization.
+	 * @throws {Error} When a date and time primary column cannot identify the created row.
 	 */
-	public static assertIdentifiable<E extends IApiBaseEntity>(repository: Repository<E> | undefined, source: string): void {
-		const column: TTypeOrmColumnMetadata | undefined = repository?.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => this.isDateTime(repository.manager.dataSource.driver.normalizeType(primaryColumn)) && this.isFilledByDatabase(primaryColumn));
+	public static assertIdentifiable<E extends IApiBaseEntity>(repository: Repository<E> | undefined, source: string, isSecurable: boolean): void {
+		if (!repository) {
+			return;
+		}
 
-		if (repository && column && !FILLED_KEY_DRIVER_TYPES.has(repository.manager.dataSource.options.type)) {
-			throw ErrorException(`${source} cannot identify the row it creates: the database fills date and time primary column ${column.propertyName} of ${repository.metadata.name}, and the ${repository.manager.dataSource.options.type} driver cannot read that value back; send the key in the body or use one of ${[...FILLED_KEY_DRIVER_TYPES].join(", ")}`);
+		const { driver, options }: Repository<E>["manager"]["dataSource"] = repository.manager.dataSource;
+
+		for (const column of repository.metadata.primaryColumns) {
+			const columnType: string = driver.normalizeType(column);
+
+			if (!this.isDateTime(columnType)) {
+				continue;
+			}
+
+			if (this.isFilledByDatabase(column) && !FILLED_KEY_DRIVER_TYPES.has(options.type)) {
+				throw ErrorException(`${source} cannot identify the row it creates: the database fills date and time primary column ${column.propertyName} of ${repository.metadata.name}, and the ${options.type} driver cannot read that value back; send the key in the body or use one of ${[...FILLED_KEY_DRIVER_TYPES].join(", ")}`);
+			}
+
+			if (isSecurable && this.holdsFinerThanDate(driver, column, columnType, options.type)) {
+				throw ErrorException(`${source} cannot identify the row it creates under authorization: date and time primary column ${column.propertyName} of ${repository.metadata.name} can hold values finer than a millisecond, which a JavaScript Date cannot tell apart, so the scope could be checked against another row; declare it with precision: ${String(DATE_FRACTION_DIGITS)}`);
+			}
 		}
 	}
 
@@ -92,7 +113,7 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 			const isInstant: boolean = DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
 			// Every other column stores the local wall clock of the Date, which the second occurrence of a repeated hour shares with the first, so one key would name the row of the other.
 			const isWallClock: boolean = !isInstant && !DATABASE_DRIVER_TYPE_CONSTANT.SQLITE_FAMILY.has(repository.manager.dataSource.options.type);
-			const message: string | undefined = this.check(column.propertyName, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType), DATE_FRACTION_DIGITS)) ?? (isWallClock && date && this.isRepeatedHour(date) ? `${column.propertyName} falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first` : undefined);
+			const message: string | undefined = this.check(column.propertyName, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType) ?? DATE_FRACTION_DIGITS, DATE_FRACTION_DIGITS)) ?? (isWallClock && date && this.isRepeatedHour(date) ? `${column.propertyName} falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first` : undefined);
 
 			if (message) {
 				messages.push(message);
@@ -122,9 +143,19 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 		return isStorable ? undefined : `${property} must not hold more than ${fractionDigits} fractional second digits`;
 	}
 
-	private static getPrecision(driver: Driver, column: TTypeOrmColumnMetadata, columnType: string): number {
-		// A column without a declared or default precision stores what the driver writes from a Date.
-		return column.precision ?? driver.dataTypeDefaults?.[columnType]?.precision ?? DATE_FRACTION_DIGITS;
+	private static getPrecision(driver: Driver, column: TTypeOrmColumnMetadata, columnType: string): number | undefined {
+		return column.precision ?? driver.dataTypeDefaults?.[columnType]?.precision ?? undefined;
+	}
+
+	private static holdsFinerThanDate(driver: Driver, column: TTypeOrmColumnMetadata, columnType: string, driverType: string): boolean {
+		const precision: number | undefined = this.getPrecision(driver, column, columnType);
+
+		if (precision !== undefined) {
+			return precision > DATE_FRACTION_DIGITS;
+		}
+
+		// SQLite stores the text of a Date; every other driver with no known default, such as CockroachDB, keeps a finer fraction.
+		return !DATABASE_DRIVER_TYPE_CONSTANT.SQLITE_FAMILY.has(driverType) && !MILLISECOND_COLUMN_TYPES.has(columnType);
 	}
 
 	private static isFilledByDatabase(column: TTypeOrmColumnMetadata): boolean {

@@ -43,7 +43,7 @@ import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
 import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
-import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
+import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { PATH_PARAMETER_FAILURE_CONSTANT } from "@constant/path-parameter-failure.constant";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
@@ -348,7 +348,7 @@ export class ApiRouteRuntime {
 				const isScopedWrite: boolean = scopeWhere !== undefined && Object.keys(scopeWhere).length > 0;
 				const repository: Repository<E> | undefined = options.controller.service.repository;
 				// Request-scoped controllers never reach the startup hook that refuses this.
-				ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, `Controller "${options.controller.constructor.name}" route "${options.method}"`);
+				ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, `Controller "${options.controller.constructor.name}" route "${options.method}"`, Boolean(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, options.controller.constructor)));
 				ApiControllerGeneratedCreateTemporalKeyContract.parse(repository, targets.body);
 
 				return await this.executeGeneratedTransaction(

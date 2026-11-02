@@ -213,12 +213,12 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 
 		it.each(FILLED_COLUMNS)("refuses a key filled by %s on a driver that cannot read it back", (_name: string, column: ITemporalKeyColumn) => {
 			for (const driverType of ["better-sqlite3", "mysql", "mssql"]) {
-				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType), SOURCE)).toThrow(`${SOURCE} cannot identify the row it creates: the database fills date and time primary column at of TemporalKeyEntity, and the ${driverType} driver cannot read that value back; send the key in the body or use one of cockroachdb, mariadb, postgres`);
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType), SOURCE, false)).toThrow(`${SOURCE} cannot identify the row it creates: the database fills date and time primary column at of TemporalKeyEntity, and the ${driverType} driver cannot read that value back; send the key in the body or use one of cockroachdb, mariadb, postgres`);
 			}
 		});
 
 		it.each([["cockroachdb"], ["mariadb"], ["postgres"]])("accepts a key the database fills on %s", (driverType: string) => {
-			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([{ ...INSTANT, isCreateDate: true }], driverType), SOURCE)).not.toThrow();
+			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([{ ...INSTANT, isCreateDate: true }], driverType), SOURCE, false)).not.toThrow();
 		});
 
 		it.each([
@@ -228,7 +228,7 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 			["a date primary key with a default", { default: "2024-01-02", propertyName: "day", type: "date" }],
 		])("accepts %s on every driver", (_name: string, column: ITemporalKeyColumn) => {
 			for (const driverType of ["better-sqlite3", "mysql", "mssql"]) {
-				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType), SOURCE)).not.toThrow();
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType), SOURCE, false)).not.toThrow();
 			}
 		});
 
@@ -243,12 +243,63 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 						"mysql",
 					),
 					SOURCE,
+					false,
 				),
 			).toThrow("primary column at of");
 		});
 
+		describe("under authorization", () => {
+			const TIMESTAMP_DEFAULTS: Record<string, { precision?: number }> = { timestamp: { precision: 6 }, timestamptz: { precision: 6 } };
+			const FINER_MESSAGE: string = `${SOURCE} cannot identify the row it creates under authorization: date and time primary column at of TemporalKeyEntity can hold values finer than a millisecond`;
+
+			it.each([
+				["a declared precision of 6", { ...INSTANT, precision: 6 }, "postgres", TIMESTAMP_DEFAULTS],
+				["the PostgreSQL default", INSTANT, "postgres", TIMESTAMP_DEFAULTS],
+				["a filled key at the PostgreSQL default", { ...INSTANT, isCreateDate: true }, "postgres", TIMESTAMP_DEFAULTS],
+				["the CockroachDB default, which the driver does not declare", INSTANT, "cockroachdb", undefined],
+				["the Oracle default", { propertyName: "at", type: "timestamp" }, "oracle", TIMESTAMP_DEFAULTS],
+				["the SQL Server datetime2 default", { propertyName: "at", type: "datetime2" }, "mssql", { datetime2: { precision: 7 } }],
+				["the SQL Server datetimeoffset default", { propertyName: "at", type: "datetimeoffset" }, "mssql", { datetimeoffset: { precision: 7 } }],
+				["a declared precision of 6 on MySQL", { precision: 6, propertyName: "at", type: "datetime" }, "mysql", { datetime: { precision: 0 } }],
+				["a declared precision of 6 on SQLite", { precision: 6, propertyName: "at", type: "datetime" }, "better-sqlite3", undefined],
+			])("refuses a key of %s", (_name: string, column: ITemporalKeyColumn, driverType: string, defaults: Record<string, { precision?: number }> | undefined) => {
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType, defaults), SOURCE, true)).toThrow(FINER_MESSAGE);
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType, defaults), SOURCE, true)).toThrow("declare it with precision: 3");
+			});
+
+			it.each([
+				["a declared precision of 3", { ...INSTANT, precision: 3 }, "postgres", TIMESTAMP_DEFAULTS],
+				["a declared precision of 0", { ...INSTANT, precision: 0 }, "cockroachdb", undefined],
+				["a filled key at a declared precision of 3", { ...INSTANT, isCreateDate: true, precision: 3 }, "mariadb", { timestamp: { precision: 0 } }],
+				["the MySQL default", { propertyName: "at", type: "datetime" }, "mysql", { datetime: { precision: 0 } }],
+				["the MariaDB default", { propertyName: "at", type: "timestamp" }, "mariadb", { timestamp: { precision: 0 } }],
+				["a null precision at the MySQL default", { precision: null, propertyName: "at", type: "datetime" }, "mysql", { datetime: { precision: 0 } }],
+				["the SQL Server datetime", { propertyName: "at", type: "datetime" }, "mssql", { datetime2: { precision: 7 } }],
+				["the SQL Server smalldatetime", { propertyName: "at", type: "smalldatetime" }, "mssql", { datetime2: { precision: 7 } }],
+				["SQLite without a precision", { propertyName: "at", type: "datetime" }, "better-sqlite3", undefined],
+				["a text primary key", { propertyName: "id", type: "varchar" }, "postgres", TIMESTAMP_DEFAULTS],
+				["a date primary key", { propertyName: "day", type: "date" }, "postgres", TIMESTAMP_DEFAULTS],
+			])("accepts a key of %s", (_name: string, column: ITemporalKeyColumn, driverType: string, defaults: Record<string, { precision?: number }> | undefined) => {
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType, defaults), SOURCE, true)).not.toThrow();
+			});
+
+			it("finds the finer column of a composite key", () => {
+				const columns: Array<ITemporalKeyColumn> = [{ propertyName: "id", type: "varchar" }, INSTANT];
+
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository(columns, "postgres", TIMESTAMP_DEFAULTS), SOURCE, true)).toThrow(FINER_MESSAGE);
+			});
+
+			it("leaves a finer key alone without authorization", () => {
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([INSTANT], "postgres", TIMESTAMP_DEFAULTS), SOURCE, false)).not.toThrow();
+			});
+
+			it("names the unreadable filled key first on a driver that has both problems", () => {
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([{ ...INSTANT, isCreateDate: true, precision: 6 }], "mysql"), SOURCE, true)).toThrow("cannot read that value back");
+			});
+		});
+
 		it("checks nothing without a repository", () => {
-			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(undefined, SOURCE)).not.toThrow();
+			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(undefined, SOURCE, true)).not.toThrow();
 		});
 	});
 });
