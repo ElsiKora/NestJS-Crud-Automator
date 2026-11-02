@@ -66,7 +66,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			return;
 		}
 
-		const message: string = `Controller "${metatype.name}" method "${methodName}" serves ${this.formatServedRoute(metatype, handler)} without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable`;
+		const message: string = `Controller "${metatype.name}" method "${methodName}" serves ${this.formatServedRoute(metatype, handler)} without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable. Route metadata written by hand also needs ApiAuthorizationGuard or a subclass of it in @UseGuards on the method or the controller; a guard instance and APP_GUARD do not count`;
 
 		authorizationBootstrapValidationLogger.error(message);
 
