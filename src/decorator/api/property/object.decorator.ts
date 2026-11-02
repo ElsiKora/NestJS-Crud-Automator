@@ -325,6 +325,17 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 }
 
 /**
+ * Names the class a property decorator was applied to.
+ * @param {object} target - DTO prototype, or the class itself for a static property.
+ * @returns {string} The class name, or a placeholder for an anonymous class.
+ */
+function getTargetClassName(target: object): string {
+	const owner: { name: string } = typeof target === "function" ? target : target.constructor;
+
+	return owner.name || "<anonymous class>";
+}
+
+/**
  * Checks whether object property options use explicit class-based discriminator variants.
  * @param {TApiPropertyObjectProperties} properties - Object property options.
  * @returns {boolean} Whether properties contain class-based discriminator variants.
@@ -411,7 +422,7 @@ function resolveContextualObjectType(type: NestType<unknown>, method: EApiRouteT
  * Validates the configuration options for the API property object.
  * Throws an error if the configuration is invalid.
  * @param {TApiPropertyObjectProperties} properties - The property configuration to validate
- * @param {object} target - Decorated DTO prototype, whose class the error names.
+ * @param {object} target - Decorated DTO prototype, or the class of a static property, named in the error.
  * @param {string | symbol} propertyKey - Decorated property key, named in the error.
  * @returns {void}
  * @throws {Error} If the configuration is invalid
@@ -422,6 +433,11 @@ function validateOptions(properties: TApiPropertyObjectProperties, target: objec
 
 	if (properties.isArray && !properties.shouldValidateNested && !properties.isResponse) {
 		errors.push("Array property must be 'shouldValidateNested'");
+	}
+
+	// Anything but `true` skips the checks below, while a truthy value still builds an array property.
+	if (properties.isArray !== undefined && typeof properties.isArray !== "boolean") {
+		errors.push("'isArray' must be a boolean");
 	}
 
 	if (properties.isArray === true) {
@@ -435,7 +451,7 @@ function validateOptions(properties: TApiPropertyObjectProperties, target: objec
 				.map(([name]: [string, boolean | number | undefined]): string => `'${name}'`);
 
 			if (missingBounds.length > 0) {
-				errors.push(`Request array property '${target.constructor.name}.${String(propertyKey)}' must declare ${missingBounds.join(", ")}, or be marked 'isResponse: true' if it is response-only`);
+				errors.push(`Request array property '${getTargetClassName(target)}.${String(propertyKey)}' must declare ${missingBounds.join(", ")}, or be marked 'isResponse: true' if it is response-only`);
 			}
 		}
 
