@@ -468,6 +468,8 @@ internalNotes: string;
 
 A route-owned typed plan may disable this field again or narrow its operations, but it cannot re-enable a field disabled by entity metadata. Query exposure is evaluated independently of response visibility.
 
+A typed plan accepts `isnull` and `notnull` only on a field that can hold `NULL`: a column declared `nullable: true`, or a property described with `isNullable: true`. A column inherited from an abstract base class or a mixin counts too, in PAGE and CURSOR plans.
+
 Do not combine a manual `dto[EApiDtoType.QUERY]` with generated `filter`, `order`, or `pagination` configuration. A manual GET_LIST response DTO or `{ itemType }` response configuration remains compatible with a generated typed query, and limits its order fields to the item properties the DTO publishes.
 
 ## Complex Filter Queries
