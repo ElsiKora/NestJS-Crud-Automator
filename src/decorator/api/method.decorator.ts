@@ -7,6 +7,7 @@ import type { TSwaggerSecurityRequirementObject } from "@type/swagger";
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
+import { RequestBodyShapeInterceptor } from "@interceptor/request-body-shape.interceptor";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiConflictResponse, ApiConsumes, ApiExtraModels, ApiForbiddenResponse, ApiHeaders, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiProduces, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
@@ -264,11 +265,7 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	const authenticationGuards: Array<Type<CanActivate>> = metadata.security?.authentication?.guard ? [metadata.security.authentication.guard] : [];
-	decorators.push(UseGuards(...beforeAuthenticationGuards, ...authenticationGuards, ...afterAuthenticationGuards, ApiAuthorizationGuard, ...afterAuthorizationGuards));
-
-	if (options.execution?.interceptors?.length) {
-		decorators.push(UseInterceptors(...options.execution.interceptors));
-	}
+	decorators.push(UseGuards(...beforeAuthenticationGuards, ...authenticationGuards, ...afterAuthenticationGuards, ApiAuthorizationGuard, ...afterAuthorizationGuards), UseInterceptors(RequestBodyShapeInterceptor, ...(options.execution?.interceptors ?? [])));
 
 	return applyDecorators(...decorators);
 }

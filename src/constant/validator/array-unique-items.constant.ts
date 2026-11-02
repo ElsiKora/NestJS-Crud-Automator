@@ -1,4 +1,5 @@
+import { REQUEST_BODY_SHAPE_CONSTANT } from "@constant/request-body-shape.constant";
+
 export const ARRAY_UNIQUE_ITEMS_CONSTANT: { MAXIMUM_DEPTH: number } = {
-	// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
-	MAXIMUM_DEPTH: 64,
+	MAXIMUM_DEPTH: REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_DEPTH,
 } as const;
