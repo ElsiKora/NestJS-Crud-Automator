@@ -29,8 +29,7 @@ import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
-import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
-import { ApiControllerAssertGeneratedFunctions } from "@utility/api/controller/assert-generated-functions.utility";
+import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteFunctions, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
@@ -314,7 +313,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		}
 
 		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
-		ApiControllerAssertGeneratedFunctions(this.properties, Reflect.get(controller, "service") as object, this.target.name);
+		ApiControllerAssertRouteFunctions(this.properties, Reflect.get(controller, "service") as object, this.target.name);
 	}
 
 	/**

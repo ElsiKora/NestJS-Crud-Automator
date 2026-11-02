@@ -5,7 +5,7 @@ import { ApiFunctionDelete } from "@decorator/api/function/delete.decorator";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
 import { ApiFunctionUpdate } from "@decorator/api/function/update.decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
-import { ApiControllerAssertGeneratedFunctions } from "@utility/api/controller/assert-generated-functions.utility";
+import { ApiControllerAssertRouteFunctions } from "@utility/api/controller/assert";
 import { describe, expect, it } from "vitest";
 
 import { RuntimeRouteEntity } from "@test/unit/class/api/route/runtime/fixture";
@@ -85,7 +85,7 @@ function createFittingMode(routeMode: EApiFunctionTransactionMode | undefined): 
 	return routeMode === EApiFunctionTransactionMode.NONE ? EApiFunctionTransactionMode.NONE : EApiFunctionTransactionMode.SUPPORTS;
 }
 
-describe("ApiControllerAssertGeneratedFunctions", () => {
+describe("ApiControllerAssertRouteFunctions", () => {
 	it.each<[EApiRouteType, TCheckedFunctionType, string]>([
 		[EApiRouteType.CREATE, EApiFunctionType.CREATE, "writes through"],
 		[EApiRouteType.CREATE, EApiFunctionType.GET, "reads its response through"],
@@ -100,15 +100,15 @@ describe("ApiControllerAssertGeneratedFunctions", () => {
 		delete modes[functionType];
 		const name: string = functionType.toUpperCase();
 
-		expect(() => ApiControllerAssertGeneratedFunctions(createProperties(routeType), createService(modes), "ItemController")).toThrow(`Controller "ItemController" route "${routeType}" ${purpose} the ${name} function of service "AssertFunctionsService", but that service has no ${name} function protected by its built-in decorator.`);
+		expect(() => ApiControllerAssertRouteFunctions(createProperties(routeType), createService(modes), "ItemController")).toThrow(`Controller "ItemController" route "${routeType}" ${purpose} the ${name} function of service "AssertFunctionsService", but that service has no ${name} function protected by its built-in decorator.`);
 	});
 
 	it("does not check route getList", () => {
-		expect(() => ApiControllerAssertGeneratedFunctions(createProperties(EApiRouteType.GET_LIST), createService({}), "ItemController")).not.toThrow();
+		expect(() => ApiControllerAssertRouteFunctions(createProperties(EApiRouteType.GET_LIST), createService({}), "ItemController")).not.toThrow();
 	});
 
 	it("does not check a disabled route", () => {
-		expect(() => ApiControllerAssertGeneratedFunctions({ entity: RuntimeRouteEntity, routes: Object.fromEntries(Object.values(EApiRouteType).map((routeType: EApiRouteType): [string, object] => [routeType, DISABLED])) } as unknown as IApiControllerProperties<RuntimeRouteEntity>, createService({}), "ItemController")).not.toThrow();
+		expect(() => ApiControllerAssertRouteFunctions({ entity: RuntimeRouteEntity, routes: Object.fromEntries(Object.values(EApiRouteType).map((routeType: EApiRouteType): [string, object] => [routeType, DISABLED])) } as unknown as IApiControllerProperties<RuntimeRouteEntity>, createService({}), "ItemController")).not.toThrow();
 	});
 
 	describe.each<[EApiRouteType, TCheckedFunctionType]>([
@@ -123,7 +123,7 @@ describe("ApiControllerAssertGeneratedFunctions", () => {
 		it.each(MODE_CASES)("with function mode %s and route mode %s refuses: %s", (functionMode: EApiFunctionTransactionMode, routeMode: EApiFunctionTransactionMode | undefined, isRefused: boolean) => {
 			const fittingMode: EApiFunctionTransactionMode = createFittingMode(routeMode);
 			const modes: Record<TCheckedFunctionType, EApiFunctionTransactionMode> = { [EApiFunctionType.CREATE]: fittingMode, [EApiFunctionType.DELETE]: fittingMode, [EApiFunctionType.GET]: fittingMode, [EApiFunctionType.UPDATE]: fittingMode, [functionType]: functionMode };
-			const assertion: () => void = (): void => ApiControllerAssertGeneratedFunctions(createProperties(routeType, routeMode), createService(modes), "ItemController");
+			const assertion: () => void = (): void => ApiControllerAssertRouteFunctions(createProperties(routeType, routeMode), createService(modes), "ItemController");
 
 			if (isRefused) {
 				expect(assertion).toThrow(`Controller "ItemController" route "${routeType}" runs in transaction mode ${routeMode ?? EApiFunctionTransactionMode.SUPPORTS}, but the ${functionType.toUpperCase()} function of service "AssertFunctionsService" runs in mode ${functionMode}`);

@@ -1,6 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
-import type { IApiControllerGeneratedRouteFunction } from "@interface/utility/api/controller/generated-route-function.interface";
+import type { IApiControllerRouteFunction } from "@interface/utility/route-function.interface";
 
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
@@ -8,12 +8,12 @@ import { ErrorException } from "@utility/error/exception.utility";
 
 const WRITE_FAILURE: string = "when it writes";
 
-const GET_FUNCTION: IApiControllerGeneratedRouteFunction = { decorator: "@ApiFunctionGet", failure: "when it reads its response, after any write it made", functionType: EApiFunctionType.GET, purpose: "reads its response through" };
+const GET_FUNCTION: IApiControllerRouteFunction = { decorator: "@ApiFunctionGet", failure: "when it reads its response, after any write it made", functionType: EApiFunctionType.GET, purpose: "reads its response through" };
 
 /**
  * Service functions each generated route calls, in the order it calls them.
  */
-const ROUTE_FUNCTIONS: ReadonlyArray<[EApiRouteType, ReadonlyArray<IApiControllerGeneratedRouteFunction>]> = [
+const ROUTE_FUNCTIONS: ReadonlyArray<[EApiRouteType, ReadonlyArray<IApiControllerRouteFunction>]> = [
 	[EApiRouteType.CREATE, [{ decorator: "@ApiFunctionCreate", failure: WRITE_FAILURE, functionType: EApiFunctionType.CREATE, purpose: "writes through" }, GET_FUNCTION]],
 	[EApiRouteType.DELETE, [{ decorator: "@ApiFunctionDelete", failure: WRITE_FAILURE, functionType: EApiFunctionType.DELETE, purpose: "writes through" }]],
 	[EApiRouteType.GET, [GET_FUNCTION]],
@@ -30,7 +30,7 @@ const ROUTE_FUNCTIONS: ReadonlyArray<[EApiRouteType, ReadonlyArray<IApiControlle
  * @template E - The entity type
  * @throws {Error} When an enabled route calls a function the service does not protect with its built-in decorator, or one in a transaction mode it cannot run in.
  */
-export function ApiControllerAssertGeneratedFunctions<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, service: object, controllerName: string): void {
+export function ApiControllerAssertRouteFunctions<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, service: object, controllerName: string): void {
 	const serviceName: string = service.constructor.name;
 
 	for (const [routeType, routeFunctions] of ROUTE_FUNCTIONS) {
@@ -42,7 +42,7 @@ export function ApiControllerAssertGeneratedFunctions<E extends IApiBaseEntity>(
 		const isTransactionHeld: boolean = routeMode === EApiFunctionTransactionMode.MANDATORY || routeMode === EApiFunctionTransactionMode.REQUIRED;
 
 		for (const routeFunction of routeFunctions) {
-			const { decorator, failure, functionType, purpose }: IApiControllerGeneratedRouteFunction = routeFunction;
+			const { decorator, failure, functionType, purpose }: IApiControllerRouteFunction = routeFunction;
 			let functionMode: EApiFunctionTransactionMode;
 
 			try {
