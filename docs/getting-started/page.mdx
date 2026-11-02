@@ -248,9 +248,13 @@ With the above setup, the following endpoints are automatically generated:
 - `PATCH /users/:id` - Partially update a user
 - `DELETE /users/:id` - Delete a user
 
-## Nested Generated Reads
+## Composite Keys
 
-When a controller path inherits owner parameters, map every path parameter to a described direct scalar entity field on generated `GET` and `GET_LIST` routes:
+An entity with several primary key columns gets all of them in its row routes, in declaration order: `GET /orders/:tenantId/:id`, and the same for `PATCH`, `PUT` and `DELETE`. Set `rowPath: { fields: ["id", "tenantId"] }` on the controller to choose the columns and their order. See [Controllers: Row Paths And Composite Keys](/docs/nestjs-crud-automator/core-concepts/controllers#row-paths-and-composite-keys).
+
+## Nested Routes
+
+When a controller path has owner parameters, bind every path parameter to a described direct scalar entity field with `pathScope`. The binding applies to every generated route:
 
 ```typescript filename="provider-game.controller.ts" copy
 import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOrderDirection } from "@elsikora/nestjs-crud-automator";
@@ -260,20 +264,9 @@ import { GameService } from "./game.service";
 @ApiController<GameEntity>({
 	entity: GameEntity,
 	path: "providers/:providerKey/games",
+	pathScope: { parameters: [{ parameter: "providerKey", field: "providerId" }] },
 	routes: {
-		[EApiRouteType.GET]: {
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
-		},
 		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {
@@ -292,7 +285,7 @@ export class ProviderGameController {
 }
 ```
 
-Automator generates the PARAMETERS DTO and Swagger path metadata from the mapped entity field. A manual PARAMETERS DTO cannot be combined with `read.scope.parameters`. GET keeps its generated primary-key parameter in addition to the inherited scope. GET identity or GET_LIST query predicates are AND-merged with path scope and then HOOKS/IAM scope, so later layers cannot overwrite earlier conditions.
+Automator generates the PARAMETERS DTO and Swagger path metadata from the bound entity field, and removes the field from the generated body. A manual PARAMETERS DTO cannot be combined with `pathScope`. CREATE takes the value from the path and answers `400` for a body naming another one; PATCH, PUT and DELETE answer `404` for a row of another parent and leave it unchanged. Row parameters or GET_LIST query predicates are AND-merged with the binding and then HOOKS/IAM scope, so later layers cannot overwrite earlier conditions. A controller with an enabled generated route fails at startup when a path parameter is not bound; disable the route if it should not exist.
 
 For GET_LIST, a client `orderBy` replaces `defaultOrder`; `tieBreakers` are then appended with duplicate fields removed. A UUID `id` can be a server-only final tie-breaker without becoming a client-sort field. Default PAGE mode requires explicit `page` and `limit`. Opt-in CURSOR mode uses `limit` plus optional `after`/`before` and requires the complete primary key, single or composite, as its final explicit tie-breakers.
 

@@ -56,7 +56,22 @@ export class GameController {}
 
 This generates `GET /games/:gameId`, but the generated service predicate and authorization resource still target the actual entity primary field, such as `id`. `parameter` must be a safe simple JavaScript identifier. A manual PARAMETERS DTO is not allowed because the factory owns the aliased DTO and OpenAPI schema.
 
-Identity-only configuration is valid only when `path` has no inherited dynamic parameters. For a nested path such as `providers/:providerKey/games`, add `read.scope.parameters` to the same GET route and map every inherited path parameter. GET_LIST has no item identity segment and rejects `identity`.
+For a nested path such as `providers/:providerKey/games`, add `pathScope` to the controller and bind every path parameter. `identity` aliases one path field, so on a composite key the rest of the key must be bound or left out of `rowPath`. GET_LIST has no item identity segment and rejects `identity`.
+
+## Row Path And Path Binding
+
+```typescript
+@ApiController<OrderEntity>({
+	entity: OrderEntity,
+	path: "tenants/:tenantId/orders",
+	pathScope: { parameters: [{ parameter: "tenantId", field: "tenantId" }] },
+	rowPath: { fields: ["id"] },
+	routes: {},
+})
+export class TenantOrderController {}
+```
+
+`pathScope` applies on every generated route. `rowPath` lists the primary key columns of GET, PATCH, PUT and DELETE, in path order; by default it is every key column `pathScope` does not bind, in declaration order. See [Controllers: Row Paths And Composite Keys](/docs/nestjs-crud-automator/core-concepts/controllers#row-paths-and-composite-keys).
 
 ## Example
 

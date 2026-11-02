@@ -36,7 +36,7 @@ Use `isAutoDtoEnabled: false` for a persisted or otherwise described property th
 internalEligibility!: boolean;
 ```
 
-The property remains in `MetadataStorage`, keeps its TypeORM mapping, and can be represented by a manual DTO. Automator omits it from generated BODY, PARAMETERS, QUERY, and RESPONSE DTOs, generated Swagger relation components, and metadata-driven or typed client filter/order fields. Route- or DTO-level `isEnabled: true`, generated GET identity, and `read.scope.parameters` cannot re-enable it.
+The property remains in `MetadataStorage`, keeps its TypeORM mapping, and can be represented by a manual DTO. Automator omits it from generated BODY, PARAMETERS, QUERY, and RESPONSE DTOs, generated Swagger relation components, and metadata-driven or typed client filter/order fields. Route- or DTO-level `isEnabled: true`, generated GET identity, `pathScope`, and `rowPath` cannot re-enable it.
 
 An explicit `@ApiPropertyCopy` may deliberately copy the hidden source property into a manual DTO. That bypasses only this global auto-generation boundary; the source metadata's remaining route/DTO, guard, and validation rules still apply. PAGE server-only `defaultOrder` and `tieBreakers` may use a hidden described scalar, while CURSOR rejects it because cursor ordering requires generated response exposure.
 

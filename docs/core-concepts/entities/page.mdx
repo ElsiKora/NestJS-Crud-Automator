@@ -416,7 +416,7 @@ A plain class with `@Column` between the root and a child makes `DataSource.init
 
 ### What Stays On The Root
 
-Filters, order, pagination, HOOKS and IAM scope, and `read.scope.parameters` work on root columns only. CURSOR order fields must be root columns, and each variant must keep the proof CURSOR requires for them; see [Pagination](/docs/nestjs-crud-automator/guides/pagination#table-inheritance-roots).
+Filters, order, pagination, HOOKS and IAM scope, and `pathScope` work on root columns only. CURSOR order fields must be root columns, and each variant must keep the proof CURSOR requires for them; see [Pagination](/docs/nestjs-crud-automator/guides/pagination#table-inheritance-roots).
 
 Generated CREATE, UPDATE, PARTIAL_UPDATE, and DELETE keep working on the root columns. Their bodies and responses are the plain DTOs of the root, without child columns.
 
@@ -467,7 +467,7 @@ Use `isAutoDtoEnabled: false` when a described property must remain outside all 
 internalEligibility: boolean;
 ```
 
-Omitted or `true` keeps normal generation. `false` retains entity metadata, TypeORM persistence, and manual DTO support, while excluding the property from every generated BODY, PARAMETERS, QUERY, and RESPONSE DTO, generated Swagger relation components, and client filter/order surfaces. Route/DTO `isEnabled: true`, generated identity or read scope, and a typed query plan cannot re-enable it. Explicit `@ApiPropertyCopy` may deliberately copy it into a manual DTO and still applies all other source metadata rules. PAGE server-only ordering may use the described scalar; CURSOR ordering cannot because it requires generated response exposure.
+Omitted or `true` keeps normal generation. `false` retains entity metadata, TypeORM persistence, and manual DTO support, while excluding the property from every generated BODY, PARAMETERS, QUERY, and RESPONSE DTO, generated Swagger relation components, and client filter/order surfaces. Route/DTO `isEnabled: true`, generated identity, `pathScope`, `rowPath`, and a typed query plan cannot re-enable it. Explicit `@ApiPropertyCopy` may deliberately copy it into a manual DTO and still applies all other source metadata rules. PAGE server-only ordering may use the described scalar; CURSOR ordering cannot because it requires generated response exposure.
 
 Use route- and DTO-specific metadata when only selected generated DTOs should exclude a property:
 

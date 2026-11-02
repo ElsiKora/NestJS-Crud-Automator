@@ -147,7 +147,7 @@ Generated routes check every path value against the type its column has in `@Api
 }
 ```
 
-`timestamp` and `correlationID` are added by `CorrelationIDResponseBodyInterceptor`, as for every other error that passes through interceptors. On a route with `@ApiControllerSecurable()`, `ApiAuthorizationGuard` runs the check, and Nest runs guards before interceptors, so that `400` skips the interceptor, like a guard `403`. It gets `timestamp`, `correlationID`, and the `x-correlation-id` header from [`CorrelationIDResponseBodyExceptionFilter`](#custom-exception-filters) and has none of them without it. A missing `read.scope` or identity path value returns the same body with `message: ["<parameter> should not be null or undefined"]`. See [Validation](/docs/nestjs-crud-automator/guides/validation#generated-route-path-parameters).
+`timestamp` and `correlationID` are added by `CorrelationIDResponseBodyInterceptor`, as for every other error that passes through interceptors. On a route with `@ApiControllerSecurable()`, `ApiAuthorizationGuard` runs the check, and Nest runs guards before interceptors, so that `400` skips the interceptor, like a guard `403`. It gets `timestamp`, `correlationID`, and the `x-correlation-id` header from [`CorrelationIDResponseBodyExceptionFilter`](#custom-exception-filters) and has none of them without it. A missing `pathScope` or identity path value returns the same body with `message: ["<parameter> should not be null or undefined"]`. See [Validation](/docs/nestjs-crud-automator/guides/validation#generated-route-path-parameters).
 
 ## Transaction Outcome Errors
 
@@ -404,7 +404,7 @@ Each failure is a class-validator `ValidationError` with `constraints` and `prop
 | `pathParameterNoText`             | A route's PARAMETERS DTO gives a path value no text authorization can read                               |
 | `pathParameterConversionMismatch` | That DTO gives a path value other text with and without implicit conversion                              |
 | `pathParameterUnstable`           | That DTO gives other text when it runs again on its own output                                           |
-| `isDefined`                       | A `read.scope` or identity path value is missing                                                         |
+| `isDefined`                       | A `pathScope` or identity path value is missing                                                          |
 
 For a body limit, `property` is the dotted path in the body, such as `payload.items.1`, and is empty for the body itself; for a path value it is the path parameter name. For a reserved key it ends with the key; for a NUL in a key it stops at the object that holds the key. For `requestPropertyRenamed` it is the property key alone, without its path. That failure is thrown while the pipe converts the request, before it validates, so `exceptionFactory` does not see it either. The path holds keys the client sent, so do not put it in a response. The constraint names are stable, so translate those.
 
@@ -767,7 +767,7 @@ Check two things when you add it:
 
 Before 5.0.0, the interceptor echoed any client `x-correlation-id` into the response header and the error body, whatever its length or characters. From 5.0.0 the interceptor and `CorrelationIDResponseBodyExceptionFilter` keep the header only when it is one value of 1 to 128 characters of `[A-Za-z0-9._:-]`. A client that sent a longer value, other characters, or a repeated header, which Node.js joins as `first, second`, now gets a generated UUID in both places. Node.js strips whitespace around a header value before this check, so that value is still kept. A bare CR, a bare LF, a NUL, or an obsolete line folding gets the `400` of Node.js, with no correlation ID. Clients that send a UUID are not affected. The generated exception DTOs now declare `correlationID` as a string of 1 to 128 characters with that pattern instead of a UUID, so clients generated from the OpenAPI document get the wider type. See [Client Correlation ID](/docs/nestjs-crud-automator/api-reference/interceptors#client-correlation-id).
 
-A path value that does not fit its column used to reach the database: PostgreSQL answered `500`, SQLite `404`. From 5.0.0 it returns `400` with the `ValidationPipe` body before authorization and before any query. A missing `read.scope` or identity path value returns the same body instead of the string `INVALID_PARAMETERS`. See [Path Parameter Errors](#path-parameter-errors).
+A path value that does not fit its column used to reach the database: PostgreSQL answered `500`, SQLite `404`. From 5.0.0 it returns `400` with the `ValidationPipe` body before authorization and before any query. A missing `pathScope` or identity path value returns the same body instead of the string `INVALID_PARAMETERS`. See [Path Parameter Errors](#path-parameter-errors).
 
 From 5.0.0, generated routes declare the error statuses they can return instead of a fixed set, as described in [Error Responses in OpenAPI](#error-responses-in-openapi):
 

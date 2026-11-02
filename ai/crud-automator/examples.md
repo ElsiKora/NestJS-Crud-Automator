@@ -120,26 +120,15 @@ The entity metadata still supplies scalar types, constraints, relation targets, 
 
 For `missingBehavior: USE_DEFAULT`, also provide `defaultCondition`. Automator inserts that condition only when the client omits the field group; a client group for the same field replaces the default, and the resulting predicates are AND-merged with authorization scope. `BETWEEN` requires exactly two repeated `[values]`; membership accepts 1–100. Typed failures use `FILTER_REQUIRED`, `FILTER_NOT_VALID`, or `ORDER_NOT_VALID`. Route-before subscribers can rewrite the raw query before Automator performs its strict typed parse.
 
-## Nested Generated Read With Stable Pagination
+## Nested Generated Routes With Stable Pagination
 
 ```ts
 @ApiController<GameEntity>({
 	entity: GameEntity,
 	path: "providers/:providerKey/games",
+	pathScope: { parameters: [{ parameter: "providerKey", field: "providerId" }] },
 	routes: {
-		[EApiRouteType.GET]: {
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
-		},
 		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {
@@ -163,9 +152,36 @@ export class ProviderGameController {
 }
 ```
 
-The controller path declares one inherited parameter, so both read routes map it exactly once. `providerKey` is the external path name; `providerId` is the described direct scalar entity field. Automator generates its PARAMETERS DTO and Swagger metadata. GET also includes the normal primary identity parameter. Do not add a manual PARAMETERS DTO to either read route.
+The controller path declares one parameter, so `pathScope` binds it exactly once, for every generated route. `providerKey` is the external path name; `providerId` is the described direct scalar entity field, which leaves the generated bodies. Automator generates its PARAMETERS DTO and Swagger metadata. Row routes also include the normal primary key parameter. Do not add a manual PARAMETERS DTO to a route of this controller.
 
 A GET uses `id AND providerId AND IAM scope`. A GET_LIST uses query predicates `AND providerId AND IAM scope`; incompatible values match nothing instead of overwriting a prior condition. With no client order, the list uses `priority DESC, id ASC` after duplicate removal. A client order replaces the defaults and keeps `id ASC` as a final tie-breaker, making explicit page/limit requests deterministic for an unchanged dataset. `id` remains server-only because it is absent from `fields`.
+
+## Composite Keys
+
+```ts
+// GET, PATCH, PUT and DELETE /orders/:tenantId/:id
+@ApiController<OrderEntity>({ entity: OrderEntity, path: "orders", routes: {} })
+export class OrderController {
+	constructor(public service: OrderService) {}
+}
+
+// The tenant comes from the path of the controller, on every route: /tenants/:tenantId/orders/:id
+@ApiController<OrderEntity>({
+	entity: OrderEntity,
+	path: "tenants/:tenantId/orders",
+	pathScope: { parameters: [{ parameter: "tenantId", field: "tenantId" }] },
+	routes: {},
+})
+export class TenantOrderController {
+	constructor(public service: OrderService) {}
+}
+
+// A partitioned ledger keyed by id and a microsecond createdAt: /ledger/:id
+@ApiController<LedgerEntity>({ entity: LedgerEntity, path: "ledger", rowPath: { fields: ["id"] }, routes: {} })
+export class LedgerController {
+	constructor(public service: LedgerService) {}
+}
+```
 
 ## Generated Cursor Pagination
 
@@ -173,13 +189,9 @@ A GET uses `id AND providerId AND IAM scope`. A GET_LIST uses query predicates `
 @ApiController<GameEntity>({
 	entity: GameEntity,
 	path: "brands/:brandId/games",
+	pathScope: { parameters: [{ parameter: "brandId", field: "brandId" }] },
 	routes: {
 		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ parameter: "brandId", field: "brandId" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {

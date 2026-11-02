@@ -97,7 +97,6 @@ interface IApiRouteDocumentationProperties {
 interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
 	documentation?: IApiRouteDocumentationProperties;
 	generation?: IApiControllerPropertiesRouteBaseGeneration;
-	read?: Extract<R, EApiRouteType.GET | EApiRouteType.GET_LIST> extends never ? never : IApiControllerPropertiesRouteBaseRead<E>;
 	relations?: IApiControllerPropertiesRouteBaseRelations<E>;
 	request?: IApiControllerPropertiesRouteBaseRequest<E, R>;
 	response?: IApiControllerPropertiesRouteBaseResponse<E, R>;
@@ -106,7 +105,7 @@ interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
 }
 ```
 
-Generated GET routes additionally accept `identity` as a top-level route property. It is separate from `read`, because it names the primary item segment while `read.scope` maps controller-path owner segments.
+Generated GET routes additionally accept `identity` as a top-level route property. It names the row segment, while the controller-level `pathScope` binds the controller-path owner segments.
 
 ### IApiControllerPropertiesRouteIdentity
 
@@ -122,32 +121,40 @@ const getRoute: TApiControllerPropertiesRoute<GameEntity, EApiRouteType.GET> = {
 
 `identity.parameter` changes the generated GET wire path from the entity primary field (for example `:id`) to a safe simple identifier such as `:gameId`. It does not select another entity field and does not rename the response: DTO generation, runtime lookup, authorization resource expansion, and service criteria still use the actual primary column. `identity` is rejected on GET_LIST and every write route, and it cannot be combined with a manual `dto[EApiDtoType.PARAMETERS]`.
 
-An identity-only GET is valid when the controller `path` has no dynamic parameters. If the controller path contains any inherited `:parameter`, the same GET must also provide `read.scope.parameters`, with every inherited parameter mapped exactly once. The identity alias cannot collide with an inherited parameter or with the primary field name inherited from the controller path.
+`identity` aliases one path field: more than one row column fails at startup. If the controller path contains any `:parameter`, the controller must provide `pathScope`, with every parameter bound exactly once. The identity alias cannot collide with a controller path parameter or with the primary field name in the controller path.
 
-### IApiControllerPropertiesRouteBaseRead\<E\>
+### IApiControllerPropertiesPathScope\<E\>
 
-Generated GET and GET_LIST routes may scope reads through parameters inherited from the controller `path`:
+Controllers bind the parameters of their `path` on every generated route:
 
 ```typescript
-interface IApiControllerPropertiesRouteBaseRead<E> {
-	scope: IApiControllerPropertiesRouteReadScope<E>;
+interface IApiControllerPropertiesPathScope<E> {
+	parameters: ReadonlyArray<IApiControllerPropertiesPathScopeParameter<E>>;
 }
 
-interface IApiControllerPropertiesRouteReadScope<E> {
-	parameters: ReadonlyArray<IApiControllerPropertiesRouteReadScopeParameter<E>>;
-}
-
-interface IApiControllerPropertiesRouteReadScopeParameter<E> {
-	field: TApiControllerReadDirectScalarField<E>;
+interface IApiControllerPropertiesPathScopeParameter<E> {
+	field: TApiControllerPathDirectScalarField<E>;
 	parameter: string;
 }
 ```
 
-`parameters` is a non-empty array of `{ parameter, field }` mappings. Every required scalar `:parameter` declared by the inherited controller path must appear exactly once; wildcard and optional/grouped dynamic parameters are rejected at bootstrap. Each `field` must be a different described direct scalar entity column. Unknown or duplicate parameters, duplicate fields, missing mappings, relations, objects, and use on routes other than GET/GET_LIST are also rejected. A generated GET owns its primary identity parameter, so the inherited path cannot redeclare that name; this mapping does not rename or replace GET identity.
+`parameters` is a non-empty array of `{ parameter, field }` mappings. With at least one generated route enabled, every `:parameter` of the controller path must appear exactly once, and wildcard and optional parameters fail at startup. Each `field` must be a different described direct scalar entity column. Unknown or duplicate parameters, duplicate fields, relations and objects are also rejected. A row parameter cannot share a name with a bound parameter.
 
-Automator creates a route-scoped PARAMETERS DTO and OpenAPI metadata using each field's `ApiPropertyDescribe` metadata under the external path-parameter name. `read.scope.parameters` is mutually exclusive with a manual `dto[EApiDtoType.PARAMETERS]`; `autoDto[PARAMETERS]` validators remain available on the generated DTO.
+Automator creates a route-scoped PARAMETERS DTO and OpenAPI metadata using each field's `ApiPropertyDescribe` metadata under the external path-parameter name. `pathScope` is mutually exclusive with a manual `dto[EApiDtoType.PARAMETERS]`; `autoDto[PARAMETERS]` validators remain available on the generated DTO.
 
-At runtime, GET identity or GET_LIST query predicates are merged first, the path-derived scope is AND-merged next, and HOOKS/IAM scope is AND-merged last. Equal conditions remain equal; conflicting conditions become match-nothing criteria rather than allowing a later layer to overwrite an earlier one. Scalar leaves are normalized to explicit TypeORM `Equal(...)` predicates during these merges so TypeORM cannot silently reinterpret or drop them on relation-shaped paths. Object-valued scalar columns must use an explicit `Equal(value)` operator because an unwrapped object denotes relation or embedded criteria.
+At runtime, row parameters or GET_LIST query predicates are merged first, the binding is AND-merged next, and HOOKS/IAM scope is AND-merged last. Equal conditions remain equal; conflicting conditions become match-nothing criteria rather than allowing a later layer to overwrite an earlier one. Scalar leaves are normalized to explicit TypeORM `Equal(...)` predicates during these merges so TypeORM cannot silently reinterpret or drop them on relation-shaped paths. Object-valued scalar columns must use an explicit `Equal(value)` operator because an unwrapped object denotes relation or embedded criteria.
+
+CREATE takes the bound value from the path, and a body naming another one answers `400`. PATCH, PUT and DELETE answer `404` for a row outside the binding.
+
+### IApiControllerPropertiesRowPath\<E\>
+
+```typescript
+interface IApiControllerPropertiesRowPath<E> {
+	fields: ReadonlyArray<TApiControllerPathDirectScalarField<E>>;
+}
+```
+
+`fields` lists the primary key columns of the generated row routes, in path order. By default it is every key column `pathScope` does not bind, in declaration order. An empty list, an unknown column, a column outside the key, a repeated column and a column `pathScope` binds fail at startup.
 
 ### IApiControllerPropertiesRouteBaseTransaction
 
@@ -195,7 +202,7 @@ interface IApiControllerPropertiesRouteGetListQueryOrder<E> {
 
 interface IApiControllerPropertiesRouteGetListQueryOrderEntry<E> {
 	direction: EFilterOrderDirection;
-	field: TApiControllerReadDirectScalarField<E>;
+	field: TApiControllerPathDirectScalarField<E>;
 }
 ```
 

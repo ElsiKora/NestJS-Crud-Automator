@@ -1417,29 +1417,20 @@ GET_LIST query DTOs remain dynamically generated from entity `ApiPropertyDescrib
 
 Use `INHERIT` to overlay metadata-enabled fields or `REJECT` to create an allowlist. Enabled filters declare a non-empty operation set and optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior; `REJECT` returns `400 FILTER_REQUIRED`. Route plans cannot re-enable metadata-disabled fields or properties with `isAutoDtoEnabled: false`. A manual QUERY DTO is mutually exclusive with generated filter/order/pagination config, while a manual RESPONSE DTO remains compatible.
 
-### Generated Nested Reads and Stable Ordering
+### Generated Nested Routes and Stable Ordering
 
-Generated `GET` and `GET_LIST` routes can bind inherited controller path parameters to described direct scalar entity fields. This keeps nested owner/resource reads inside the native generated runtime:
+`pathScope` binds controller path parameters to described direct scalar entity fields on every generated route. This keeps nested owner/resource routes inside the native generated runtime:
 
 ```typescript
 @ApiController<GameEntity>({
 	entity: GameEntity,
 	path: "providers/:providerKey/games",
+	pathScope: { parameters: [{ parameter: "providerKey", field: "providerId" }] },
 	routes: {
 		[EApiRouteType.GET]: {
 			identity: { parameter: "gameId" },
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
 		},
 		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {
@@ -1463,13 +1454,17 @@ export class ProviderGameController {
 }
 ```
 
-`identity.parameter` gives generated `GET` an external primary-identity name without changing the entity field: the example exposes `:gameId` while its TypeORM predicate still targets the entity primary column. The identity config is GET-only. It may be used by itself only when the controller path has no inherited dynamic parameters; any inherited path parameter requires `read.scope.parameters` on the same GET, with every inherited parameter mapped. Its value must be a safe simple identifier such as `gameId`; whitespace, slashes, control characters, punctuation, inherited-path collisions, and unsafe object-property names fail at bootstrap. It does not select an arbitrary lookup field and it does not rename response properties.
+`identity.parameter` gives generated `GET` an external primary-identity name without changing the entity field: the example exposes `:gameId` while its TypeORM predicate still targets the entity primary column. The identity config is GET-only. It aliases one path field, so more than one row column fails at bootstrap. Any controller path parameter requires a `pathScope` binding. Its value must be a safe simple identifier such as `gameId`; whitespace, slashes, control characters, punctuation, controller-path collisions, and unsafe object-property names fail at bootstrap. It does not select an arbitrary lookup field and it does not rename response properties.
 
-Every required scalar `:parameter` inherited from the controller `path` must be mapped exactly once. Wildcards and optional/grouped dynamic parameters are not valid read-scope owners and fail at bootstrap. Each mapping targets a described direct scalar field; duplicate parameters, duplicate fields, unknown path parameters, relations, objects, and missing mappings also fail at bootstrap. Automator generates and documents a route-scoped PARAMETERS DTO from the mapped field metadata and the configured external GET identity. A manual PARAMETERS DTO and generated read configuration are mutually exclusive.
+With at least one generated route enabled, every required scalar `:parameter` of the controller `path` must be bound exactly once. Wildcards and optional/grouped dynamic parameters fail at bootstrap; a controller with all six generated routes disabled keeps any path. Each binding targets a described direct scalar field; duplicate parameters, duplicate fields, unknown path parameters, relations, objects, and missing bindings also fail at bootstrap. Automator generates and documents a route-scoped PARAMETERS DTO from the bound field metadata and the configured external GET identity, and removes the bound field from generated bodies. A manual PARAMETERS DTO is mutually exclusive with `pathScope` and `rowPath`.
 
-Read criteria are merged conjunctively in a fixed order: GET identity or GET_LIST query predicates, then path scope, then HOOKS/IAM scope. A later layer never overwrites an earlier field; incompatible values become a match-nothing condition. During an additional-scope merge, scalar leaves are emitted as explicit TypeORM `Equal(...)` predicates so relation-shaped paths cannot cause TypeORM to discard them. Wrap object-valued scalar columns such as JSON/JSONB or geometry in `Equal(value)` explicitly; unwrapped objects are interpreted as relation or embedded criteria.
+PATCH, PUT and DELETE answer `404` for a row outside the binding and leave it unchanged. CREATE takes the bound value from the path and answers `400` for a body naming another one.
 
-`defaultOrder` applies when the client omits `orderBy`/`orderDirection`. A supplied client order replaces the defaults, after which `tieBreakers` are appended and duplicate fields are removed with the earlier entry winning. In PAGE mode, these server-owned entries may use any described direct scalar field, including a UUID `id` or a property with `isAutoDtoEnabled: false`, without exposing that field in the client `orderBy` allowlist. Hidden properties are not valid for generated GET identity, `read.scope.parameters`, or client filter/order fields. Use a deterministic final tie-breaker for stable `page`/`limit` pagination.
+Generated row routes take every primary key column in declaration order, so a key of `tenantId, id` gives `/:tenantId/:id`. `rowPath: { fields: ["id", "tenantId"] }` on the controller chooses the columns and their order; a list that leaves key columns out checks that the path names one row before acting.
+
+Route criteria are merged conjunctively in a fixed order: row parameters or GET_LIST query predicates, then the path binding, then HOOKS/IAM scope. A later layer never overwrites an earlier field; incompatible values become a match-nothing condition. During an additional-scope merge, scalar leaves are emitted as explicit TypeORM `Equal(...)` predicates so relation-shaped paths cannot cause TypeORM to discard them. Wrap object-valued scalar columns such as JSON/JSONB or geometry in `Equal(value)` explicitly; unwrapped objects are interpreted as relation or embedded criteria.
+
+`defaultOrder` applies when the client omits `orderBy`/`orderDirection`. A supplied client order replaces the defaults, after which `tieBreakers` are appended and duplicate fields are removed with the earlier entry winning. In PAGE mode, these server-owned entries may use any described direct scalar field, including a UUID `id` or a property with `isAutoDtoEnabled: false`, without exposing that field in the client `orderBy` allowlist. Hidden properties are not valid for generated GET identity, `pathScope`, `rowPath`, or client filter/order fields. Use a deterministic final tie-breaker for stable `page`/`limit` pagination.
 
 ### Generated Cursor Pagination
 
@@ -1550,7 +1545,7 @@ The 3.0 line is published, and `3.0.2` is the baseline before the current source
 
 The major migration covers semantic timestamp ownership, UPDATE `currentEntity`, named transaction scopes and post-transaction hooks, source-first authorization, opt-in generated-route transactions and relation locks, entity-based service relation inputs, typed GET_LIST query plans and strict `400` responses, the BigInt string sign enum, and retired validator configuration exports.
 
-The current contract has no arbitrary immutable controller `baseWhere`, no `FULL` or `PRESERVE` relation projection, and no custom-only/default-disabled controller mode. Generated `read.scope.parameters` is specifically a request-bound mapping from inherited path parameters, while GET-only `identity.parameter` names the wire parameter for the actual primary column; neither is a fixed-scope escape hatch. HOOKS/IAM scope remains the authorization boundary, custom-only controllers disable all six generated routes explicitly, and a consumer-side typed URL/bracket-filter builder remains deferred.
+The current contract has no arbitrary immutable controller `baseWhere`, no `FULL` or `PRESERVE` relation projection, and no custom-only/default-disabled controller mode. Controller `pathScope` is specifically a request-bound mapping from path parameters, while GET-only `identity.parameter` names the wire parameter for the actual primary column; neither is a fixed-scope escape hatch. HOOKS/IAM scope remains the authorization boundary, custom-only controllers disable all six generated routes explicitly, and a consumer-side typed URL/bracket-filter builder remains deferred.
 
 ## 🛣 Current Status
 
@@ -1565,12 +1560,12 @@ The roadmap is aligned with the current source contract rather than older docs-o
 ### Available in Current Source
 
 - REST CRUD controller and service generation for TypeORM entities
-- Entity-driven DTO generation for body, query, parameters, and response contracts, including controller-scoped typed GET_LIST query plans and inherited read-path parameter DTOs
+- Entity-driven DTO generation for body, query, parameters, and response contracts, including controller-scoped typed GET_LIST query plans and path parameter DTOs
 - Custom DTO support, including nested manual DTOs and GET_LIST item response DTOs
 - Polymorphic GET and GET_LIST responses for TypeORM single-table-inheritance roots, with `oneOf` Swagger schemas and fail-closed serialization
 - Swagger/OpenAPI metadata generation for generated and custom routes
 - Default page/limit and opt-in bidirectional cursor pagination, typed filtering, client ordering plus server defaults/tie-breakers, request validators, and request/response transformers
-- Generated nested GET/GET_LIST owner scoping through exact inherited path-parameter mappings
+- Generated nested owner routes through exact controller path bindings on every generated route, and row routes that address every primary key column
 - Request and response relation loading with configurable reference projection
 - Route and function subscribers, including custom route/function hooks and error hooks
 - Hooks-mode authorization policies and IAM-style policy document authorization

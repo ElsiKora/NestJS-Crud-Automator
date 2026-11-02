@@ -401,7 +401,7 @@ A generated route, and a securable custom route with a PARAMETERS DTO in IAM or 
 A securable `@ApiRouteCustom` or `@ApiMethod` route with a path parameter must give its handler and its policy the value authorization saw, in IAM and HOOKS mode alike, or the application fails at startup with an error that names the controller, method, and parameter. The path parameters are those of the whole path: the global prefix, the `RouterModule` path, nested modules included, the controller path, and the route path.
 
 - Declare a `dto[EApiDtoType.PARAMETERS]` that describes every path parameter, preferably with `ApiPropertyCopy`, or with an `ApiProperty*` decorator. An `@ApiMethod` route with a path parameter becomes an `@ApiRouteCustom` route with that DTO. On a HOOKS route only `ApiPropertyCopy` and `ApiProperty*` count, so replace a bare `@IsInt() @Type(() => Number)` or `@IsString()`.
-- Describe the parameters of the global prefix and the `RouterModule` path too; a route `setGlobalPrefix` excludes has no prefix parameters. A generated route under such a parameter becomes an `@ApiRouteCustom` route with a PARAMETERS DTO that describes it, because `read.scope.parameters` maps only controller path parameters.
+- Describe the parameters of the global prefix and the `RouterModule` path too; a route `setGlobalPrefix` excludes has no prefix parameters. A generated route under such a parameter becomes an `@ApiRouteCustom` route with a PARAMETERS DTO that describes it, because `pathScope` binds only controller path parameters.
 - On an IAM route, generated or custom, that neither lists nor creates, serve each `resourcePath` placeholder as a path parameter: move a generated GET, UPDATE, PARTIAL_UPDATE, or DELETE route that lacks one to `@ApiRouteCustom` under that path parameter copied with `ApiPropertyCopy`, or authorize the route in HOOKS mode. Such a placeholder rendered as `*` before, so a Deny on a value of it never matched. Declaring the route a list (`route.type` `GET_LIST` or the action `list`) keeps the placeholder only if the handler applies `decision.scope.where` to its query, and its IAM action becomes `<policyNamespace>:list`, so a separate action such as `export` merges into `list`.
 - Replace a wildcard (`*`, `*name`, `{*name}`) in any part of a securable route's path with named path parameters.
 - Remove pipes other than `ValidationPipe`, and the `expectedType`, `transformerPackage`, and `validatorPackage` options of a `ValidationPipe`, from `@UsePipes` on the method and the controller, and pipes from `@Param`, such as `@Param("id", ParseIntPipe)`; the PARAMETERS DTO converts the value. A global pipe of the host is not checked, so keep it to `ValidationPipe`.
@@ -432,6 +432,53 @@ A loaded resource, as in `ApiAuthorizationSimulator` with `resource` or a runtim
 ## IAM Fields Through To-Many Relations
 
 A `resourceDefinition` field whose `queryPath` crosses a OneToMany or ManyToMany relation, such as `tags.name`, now stops startup with an error that names the field and the relation. Such a path has no single value: a Deny `StringEquals` on it used to serve rows whose related rows matched, and an Allow `StringEqualsIfExists` matched rows with no related row. A definition that skips startup validation, as one passed to `ApiAuthorizationSimulator`, fails closed: an Allow key on it is not matched and a Deny key on it holds. Map a column of the resource or of a to-one relation instead, such as a denormalized flag. See [Deny Semantics](/docs/nestjs-crud-automator/guides/authorization#deny-semantics).
+
+## Generated Row Routes And Path Parameters
+
+Generated GET, PATCH, PUT and DELETE now address every primary key column. Before 5.0.0 they took only the first, so most rows of a composite key could not be reached, and writes under `/parent/:parentId/item/:id` ignored `parentId`: they changed or deleted a row of another parent. A single-column key without path parameters keeps its route and OpenAPI document byte for byte.
+
+**A composite key.** The route becomes `/:tenantId/:id`. To keep a shorter path, name its columns on the controller:
+
+```typescript
+@ApiController<WalletTransactionEntity>({
+	entity: WalletTransactionEntity,
+	path: "wallet-transactions",
+	rowPath: { fields: ["id"] },
+	routes: {},
+})
+```
+
+A `timestamptz` key column with a precision above 3, an unset precision, or another date and time type except `datetime` on SQLite now fails at startup while it is in the path. Leave it out with `rowPath`, as above, or change the column. On such a route, more than one matching row answers `500`, and a write answers `500` before any change when a left-out date and time column holds a finer value than a millisecond. Before 5.0.0, PATCH and PUT inserted a duplicate row there, and DELETE answered `204` without deleting.
+
+**The route `read` key is removed.** Move the mapping to the controller as `pathScope`. It now binds the parameters on every generated route:
+
+```typescript
+// Before
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "providers/:providerKey/games",
+	routes: {
+		[EApiRouteType.GET]: { read: { scope: { parameters: [{ parameter: "providerKey", field: "providerId" }] } } },
+		[EApiRouteType.GET_LIST]: { read: { scope: { parameters: [{ parameter: "providerKey", field: "providerId" }] } } },
+	},
+})
+
+// After
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "providers/:providerKey/games",
+	pathScope: { parameters: [{ parameter: "providerKey", field: "providerId" }] },
+	routes: {},
+})
+```
+
+**Every controller path parameter must be bound** when a generated route is enabled, so a controller that starts today with an unbound, wildcard or optional parameter fails at startup. Add it to `pathScope`, or disable the generated routes. A controller of custom routes only, with all six generated routes disabled, keeps any path.
+
+**A bound field leaves the generated body.** CREATE takes the value from the path. A body naming the bound field is refused by a `ValidationPipe` with `forbidNonWhitelisted`; without one, a different value answers `400` and an equal one passes.
+
+**Names.** The PARAMETERS DTO of a bound route is `<Prefix><Route>ParametersDTO`, without a signature. `IApiControllerPropertiesRouteBaseRead`, `IApiControllerPropertiesRouteReadScope`, `IApiControllerPropertiesRouteReadScopeParameter` and `TApiControllerReadDirectScalarField` are replaced by `IApiControllerPropertiesPathScope`, `IApiControllerPropertiesPathScopeParameter` and `TApiControllerPathDirectScalarField`.
+
+See [Controllers: Row Paths And Composite Keys](/docs/nestjs-crud-automator/core-concepts/controllers#row-paths-and-composite-keys).
 
 ## Checking The Upgrade
 

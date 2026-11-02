@@ -52,7 +52,7 @@ Set `isAutoDtoEnabled: false` on `@ApiPropertyDescribe` when the entity still ne
 internalEligibility!: boolean;
 ```
 
-Omitted or `true` keeps normal generation. `false` preserves `MetadataStorage`, TypeORM mapping, and manual DTO behavior while excluding the property from generated BODY, PARAMETERS, QUERY, and RESPONSE DTOs, generated Swagger relation components, and metadata-driven or typed client filter/order fields. Route- or DTO-level `isEnabled: true`, generated GET identity, `read.scope.parameters`, and query allowlists cannot reopen it.
+Omitted or `true` keeps normal generation. `false` preserves `MetadataStorage`, TypeORM mapping, and manual DTO behavior while excluding the property from generated BODY, PARAMETERS, QUERY, and RESPONSE DTOs, generated Swagger relation components, and metadata-driven or typed client filter/order fields. Route- or DTO-level `isEnabled: true`, generated GET identity, `pathScope`, `rowPath`, and query allowlists cannot reopen it.
 
 An explicit `@ApiPropertyCopy` can deliberately place the source property in a manual DTO; only the global exclusion is bypassed, so the remaining route/DTO, guard, and validation rules still apply. PAGE server-only defaults and tie-breakers may use a hidden described scalar. CURSOR cannot, because every cursor order field must remain exposed in the generated response.
 
@@ -112,38 +112,29 @@ Omitting `filter` or `order` preserves that section's legacy metadata-driven beh
 
 PAGE requires `limit` and `page` integers from 1 through 100 and maps them to TypeORM `take` and `skip`. CURSOR requires `limit`, rejects `page`, and generates the flat `{ items, nextCursor, previousCursor }` response. Its explicit order must end with the complete primary key, single or composite, as server-only tie-breakers, and all possible order fields must be described non-null direct scalars from the PostgreSQL-only v1 storage matrix in [Pagination](/docs/nestjs-crud-automator/guides/pagination). A client order pair replaces the defaults in either mode, then tie-breakers are appended and duplicate fields are removed. PAGE is unchanged.
 
-### Read PARAMETERS DTOs
+### Path PARAMETERS DTOs
 
-Generated GET and GET_LIST routes can create path-parameter DTOs for nested owner scopes:
+Generated routes create path-parameter DTOs for nested owners, composite keys and identity aliases:
 
 ```typescript
 @ApiController<GameEntity>({
 	entity: GameEntity,
 	path: "providers/:providerKey/games",
+	pathScope: { parameters: [{ parameter: "providerKey", field: "providerId" }] },
 	routes: {
 		[EApiRouteType.GET]: {
 			identity: { parameter: "gameId" },
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
-		},
-		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
 		},
 	},
 })
 export class ProviderGameController {}
 ```
 
-Automator copies validation/transformation and Swagger metadata from the primary or mapped described direct scalar field to each external parameter name. In the example, the GET PARAMETERS DTO contains `gameId` and `providerKey`; the TypeORM identity predicate still targets the actual primary column. GET_LIST contains only the inherited mapping. Omit `identity` to keep the primary-column name, and use identity without scope only when the controller path has no inherited parameters. DTO/schema identity is route- and mapping-scoped, so controllers over the same entity can use different external names safely.
+Automator copies validation/transformation and Swagger metadata from the row or bound described direct scalar field to each external parameter name. In the example, the GET PARAMETERS DTO contains `providerKey` and `gameId`; the TypeORM predicate still targets the actual primary column. GET_LIST and CREATE contain only the bound parameter. The DTO of a route is named `<Prefix><Route>ParametersDTO`, so controllers over the same entity can use different external names safely.
 
-All inherited `:parameters` must be mapped exactly once. A manual `dto[EApiDtoType.PARAMETERS]` is mutually exclusive with configured read identity or scope; `autoDto[EApiDtoType.PARAMETERS]` validators can still decorate the generated DTO.
+Every controller `:parameter` must be bound exactly once when a generated route is enabled. A manual `dto[EApiDtoType.PARAMETERS]` is mutually exclusive with `pathScope`, `rowPath` and `identity`; `autoDto[EApiDtoType.PARAMETERS]` validators can still decorate the generated DTO.
+
+A bound field leaves the generated BODY DTO of CREATE, PATCH and PUT.
 
 Identity aliases do not rename response fields. A manual response DTO can use the standard `class-transformer` alias when its wire contract needs `gameId` for an entity value named `id`. The property key names the entity value, and the exposed name is what the client sees:
 
@@ -219,15 +210,15 @@ password: string;
 
 Every DTO that Automator generates for a controller route is named after that controller, and the class name is also the OpenAPI component name. The name starts with the controller's schema prefix: the controller class name without a trailing `Controller`. When nothing is left after removing it, the prefix is the full class name. `AdminUserController` has the prefix `AdminUser`, and `UserController` has `User`. The entity name is not part of generated names.
 
-| Generated DTO                                             | Name                                                                                                                                                                                                                                                                              |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Body, query, parameters, response                         | `<Prefix><Route><DtoType>DTO`, for example `UserGetResponseDTO`, `UserCreateBodyDTO`, `UserPartialUpdateBodyDTO`                                                                                                                                                                  |
-| GET_LIST page and cursor wrapper                          | `<Prefix>GetListPageDTO`, or `<Prefix>GetListCursorPageDTO` in CURSOR mode                                                                                                                                                                                                        |
-| GET_LIST wrapper around a `{ itemType }` response DTO     | `<Prefix>GetListResponse<ItemType>`, or `<Prefix>GetListResponse<ItemType>Cursor` in CURSOR mode, where `<ItemType>` is the item class name: `UserController` with `PublicUserResponseDto` gives `UserGetListResponsePublicUserResponseDto`                                       |
-| Nested DTO at any depth                                   | `<Parent><Property>DTO`, or `<Parent><Property><Variant>DTO` for a variant, where `<Parent>` is the name of the DTO that holds the property without `DTO`                                                                                                                         |
-| Table inheritance variant response                        | `<Prefix><Route>Response<Value>DTO`, see [Table Inheritance](/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance). A root without a `@ChildEntity` value uses its discriminator value, which is the root class name: `<Prefix><Route>Response<RootClassName>DTO` |
-| Typed GET_LIST query, GET identity, read scope parameters | `<Prefix>GetListQuery<signature>DTO`, `<Prefix>GetIdentity<signature>DTO`, `<Prefix>GetParameters<signature>DTO`, `<Prefix>GetListParameters<signature>DTO`                                                                                                                       |
-| Body, query, parameters of a custom route                 | `<Prefix><Method><DtoType>DTO`, where `<Method>` is the handler method name in PascalCase: `PublicUserController.getMe` gives `PublicUserGetMeParametersDTO`                                                                                                                      |
+| Generated DTO                                         | Name                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Body, query, parameters, response                     | `<Prefix><Route><DtoType>DTO`, for example `UserGetResponseDTO`, `UserCreateBodyDTO`, `UserPartialUpdateBodyDTO`                                                                                                                                                                  |
+| GET_LIST page and cursor wrapper                      | `<Prefix>GetListPageDTO`, or `<Prefix>GetListCursorPageDTO` in CURSOR mode                                                                                                                                                                                                        |
+| GET_LIST wrapper around a `{ itemType }` response DTO | `<Prefix>GetListResponse<ItemType>`, or `<Prefix>GetListResponse<ItemType>Cursor` in CURSOR mode, where `<ItemType>` is the item class name: `UserController` with `PublicUserResponseDto` gives `UserGetListResponsePublicUserResponseDto`                                       |
+| Nested DTO at any depth                               | `<Parent><Property>DTO`, or `<Parent><Property><Variant>DTO` for a variant, where `<Parent>` is the name of the DTO that holds the property without `DTO`                                                                                                                         |
+| Table inheritance variant response                    | `<Prefix><Route>Response<Value>DTO`, see [Table Inheritance](/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance). A root without a `@ChildEntity` value uses its discriminator value, which is the root class name: `<Prefix><Route>Response<RootClassName>DTO` |
+| Typed GET_LIST query, GET identity, path parameters   | `<Prefix>GetListQuery<signature>DTO`, `<Prefix>GetIdentity<signature>DTO` for an alias with no binding, `<Prefix><Route>ParametersDTO` for `pathScope`, `rowPath`, or an alias with a binding                                                                                     |
+| Body, query, parameters of a custom route             | `<Prefix><Method><DtoType>DTO`, where `<Method>` is the handler method name in PascalCase: `PublicUserController.getMe` gives `PublicUserGetMeParametersDTO`                                                                                                                      |
 
 Nested names follow one recursive rule: a relation, a dynamic object variant, or a manual DTO copied into a generated DTO is named after the DTO that holds it plus the property name in PascalCase, and the variant name for a variant. A relation `owner` of `UserGetResponseDTO` is `UserGetResponseOwnerDTO`. The same relation inside variant `V1` of property `details` is `UserGetResponseDetailsV1OwnerDTO`, because its parent is `UserGetResponseDetailsV1DTO`. A relation or dynamic object that `@ApiPropertyCopy` copies into a hand-written DTO follows the same rule with that DTO as the parent: `currency` copied into `DepositResponseDTO` gives `DepositResponseCurrencyDTO`, and variant `V1` of a copied `details` gives `DepositResponseDetailsV1DTO`. The property is the one of the host DTO that `@ApiPropertyCopy` decorates, not the entity property it copies, so one relation copied into `currency` and `previousCurrency` gives `DepositResponseCurrencyDTO` and `DepositResponsePreviousCurrencyDTO`. A trailing `DTO` is removed from the parent name in any case, so the host classes `DepositResponseDTO` and `DepositResponseDto` both give `DepositResponseCurrencyDTO`. A class named only `DTO` keeps its name.
 
@@ -251,7 +242,7 @@ The PascalCase segment of a property or variant name uppercases its first letter
 
 A name does not depend on which other controllers exist, so adding a controller never renames another controller's schemas.
 
-No property name, variant name or table inheritance value can produce a name with a fixed suffix. Every generated DTO that holds nested DTOs is named `<Prefix><Route or Method><DtoType>…`, where `<DtoType>` is `Body`, `Parameters`, `Query` or `Response`, so a nested name always contains that route and DTO type followed by a segment that is not empty. That is why it never equals `<Prefix><Route or Method><DtoType>DTO`. The GET_LIST wrappers `<Prefix>GetListPageDTO` and `<Prefix>GetListCursorPageDTO` and the `Exception*DTO` names have no DTO type after the route, the typed query, identity and read scope parameter DTOs never hold nested DTOs, and the generated enum names do not end in `DTO`. The `{ itemType }` wrapper `<Prefix>GetListResponse<ItemType>` does contain `Response`, and its last part is a class name you choose. A relation named `items`, `page`, `cursor`, `query`, `parameters`, `body` or `response` therefore gets its own component, for example `UserGetListResponseItemsDTO` for a relation `items` next to the wrapper `UserGetListPageDTO`. Two generated names can still meet when one of them comes from a name you choose: a dynamic object variant or a table inheritance value that equals another property name plus a suffix, two property names that differ only by separators or a trailing `DTO`, such as `dto` and `_dto`, a custom route handler name, an `itemType` class name, or a hand-written DTO class name. The [startup checks](#startup-checks) report these.
+No property name, variant name or table inheritance value can produce a name with a fixed suffix. Every generated DTO that holds nested DTOs is named `<Prefix><Route or Method><DtoType>…`, where `<DtoType>` is `Body`, `Parameters`, `Query` or `Response`, so a nested name always contains that route and DTO type followed by a segment that is not empty. That is why it never equals `<Prefix><Route or Method><DtoType>DTO`. The GET_LIST wrappers `<Prefix>GetListPageDTO` and `<Prefix>GetListCursorPageDTO` and the `Exception*DTO` names have no DTO type after the route, the typed query, identity and path parameter DTOs never hold nested DTOs, and the generated enum names do not end in `DTO`. The `{ itemType }` wrapper `<Prefix>GetListResponse<ItemType>` does contain `Response`, and its last part is a class name you choose. A relation named `items`, `page`, `cursor`, `query`, `parameters`, `body` or `response` therefore gets its own component, for example `UserGetListResponseItemsDTO` for a relation `items` next to the wrapper `UserGetListPageDTO`. Two generated names can still meet when one of them comes from a name you choose: a dynamic object variant or a table inheritance value that equals another property name plus a suffix, two property names that differ only by separators or a trailing `DTO`, such as `dto` and `_dto`, a custom route handler name, an `itemType` class name, or a hand-written DTO class name. The [startup checks](#startup-checks) report these.
 
 A custom route declared with `@ApiRouteCustom` uses its handler method name in place of the route type, so its generated DTOs stay apart from the generated route of the same type on its controller, also when the two routes have different guards. The response DTO of a custom route is the one you configure.
 
@@ -325,7 +316,7 @@ From 5.0.0, every generated name starts with the controller's schema prefix, and
 | Relation or variant copied with `@ApiPropertyCopy` | `<Entity><Route><DtoType><Property>[<Variant>]DTO`      | `<Host><Property>[<Variant>]DTO`, where `<Host>` is the hand-written DTO name without a trailing `DTO` in any case and `<Property>` the host property |
 | Typed GET_LIST query                               | `<Controller><Entity>GetListQuery<signature>DTO`        | `<Prefix>GetListQuery<signature>DTO`                                                                                                                  |
 | GET identity                                       | `<Controller><Entity>GetIdentity<signature>DTO`         | `<Prefix>GetIdentity<signature>DTO`                                                                                                                   |
-| Read scope parameters                              | `<Controller><Entity>Get[List]Parameters<signature>DTO` | `<Prefix>Get[List]Parameters<signature>DTO`                                                                                                           |
+| Path parameters of a nested route                  | `<Controller><Entity>Get[List]Parameters<signature>DTO` | `<Prefix><Route>ParametersDTO`                                                                                                                        |
 | Custom route body, query, parameters               | `<Entity><Route><DtoType>DTO`                           | `<Prefix><Method><DtoType>DTO`                                                                                                                        |
 | GET_LIST wrapper around a `{ itemType }` DTO       | `<Entity>GetListResponse<ItemType>`                     | `<Prefix>GetListResponse<ItemType>`                                                                                                                   |
 
@@ -462,7 +453,7 @@ Use in controller:
 
 Manual DTOs can also be nested inside auto-generated DTOs through `@ApiPropertyObject`. When this happens, NestJS CRUD Automator creates context-specific wrapper schemas for each generated path, so the same manual DTO can be reused safely in create body DTOs, update body DTOs, and response DTOs without sharing conflicting Swagger or serialization metadata.
 
-For GET_LIST, a manual `dto[EApiDtoType.QUERY]` and generated `request[QUERY].filter`, `order`, or `pagination` configuration are mutually exclusive. For generated GET/GET_LIST read scope, a manual `dto[EApiDtoType.PARAMETERS]` and `read.scope.parameters` are likewise mutually exclusive. Manual response DTOs remain compatible with both generated plans.
+For GET_LIST, a manual `dto[EApiDtoType.QUERY]` and generated `request[QUERY].filter`, `order`, or `pagination` configuration are mutually exclusive. A manual `dto[EApiDtoType.PARAMETERS]` is likewise mutually exclusive with `pathScope` and `rowPath`. Manual response DTOs remain compatible with both generated plans.
 
 ### Custom GET_LIST item DTOs
 

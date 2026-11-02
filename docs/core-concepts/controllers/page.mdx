@@ -107,9 +107,46 @@ Override the default controller path:
 })
 ```
 
-### Nested Generated Read Scope
+### Row Paths And Composite Keys
 
-Use `read.scope.parameters` when the controller path contains an owner or parent identity and generated GET/GET_LIST rows must belong to it:
+A generated GET, PATCH, PUT and DELETE takes every primary key column as a path parameter, in declaration order. A single-column key stays `/:id`. An entity with the key `tenantId, id` generates `GET /orders/:tenantId/:id`, and a request with part of the key does not match the route.
+
+Use `rowPath` on the controller to choose the columns and their order:
+
+```typescript filename="order.controller.ts" copy
+@ApiController<OrderEntity>({
+	entity: OrderEntity,
+	path: "orders",
+	rowPath: { fields: ["id", "tenantId"] },
+	routes: {},
+})
+export class OrderController {
+	constructor(public service: OrderService) {}
+}
+```
+
+This generates `GET /orders/:id/:tenantId`. An empty list, an unknown column, a column outside the key, a repeated column, or a column `pathScope` already binds fails at startup.
+
+A date and time key column in the path of a composite key must be a `timestamptz` with precision 0 to 3, or a `datetime` on SQLite, because a JavaScript `Date` cannot reproduce a finer value. Any other column fails at startup, and the value in the path must be the canonical UTC form such as `2026-01-15T05:06:07.123Z`; any other form answers `400`.
+
+`rowPath` may leave key columns out, for example `rowPath: { fields: ["id"] }` on a partitioned ledger keyed by `id, createdAt`, where `createdAt` holds microseconds. The path is then a promise that it names one row:
+
+- The route first reads the key of the matching rows with `take: 2`, under the current HOOKS or IAM scope, through the transaction of the route. It adds this one `SELECT` only on a route with a reduced key.
+- More than one match answers `500` before any change. The value of a reduced column is not checked by the path, so a key that repeats is a deployment fault, not a client error.
+- A write answers `500` before any change when a left-out date and time key column holds a finer value than a millisecond: the write could not address that row. GET still reads it.
+
+Limits of a reduced key:
+
+- Without a transaction (`SUPPORTS` outside one, or `NONE`), the check and the write are two statements, so a concurrent writer can act between them. Use `REQUIRED` when that matters.
+- The lookup filters only on the columns in the path, so on a partitioned table it visits every partition unless an index on those columns serves it.
+- A function subscriber that sets `withDeleted` does not reach the lookup, so a soft-deleted row answers `404` on a route with a reduced key.
+- An IAM `resourcePath` placeholder such as `{createdAt}` renders `*` on a route whose path leaves that column out.
+
+A custom route with two path segments on a controller with a two-column default row path can be captured by the generated route, for example `orders/export/daily` by `orders/:tenantId/:id`. Declare a longer or different custom path, or set `rowPath`.
+
+### Binding Controller Path Parameters
+
+Use `pathScope` when the controller path contains an owner or parent identity. It binds each path parameter to an entity field on **every** generated route:
 
 ```typescript filename="provider-game.controller.ts" copy
 import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOrderDirection } from "@elsikora/nestjs-crud-automator";
@@ -118,21 +155,12 @@ import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiController
 	entity: GameEntity,
 	name: "ProviderGames",
 	path: "providers/:providerKey/games",
+	pathScope: { parameters: [{ parameter: "providerKey", field: "providerId" }] },
 	routes: {
 		[EApiRouteType.GET]: {
 			identity: { parameter: "gameId" },
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
 		},
 		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ parameter: "providerKey", field: "providerId" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {
@@ -154,13 +182,27 @@ export class ProviderGameController {
 }
 ```
 
-This generates `GET /providers/:providerKey/games/:gameId` and `GET /providers/:providerKey/games`. `providerKey` is the external owner-path name; `providerId` is the described direct scalar entity field used in the database predicate. `gameId` is only the external GET identity name: Automator still queries the entity's actual primary column. Omit `identity` to retain the ordinary primary-column parameter name, or use identity without scope when the controller path has no inherited parameters. GET_LIST rejects identity because it has no primary-identity path segment. Identity aliases must be safe simple identifiers such as `gameId`; whitespace, slashes, punctuation, control characters, unsafe object-property names, and inherited-path collisions fail at bootstrap.
+`providerKey` is the external path name; `providerId` is the described direct scalar entity field used in the database predicate.
 
-Every required scalar path parameter inherited from `path` must be mapped exactly once; wildcard and optional/grouped dynamic parameters fail at bootstrap. Duplicate/missing parameters, duplicate fields, unknown path names, relations, and objects also fail at bootstrap. On GET, the inherited path must not reuse the effective generated identity parameter name.
+| Route              | Effect of `pathScope`                                                                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET, GET_LIST      | The row or list is limited to the bound value.                                                                                                                              |
+| PATCH, PUT, DELETE | Only a row with the bound value is written. A row of another parent answers `404` and stays unchanged.                                                                      |
+| CREATE             | The bound value comes from the path. A body naming another value answers `400` without echoing it, including through a relation key such as `owner` over a bound `ownerId`. |
 
-The framework generates a route-local PARAMETERS DTO from primary and mapped field metadata under their external parameter names and emits matching Swagger metadata. Do not combine configured read identity or scope with a manual `dto[EApiDtoType.PARAMETERS]`; use `autoDto[PARAMETERS]` only for validators on the generated DTO.
+Bound fields leave the generated BODY DTO, so a `ValidationPipe` with `forbidNonWhitelisted` refuses them in a body. A bound key column also leaves the row path: with the key `tenantId, id` and `tenantId` bound, the row path is `/:id`.
 
-GET combines primary identity, path scope, and then HOOKS/IAM scope. GET_LIST combines query predicates, path scope, and then HOOKS/IAM scope. Every layer is a logical AND, including when the same field appears more than once; a later layer cannot overwrite an earlier condition.
+Every path parameter must be bound as soon as one generated route is enabled, and required: an unbound, wildcard or optional parameter fails at startup. Bind it or disable the route. A controller with all six generated routes disabled, which serves only custom routes, starts with any path it declares. A declared `pathScope` or `rowPath` is still validated. Duplicate parameters, duplicate fields, unknown path names, relations and objects fail at startup, as does a path parameter named like a row parameter, and binding every key column on a controller with a row route enabled.
+
+`identity` renames the one row parameter that is left and stays GET-only: `gameId` is only the external name, and Automator still queries the actual primary column. With more than one row parameter it fails at startup. GET_LIST rejects identity because it has no item segment. Identity aliases must be safe simple identifiers such as `gameId`.
+
+The framework generates a route-local PARAMETERS DTO, named `<Prefix><Route>ParametersDTO`, from the metadata of the bound and row fields under their external parameter names, and emits matching Swagger metadata. Do not combine `pathScope`, `rowPath` or `identity` with a manual `dto[EApiDtoType.PARAMETERS]`; use `autoDto[PARAMETERS]` only for validators on the generated DTO. `request[PARAMETERS]` on CREATE and GET_LIST requires `pathScope`, because those routes otherwise take no path parameters.
+
+A manual PARAMETERS DTO on a default composite key is yours to keep complete: a value it does not deliver answers `400` with `<parameter> should not be null or undefined`.
+
+Row parameters, the path binding, and HOOKS/IAM scope combine as a logical AND, and so do GET_LIST query predicates. A later layer cannot overwrite an earlier condition: a conflict matches nothing.
+
+Service methods called directly take whatever criteria you pass. `service.update`, `service.delete` and `service.get` do not apply `rowPath` or `pathScope`, so pass the complete key.
 
 The list example also provides deterministic page/limit ordering. Server-only `defaultOrder` is used when the client sends no order pair, while `tieBreakers` are appended after either the defaults or the client's selected order. Direct scalar UUID fields such as `id` may be used here without being listed in the client order allowlist.
 
@@ -503,10 +545,11 @@ A decorator cannot change a class's type, so these methods are not on the type o
 type TUserController = Omit<InstanceType<TApiControllerTargetMethod<UserEntity>>, "delete">;
 ```
 
-These types also give `getList` the arguments `(query, headers, ip)`. On a route with `read.scope.parameters`, the generated method takes `(parameters, query, headers, ip)`, so a direct call with the typed arguments answers `400` with `<parameter> should not be null or undefined`. HTTP requests to the route are not affected. Whether a route has a read scope is not visible to the types either, so call this method through a type of your own.
+These types also give `getList` the arguments `(query, headers, ip)`. On a controller with `pathScope`, the generated method takes `(parameters, query, headers, ip)`, and `create` takes `(parameters, body, headers, ip)`, so a direct call with the typed arguments answers `400` with `<parameter> should not be null or undefined`. HTTP requests to the route are not affected. Whether a controller has a `pathScope` is not visible to the types either, so call these methods through a type of your own.
 
 ## Migration Notes
 
+- **5.0:** The route `read` key is removed. Replace `read: { scope: { parameters } }` on GET and GET_LIST with `pathScope: { parameters }` on the controller, which binds the parameters on every generated route. Every controller path parameter must now be bound, or the routes under it disabled. Generated row routes address every primary key column. See [Migrating To 5.0](/docs/nestjs-crud-automator/guides/migrating-to-5-0#generated-row-routes-and-path-parameters).
 - **5.0:** `TApiControllerMethodName`, `TApiControllerMethodNameMap` and `TApiControllerTargetMethod` give the runtime names. Before 5.0.0 they gave `${string}Create` and the like, so `controller.create` did not compile while `controller.xCreate` did, although no such method exists. Call the methods by their runtime names. A cast on a value already typed with these types can go, but a decorated class still needs a type assertion or declaration merging.
 - **5.0:** An instance of `TApiControllerTargetMethod` now has all six methods as required properties, including the methods of disabled routes, so a test stub of that type has to implement them. `ApiControllerFactory` takes the undecorated class as a `TApiControllerConstructor`, and its protected `target` has that type too.
 

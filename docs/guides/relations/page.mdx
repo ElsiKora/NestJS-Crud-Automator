@@ -356,11 +356,8 @@ A generated controller on the child table, scoped by the owner path parameter, n
 @ApiController<DepositDetailFormFieldEntity>({
 	entity: DepositDetailFormFieldEntity,
 	path: "deposit-details/:detailId/form-fields",
-	routes: {
-		[EApiRouteType.GET_LIST]: {
-			read: { scope: { parameters: [{ field: "detailId", parameter: "detailId" }] } },
-		},
-	},
+	pathScope: { parameters: [{ field: "detailId", parameter: "detailId" }] },
+	routes: {},
 })
 export class DepositDetailFormFieldController {
 	constructor(public readonly service: DepositDetailFormFieldService) {}
