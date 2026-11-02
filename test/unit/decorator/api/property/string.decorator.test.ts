@@ -4,7 +4,6 @@ import type { TApiPropertyStringProperties } from "@type/decorator/api/property"
 
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { EApiPropertyStringType } from "@enum/decorator/api";
-import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { describe, expect, it } from "vitest";
@@ -57,7 +56,6 @@ const validatorFormats: Array<{ format: EApiPropertyStringType; valid: unknown; 
 	{ format: EApiPropertyStringType.CREDIT_CARD, valid: "4111111111111111", invalid: "123" },
 	{ format: EApiPropertyStringType.CURRENCY_CODE, valid: "USD", invalid: "US" },
 	{ format: EApiPropertyStringType.DATA_URI, valid: "data:text/plain;base64,SGVsbG8=", invalid: "not-data-uri" },
-	{ format: EApiPropertyStringType.DATE, valid: new Date(), invalid: "not-a-date" },
 	{ format: EApiPropertyStringType.DOMAIN, valid: "example.com", invalid: "not a domain" },
 	{ format: EApiPropertyStringType.EMAIL, valid: "user@example.com", invalid: "nope" },
 	{ format: EApiPropertyStringType.ETHEREUM_ADDRESS, valid: "0x52908400098527886E0F7030069857D2E4169EE7", invalid: "0x123" },
@@ -124,12 +122,8 @@ describe("ApiPropertyString", () => {
 		expect(invalidErrors.length).toBeGreaterThan(0);
 	});
 
-	it("transforms DATE format strings into Date objects", () => {
-		const DateDto = buildStringDto(EApiPropertyStringType.DATE);
-		const instance = plainToInstance(DateDto, { value: "2025-01-01T00:00:00.000Z" });
-
-		expect(instance.value).toBeInstanceOf(Date);
-		expect(validateSync(instance)).toHaveLength(0);
+	it.each([false, true])("refuses format DATE at decoration and points to ApiPropertyDate (isResponse: %s)", (isResponse: boolean) => {
+		expect(() => buildStringDto(EApiPropertyStringType.DATE, { exampleValue: "2026-03-01", isResponse, pattern: "/^\\d{4}-\\d{2}-\\d{2}$/" })).toThrow("ApiPropertyString error: Property 'StringDto.value' cannot use format DATE; describe a calendar date with ApiPropertyDate and EApiPropertyDateType.DATE");
 	});
 
 	it("throws for invalid regex format", () => {

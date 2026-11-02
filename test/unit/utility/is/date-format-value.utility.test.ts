@@ -3,11 +3,11 @@ import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
 import { describe, expect, it } from "vitest";
 
 describe("IsDateFormatValue", () => {
-	it.each(["2024-02-02T00:00:00.000Z", "2024-02-29T23:59:59.999Z", "1970-01-01T00:00:00.000Z"])("accepts the UTC instant %s", (value: string) => {
+	it.each(["2024-02-02T00:00:00.000Z", "2024-02-29T23:59:59.999Z", "1970-01-01T00:00:00.000Z", "0001-01-01T00:00:00.000Z", "9999-12-31T23:59:59.999Z"])("accepts the UTC instant %s", (value: string) => {
 		expect(IsDateFormatValue(value, EApiPropertyDateType.DATE_TIME)).toBe(true);
 	});
 
-	it.each(["2024-02-02T00:00:00Z", "2024-02-02T00:00:00.000+05:30", "2024-02-02T00:00:00.000", "2024-02-02", "2024-02-02T00:00:00X000Z", "2024-02-30T00:00:00.000Z", "2024-02-02T24:00:00.000Z", "2024-02-02T00:00:60.000Z", "1706832000000", ""])("rejects %j as a date-time", (value: string) => {
+	it.each(["2024-02-02T00:00:00Z", "2024-02-02T00:00:00.000+05:30", "2024-02-02T00:00:00.000", "2024-02-02", "2024-02-02T00:00:00X000Z", "2024-02-30T00:00:00.000Z", "2024-02-02T24:00:00.000Z", "2024-02-02T00:00:60.000Z", "1706832000000", "", "0000-01-01T00:00:00.000Z", "-000001-01-01T00:00:00.000Z", "+010000-01-01T00:00:00.000Z", "10000-01-01T00:00:00.000Z"])("rejects %j as a date-time", (value: string) => {
 		expect(IsDateFormatValue(value, EApiPropertyDateType.DATE_TIME)).toBe(false);
 	});
 
@@ -22,6 +22,8 @@ describe("IsDateFormatValue", () => {
 	it("checks calendar dates as calendar text", () => {
 		expect(IsDateFormatValue("2024-02-29", EApiPropertyDateType.DATE)).toBe(true);
 		expect(IsDateFormatValue("2023-02-29", EApiPropertyDateType.DATE)).toBe(false);
+		expect(IsDateFormatValue("0001-01-01", EApiPropertyDateType.DATE)).toBe(true);
+		expect(IsDateFormatValue("0000-01-01", EApiPropertyDateType.DATE)).toBe(false);
 	});
 
 	it("rejects values that are not strings", () => {

@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import { ApiPropertyDate } from "@decorator/api/property/date.decorator";
 import { EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
+import { ValidationPipe } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
@@ -168,7 +169,7 @@ describe("ApiPropertyDate", () => {
 			expect(validateSync(instance)).toHaveLength(0);
 		});
 
-		it.each(["2026-02-30", "2026-13-01", "2026-03-01T00:00:00.000Z", "20260301", "2026-3-1", "Mar 1 2026", "", 20_260_301, true, {}, [["2026-03-01"]]])("rejects %j as a DATE value without converting it", (value: unknown) => {
+		it.each(["2026-02-30", "2026-13-01", "2026-03-01T00:00:00.000Z", "20260301", "2026-3-1", "Mar 1 2026", "", "0000-01-01", "10000-01-01", 20_260_301, true, {}, [["2026-03-01"]]])("rejects %j as a DATE value without converting it", (value: unknown) => {
 			const instance = plainToInstance(CalendarDateDto, { happensOn: value });
 
 			expect(instance.happensOn).toEqual(value);
@@ -185,7 +186,7 @@ describe("ApiPropertyDate", () => {
 			expect(validateSync(instance)).toHaveLength(0);
 		});
 
-		it.each(["2026-03-01T12:34:56Z", "2026-03-01T12:34:56.789+01:00", "2026-03-01T12:34:56.789", "2026-03-01", "2026-02-30T12:00:00.000Z", "2026-03-01T24:00:00.000Z", "2026-03-01T12:34:56X789Z", "March 1 2026", "1", "", 0, 1_772_368_496_789, [["2026-03-01T12:34:56.789Z"]]])("rejects %j as a DATE_TIME value without converting it", (value: unknown) => {
+		it.each(["2026-03-01T12:34:56Z", "2026-03-01T12:34:56.789+01:00", "2026-03-01T12:34:56.789", "2026-03-01", "2026-02-30T12:00:00.000Z", "2026-03-01T24:00:00.000Z", "2026-03-01T12:34:56X789Z", "March 1 2026", "1", "", "0000-01-01T00:00:00.000Z", "10000-01-01T00:00:00.000Z", 0, 1_772_368_496_789, [["2026-03-01T12:34:56.789Z"]]])("rejects %j as a DATE_TIME value without converting it", (value: unknown) => {
 			const instance = plainToInstance(DateDto, { createdAt: value });
 
 			expect(instance.createdAt).toEqual(value);
@@ -264,5 +265,52 @@ describe("ApiPropertyDate", () => {
 		};
 
 		expect(applyDecorator).toThrow("ApiPropertyDate error: Property 'Object.dates': 'minItems' is greater than 'maxItems'");
+	});
+});
+
+describe("ApiPropertyDate under a ValidationPipe with implicit conversion", () => {
+	// Vitest does not emit decorator metadata, so each property declares the design type a TypeScript build emits for `Date`.
+	class ImplicitInstantDto {
+		@Reflect.metadata("design:type", Date)
+		@ApiPropertyDate({ description: "startsAt", entity: DateEntity, format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, isRequired: true })
+		public startsAt!: Date;
+	}
+
+	class ImplicitCalendarDto {
+		@Reflect.metadata("design:type", Date)
+		@ApiPropertyDate({ description: "happensOn", entity: DateEntity, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE, isRequired: true })
+		public happensOn!: Date;
+
+		@Reflect.metadata("design:type", Date)
+		@ApiPropertyDate({ description: "opensAt", entity: DateEntity, format: EApiPropertyDateType.TIME, identifier: EApiPropertyDateIdentifier.DATE, isRequired: true })
+		public opensAt!: Date;
+	}
+
+	const pipe: ValidationPipe = new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true } });
+	const originalTimeZone: string | undefined = process.env.TZ;
+
+	afterEach(() => {
+		process.env.TZ = originalTimeZone;
+	});
+
+	it("parses a published DATE_TIME value to the instant it names", async () => {
+		const result = (await pipe.transform({ startsAt: "2026-03-01T12:34:56.789Z" }, { metatype: ImplicitInstantDto, type: "body" })) as ImplicitInstantDto;
+
+		expect(result.startsAt).toBeInstanceOf(Date);
+		expect(result.startsAt.toISOString()).toBe("2026-03-01T12:34:56.789Z");
+	});
+
+	it.each(["2026-03-01T12:34:56.789+03:00", "March 1 2026", "1", 1_772_368_496_789, "0000-01-01T00:00:00.000Z"])("rejects %j on a DATE_TIME property typed Date", async (value: unknown) => {
+		process.env.TZ = "America/New_York";
+
+		await expect(pipe.transform({ startsAt: value }, { metatype: ImplicitInstantDto, type: "body" })).rejects.toMatchObject({ response: { message: ["startsAt must be in YYYY-MM-DDTHH:mm:ss.sssZ format"] } });
+	});
+
+	it("keeps DATE and TIME values on properties typed Date as the text sent", async () => {
+		process.env.TZ = "America/New_York";
+
+		const result = (await pipe.transform({ happensOn: "2026-03-01", opensAt: "09:30:00" }, { metatype: ImplicitCalendarDto, type: "body" })) as unknown as Record<string, unknown>;
+
+		expect(result).toMatchObject({ happensOn: "2026-03-01", opensAt: "09:30:00" });
 	});
 });
