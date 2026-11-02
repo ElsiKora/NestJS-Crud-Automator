@@ -226,7 +226,11 @@ See [Entities: Migration Notes](/docs/nestjs-crud-automator/core-concepts/entiti
 
 ## Explicit `@Expose` With `@ApiProperty*`
 
-An explicit `@Expose` now keeps its name, groups and versions whatever the decorator order. Before 5.0.0 an `@ApiProperty*` decorator erased it silently when it ran after the `@Expose`: with `@ApiProperty*` above `@Expose`, with a lazy `entity` in either order, and when a child class redeclared a property whose `@Expose` is on the parent. Such a property now reads and writes the name its `@Expose` declares, so its wire name changes. Remove the `@Expose` to keep the property name. See [DTOs: `@Expose` Migration Notes](/docs/nestjs-crud-automator/core-concepts/dtos#expose-migration-notes).
+An explicit `@Expose` now keeps its name, groups and versions whatever the decorator order. Before 5.0.0 an `@ApiProperty*` decorator erased it silently when it ran after the `@Expose`: with `@ApiProperty*` above `@Expose`, with a lazy `entity` in either order, and when a child class redeclared a property whose `@Expose` is on the parent. Such a property now follows its `@Expose`, so its wire name changes. A request body is read from the exposed name, while validation errors name the declared property. `ClassSerializerInterceptor` and `instanceToPlain` write the exposed name. `@ApiRouteCustom` without the interceptor reads the exposed name from what the handler returns and sends the property key, so a handler that returns the property key now gets `{}` where it got `{"value":"declaredKey"}`. Remove the `@Expose` to keep the property name.
+
+A named `@Expose`, own or inherited, next to `isExpose: false` or an `@Exclude` that applies to plain objects now fails at startup. `@Exclude({ toPlainOnly: true })` stays legal.
+
+An application bundled with two copies of `class-transformer` now fails at decoration with `Cannot read class-transformer metadata`. The `class-transformer` peer range is `>=0.5.1 <0.5.2`. See [DTOs: `@Expose` Migration Notes](/docs/nestjs-crud-automator/core-concepts/dtos#expose-migration-notes).
 
 ## Checking The Upgrade
 
