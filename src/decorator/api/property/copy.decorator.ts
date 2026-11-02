@@ -7,7 +7,6 @@ import type { TApiPropertyCopyProperties } from "@type/decorator/api/property/co
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { applyDecorators } from "@nestjs/common";
-import { ApiExtraModels } from "@nestjs/swagger";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
@@ -122,11 +121,6 @@ export function ApiPropertyCopy<E>(properties: TApiPropertyCopyProperties<E>): P
 
 			const dtoNameBase: string = DtoSchemaNameStripSuffix(host.name);
 			const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(resolvedMethod, propertyMetadata, entityMetadata, resolvedDtoType, hostPropertyName, guard, dtoNameBase, host.name);
-
-			// Only a `$ref` points at a dynamic variant, so Swagger finds the component through the extra models of the host.
-			if (generatedDTOs) {
-				ApiExtraModels(...Object.values(generatedDTOs))(host);
-			}
 
 			const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(resolvedMethod, propertyMetadata, entityMetadata, resolvedDtoType, propertyName as string, guard, generatedDTOs, dtoNameBase, hostPropertyName, host.name);
 

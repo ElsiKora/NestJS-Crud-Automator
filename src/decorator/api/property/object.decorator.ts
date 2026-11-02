@@ -7,7 +7,7 @@ import type { ClassConstructor } from "class-transformer";
 
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { applyDecorators } from "@nestjs/common";
-import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
+import { ApiExtraModels, ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
 import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator-validate-config.utility";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
@@ -73,6 +73,7 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): Proper
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedOptions, apiPropertyOptions);
 
 			applyDecorators(...decorators)(target, propertyKey);
+			registerReferencedModels(target, normalizedOptions);
 			ApplyAutoDtoResponseExposure(target, propertyKey, normalizedOptions);
 		});
 	};
@@ -337,6 +338,21 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
  */
 function isApiPropertyObjectWithDiscriminatorProperties(properties: TApiPropertyObjectProperties): properties is TApiPropertyObjectWithDiscriminatorProperties {
 	return Array.isArray(properties.type) && "discriminator" in properties && Boolean(properties.discriminator) && !("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated);
+}
+
+/**
+ * Registers the classes that `oneOf` points at as extra models of the DTO that holds the property,
+ * because only a `$ref` leads to them and Swagger does not find a component through a `$ref`.
+ * @param {object} target - Prototype of the DTO that holds the property.
+ * @param {TApiPropertyObjectProperties} properties - The property configuration.
+ * @returns {void}
+ */
+function registerReferencedModels(target: object, properties: TApiPropertyObjectProperties): void {
+	if (Array.isArray(properties.type)) {
+		ApiExtraModels(...(properties.type as Array<NestType<unknown>>))(target.constructor);
+	} else if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
+		ApiExtraModels(...Object.values(properties.generatedDTOs))(target.constructor);
+	}
 }
 
 /**

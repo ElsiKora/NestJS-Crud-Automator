@@ -5,7 +5,6 @@ import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties 
 import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
-import { ApiExtraModels } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
@@ -90,7 +89,6 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 			DtoSetGeneratedName(GeneratedDTO, `${variantDtoNameBase}DTO`, `variant ${name} of property ${_propertyName} in ${resolvedHostDtoName}`);
 
 			const nestedDTOs: Record<string, Record<string, Type<unknown>>> = {};
-			const allNestedTypes: Array<Type<unknown>> = [];
 
 			for (const propertyName of Object.keys(data)) {
 				const propertyData: TApiPropertyDescribeProperties | undefined = data[propertyName];
@@ -100,12 +98,6 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 
 					if (childNestedDTOs && Object.keys(childNestedDTOs).length > 0) {
 						nestedDTOs[propertyName] = childNestedDTOs;
-
-						for (const dto of Object.values(childNestedDTOs)) {
-							if (dto) {
-								allNestedTypes.push(dto);
-							}
-						}
 					}
 				}
 			}
@@ -125,10 +117,6 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 							}
 						}
 					}
-				}
-
-				if (allNestedTypes.length > 0) {
-					ApiExtraModels(...allNestedTypes)(GeneratedDTO);
 				}
 
 				generatedDTOs[name] = GeneratedDTO;

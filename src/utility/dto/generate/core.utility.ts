@@ -231,12 +231,6 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 					// @ts-ignore
 					extraModels.push(...property.metadata.dataType);
 				}
-
-				if (generatedDTOs) {
-					for (const [, value] of Object.entries(generatedDTOs)) {
-						extraModels.push(value);
-					}
-				}
 			}
 		}
 	} finally {
