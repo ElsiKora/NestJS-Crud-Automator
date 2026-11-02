@@ -1,4 +1,5 @@
 export type * from "./base";
+export { type TApiPropertyBooleanProperties } from "./boolean-properties.type";
 export { type TApiPropertyCopyProperties } from "./copy-properties.type";
 export { type TApiPropertyDateProperties } from "./date-properties.type";
 export type * from "./default/string";

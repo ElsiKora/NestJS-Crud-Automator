@@ -1,5 +1,5 @@
 import type { EApiPropertyNumberType } from "@enum/decorator/api";
-import type { TApiPropertyBaseProperties } from "@type/decorator/api/property/base";
+import type { TApiPropertyBaseProperties, TApiPropertyBaseResponseArrayProperties } from "@type/decorator/api/property/base";
 
 export type TApiPropertyNumberProperties = {
 	exampleValue?: Array<number> | number;
@@ -7,4 +7,4 @@ export type TApiPropertyNumberProperties = {
 	maximum: number;
 	minimum: number;
 	multipleOf: number;
-} & TApiPropertyBaseProperties;
+} & (TApiPropertyBaseProperties | TApiPropertyBaseResponseArrayProperties);

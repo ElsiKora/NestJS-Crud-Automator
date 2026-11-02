@@ -1,1 +1,1 @@
-export * from "./object-array-bounds.type.test";
+export * from "./array-bounds.type.test";

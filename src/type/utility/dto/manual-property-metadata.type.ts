@@ -1,11 +1,11 @@
 import type { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
-import type { TApiPropertyBaseProperties, TApiPropertyDateProperties, TApiPropertyEnumProperties, TApiPropertyNumberProperties, TApiPropertyObjectProperties, TApiPropertyStringProperties, TApiPropertyUuidProperties } from "@type/decorator/api/property";
+import type { TApiPropertyBooleanProperties, TApiPropertyDateProperties, TApiPropertyEnumProperties, TApiPropertyNumberProperties, TApiPropertyObjectProperties, TApiPropertyStringProperties, TApiPropertyUuidProperties } from "@type/decorator/api/property";
 
 export type TManualDtoPropertyMetadata =
 	| {
 			apply: PropertyDecorator;
 			decorator: EManualDtoPropertyMetadataDecorator.BOOLEAN;
-			properties: TApiPropertyBaseProperties;
+			properties: TApiPropertyBooleanProperties;
 	  }
 	| {
 			apply: PropertyDecorator;

@@ -1,3 +1,3 @@
-import type { TApiPropertyBaseProperties } from "@type/decorator/api/property/base";
+import type { TApiPropertyBaseProperties, TApiPropertyBaseResponseArrayProperties } from "@type/decorator/api/property/base";
 
-export type TApiPropertyUuidProperties = TApiPropertyBaseProperties;
+export type TApiPropertyUuidProperties = TApiPropertyBaseProperties | TApiPropertyBaseResponseArrayProperties;
