@@ -1,9 +1,9 @@
-import { Inject } from "@nestjs/common";
+import { Controller, HttpStatus, Inject, Query, RequestMethod } from "@nestjs/common";
 import { ApiProperty } from "@nestjs/swagger";
 import { Expose, Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional, Max, Min } from "class-validator";
 
-import { ApiController, ApiControllerObservable, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
+import { ApiController, ApiControllerObservable, ApiRouteCustom, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
 
 import { E2eLegacyQueryItemEntity } from "./entity";
 import { E2eLegacyQueryItemService } from "./service";
@@ -184,4 +184,17 @@ export class E2eLegacyQuerySlimItemController {
 export class E2eLegacyQueryTypedSlimItemController {
 	@Inject(E2eLegacyQueryItemService)
 	public readonly service!: E2eLegacyQueryItemService;
+}
+
+@Controller("legacy-query/custom")
+export class E2eLegacyQueryCustomSlimItemController {
+	@ApiRouteCustom<E2eLegacyQueryItemEntity>({
+		autoDto: { [EApiDtoType.QUERY]: {} },
+		resource: { action: "legacyQuery.customSlimList", entity: E2eLegacyQueryItemEntity },
+		response: { status: HttpStatus.OK, type: E2eLegacyQuerySlimListDto },
+		route: { method: RequestMethod.GET, path: "slim-items", type: EApiRouteType.GET_LIST },
+	})
+	public list(@Query() query: Record<string, unknown>): E2eLegacyQuerySlimListDto {
+		return { count: 0, currentPage: Number(query.page), items: [], totalCount: 0, totalPages: 0 };
+	}
 }

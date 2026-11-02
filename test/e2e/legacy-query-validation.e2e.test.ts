@@ -14,7 +14,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eLegacyQueryCursorItemController, E2eLegacyQueryItemController, E2eLegacyQueryItemEntity, E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryTypedSlimItemController, EE2eLegacyQueryStatus } from "./legacy-query";
+import { E2eLegacyQueryCursorItemController, E2eLegacyQueryCustomSlimItemController, E2eLegacyQueryItemController, E2eLegacyQueryItemEntity, E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryTypedSlimItemController, EE2eLegacyQueryStatus } from "./legacy-query";
 
 class LegacyQueryLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -143,7 +143,7 @@ describe.each([
 		beforeAll(async () => {
 			const entities: Array<new () => unknown> = [E2eLegacyQueryItemEntity];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryCursorItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedSlimItemController],
+				controllers: [E2eLegacyQueryCustomSlimItemController, E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryCursorItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedSlimItemController],
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber],
 			}).compile();
@@ -224,6 +224,7 @@ describe.each([
 			{ fields: ORDERABLE_FIELDS, path: "/legacy-query/typed-items" },
 			{ fields: SLIM_ORDERABLE_FIELDS, path: "/legacy-query/slim-items" },
 			{ fields: SLIM_ORDERABLE_FIELDS, path: "/legacy-query/typed-slim-items" },
+			{ fields: SLIM_ORDERABLE_FIELDS, path: "/legacy-query/custom/slim-items" },
 		])("publishes exactly the orderable columns as the $path orderBy enum", ({ fields, path }: { fields: Array<string>; path: string }) => {
 			expect(getOrderByEnum(SwaggerModule.createDocument(app as INestApplication, new DocumentBuilder().build()), path)).toEqual(fields);
 		});
@@ -238,6 +239,15 @@ describe.each([
 
 			expect(await listLabels(`/legacy-query/slim-items?${PAGE}&orderBy=label&orderDirection=${orderDirection}`)).toEqual(labels);
 			expect(await listLabels(`/legacy-query/typed-slim-items?${PAGE}&orderBy=label&orderDirection=${orderDirection}`)).toEqual(labels);
+		});
+
+		it("narrows the orderBy of a custom GET_LIST route to the fields its response type publishes", async () => {
+			const rank = await fastify.inject({ method: "GET", url: `/legacy-query/custom/slim-items?${PAGE}&orderBy=rank&orderDirection=asc` });
+			const label = await fastify.inject({ method: "GET", url: `/legacy-query/custom/slim-items?${PAGE}&orderBy=label&orderDirection=asc` });
+
+			// A custom route leaves query validation to the host pipe, as before.
+			expect(rank.json()).toEqual(createPipe ? { error: "Bad Request", message: [SLIM_ORDER_BY_MESSAGE], statusCode: HttpStatus.BAD_REQUEST } : { count: 0, currentPage: 1, items: [], totalCount: 0, totalPages: 0 });
+			expect(label.statusCode, JSON.stringify(label.json())).toBe(HttpStatus.OK);
 		});
 
 		it("applies one membership rule and an exact between pair on the typed route", async () => {
