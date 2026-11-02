@@ -83,6 +83,7 @@ const FILTER_VALUE_KEY_PATTERN: RegExp = /^(.+)\[values?\]$/u;
 // Two rows are enough to tell that a path does not name one row.
 const PATH_MATCH_LIMIT: number = 2;
 const BODY_PATH_MISMATCH_REJECTION_REASON: string = "value must be the one the path names";
+const BODY_RELATION_COMPONENT_REJECTION_REASON: string = "a relation must name each of its join columns by a single value";
 const BODY_RELATION_CONFLICT_REJECTION_REASON: string = "relation must name the same value as the entity's own column";
 const BODY_RELATION_KEY_CLEAR_REJECTION_REASON: string = "it cannot be cleared, because its columns are in the primary key";
 const BODY_RELATION_LOCKED_CLEAR_REJECTION_REASON: string = "it cannot be cleared, because its columns are in the primary key or bound by the path";
@@ -908,6 +909,22 @@ export class ApiRouteRuntime {
 	}
 
 	/**
+	 * Tells whether a relation value only references the related row: a scalar, or an object naming nothing but the columns the join references and the related key columns.
+	 * @param {RelationMetadata} relation - The relation.
+	 * @param {unknown} value - Value the body gives the relation.
+	 * @returns {boolean} Whether the value carries no other value of the related row.
+	 */
+	private static isRelationReference(relation: RelationMetadata, value: unknown): boolean {
+		if (!this.isPlainRecord(value)) {
+			return true;
+		}
+
+		const referencedNames: Set<string> = new Set<string>([...relation.joinColumns.map((column: TTypeOrmColumnMetadata): string | undefined => column.referencedColumn?.propertyName), ...relation.inverseEntityMetadata.primaryColumns.map((column: TTypeOrmColumnMetadata): string => column.propertyName)].filter((name: string | undefined): name is string => name !== undefined));
+
+		return Object.keys(value).every((key: string): boolean => referencedNames.has(key));
+	}
+
+	/**
 	 * Tells whether a value can name the referenced column of a relation over one column by itself: a string, a number, a boolean or a valid `Date`.
 	 * @param {unknown} value - Value the body gives the relation.
 	 * @returns {boolean} Whether the value is such a scalar.
@@ -981,7 +998,7 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Loads the request relations of a generated write, then removes every relation whose join columns the entity declares and that loading left as the body sent it. The split already wrote its value into the entity's own column, which the save then reads alone: a value the client sent, such as a `Date` a pipe made from a string or an object a pipe never checked, would otherwise reach the save as a related row, and an update would insert another row. A loaded row stays for the save and its subscribers, and so does a null that clears the relation.
+	 * Loads the request relations of a generated write, then removes every relation whose join columns the entity declares, that loading left as the body sent it, and that only references the related row. The split already wrote its value into the entity's own column, which the save then reads alone: a reference the client sent, such as a `Date` a pipe made from a string or an object naming only key columns, would otherwise reach the save as a related row, and an update would insert another row. A loaded row stays for the save and its subscribers, and so do a null that clears the relation and an object with other values of the related row, which a cascade writes.
 	 * @template E - Entity type owned by the route.
 	 * @template R - Generated route type.
 	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
@@ -999,7 +1016,7 @@ export class ApiRouteRuntime {
 		for (const relation of relations) {
 			const value: unknown = body[relation.propertyName];
 
-			if (value !== undefined && value !== null && value === sentValues.get(relation.propertyName)) {
+			if (value !== undefined && value !== null && value === sentValues.get(relation.propertyName) && this.isRelationReference(relation, value)) {
 				Reflect.deleteProperty(body, relation.propertyName);
 			}
 		}
@@ -1308,9 +1325,9 @@ export class ApiRouteRuntime {
 
 	/**
 	 * Copies the body the route writes. A field the path addresses leaves it, because a key the save reads from the body would make it insert another row, and so does a relation that joins such a field over one column.
-	 * Every relation whose join columns the entity declares is written through them. The entity's own value decides: the path's for a bound column, otherwise the body's as the route will write it after transformers, or as the client sent it when a pipe dropped it; a relation that names another one answers `400`, and a join column with no own value takes the relation's. A key column of a write to one row keeps the row's value, since the route never changes the key.
+	 * Every relation whose join columns the entity declares is written through them. The entity's own value decides: the path's for a bound column, otherwise the body's as the route will write it after transformers, or as the client sent it when a pipe dropped it; a relation that names another one answers `400`, and a join column with no own value takes the value of the relation the route writes. A key column of a write to one row keeps the row's value, since the route never changes the key.
 	 * A relation over one column is read as the value of the column it references or as an object naming it, and stays in the body for the save and request relation loading, now in step with the own column. A relation over several columns must be an object and leaves the body, because the save reads every join column from a relation it is given and would write each column twice.
-	 * The relation is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. Null clears a relation only when none of its columns is a key column, bound by the path, or set by the body; otherwise it answers `400`. A relation whose join columns the entity does not declare is left to the save, which has no own column to compare with.
+	 * The relation is compared as the client sent it and as the route will write it, so a pipe that strips or transforms it hides no disagreement, but only the relation the route writes sets an own column: one that a subscriber, a transformer or a pipe removed sets nothing. Each join column must be named by a single value, so an object or an array in its place answers `400`. Null in the written body, or as sent when the relation left the written one, clears a relation only when none of its columns is a key column, bound by the path, or set by the body; otherwise it answers `400`. A relation whose join columns the entity does not declare is left to the save, which has no own column to compare with.
 	 * @param {unknown} body - The body as the route will write it.
 	 * @param {unknown} rawBody - The body as the client sent it.
 	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
@@ -1337,16 +1354,17 @@ export class ApiRouteRuntime {
 		}
 
 		for (const relation of relations) {
-			const values: Array<unknown> = [writeBody[relation.propertyName], rawRecord[relation.propertyName]].filter((value: unknown): boolean => value !== undefined);
+			const written: unknown = writeBody[relation.propertyName];
 			const declaredColumns: Array<TTypeOrmColumnMetadata> = relation.joinColumns.filter((column: TTypeOrmColumnMetadata): boolean => !column.isVirtual);
 			const isSingleColumn: boolean = relation.joinColumns.length === 1;
 
-			if (values.length === 0 || declaredColumns.length === 0) {
+			if ((written === undefined && rawRecord[relation.propertyName] === undefined) || declaredColumns.length === 0) {
 				continue;
 			}
 
-			if (values.includes(null)) {
-				const isClearable: boolean = values.every((value: unknown): boolean => value === null) && declaredColumns.every((column: TTypeOrmColumnMetadata): boolean => !column.isPrimary && !lockedKeyFields.includes(column.propertyName) && !Object.hasOwn(pathValues, column.propertyName) && readOwnValue(column) === undefined);
+			// The body the route writes decides whether the relation is cleared; the body as sent decides only when the relation left the written one.
+			if ((written === undefined ? rawRecord[relation.propertyName] : written) === null) {
+				const isClearable: boolean = declaredColumns.every((column: TTypeOrmColumnMetadata): boolean => !column.isPrimary && !lockedKeyFields.includes(column.propertyName) && !Object.hasOwn(pathValues, column.propertyName) && readOwnValue(column) === undefined);
 
 				if (isClearable) {
 					continue;
@@ -1354,6 +1372,9 @@ export class ApiRouteRuntime {
 
 				throw this.createBodyParameterException(relation.propertyName, isSingleColumn ? this.resolveRelationClearReason(relation, pathValues, lockedKeyFields) : this.resolveRelationObjectReason(relation, pathValues, lockedKeyFields));
 			}
+
+			// A null the client sent for a relation the route then sets clears nothing, so only the values that name the relation are compared.
+			const values: Array<unknown> = [written, rawRecord[relation.propertyName]].filter((value: unknown): boolean => value !== undefined && value !== null);
 
 			if (!values.every((value: unknown): boolean => (isSingleColumn && this.isRelationScalar(value)) || this.isPlainRecord(value))) {
 				throw this.createBodyParameterException(relation.propertyName, isSingleColumn ? BODY_RELATION_VALUE_REJECTION_REASON : this.resolveRelationObjectReason(relation, pathValues, lockedKeyFields));
@@ -1376,6 +1397,12 @@ export class ApiRouteRuntime {
 
 				const referencedName: string | undefined = column.referencedColumn?.propertyName;
 				const components: Array<unknown> = values.map((value: unknown): unknown => this.readRelationComponent(value, referencedName));
+
+				// An object or an array is no value of one column: the save would write it as nothing or fail on it.
+				if (components.some((component: unknown): boolean => component !== undefined && component !== null && !this.isRelationScalar(component))) {
+					throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_COMPONENT_REJECTION_REASON);
+				}
+
 				const ownValue: unknown = readOwnValue(column);
 				const expected: unknown = ownValue === undefined ? components.find((candidate: unknown): boolean => candidate !== undefined) : ownValue;
 
@@ -1383,11 +1410,12 @@ export class ApiRouteRuntime {
 					throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_CONFLICT_REJECTION_REASON);
 				}
 
-				if (writeBody[column.propertyName] !== undefined || lockedKeyFields.includes(column.propertyName)) {
+				// Only the relation the route writes sets its column: one that a subscriber, a transformer or a pipe removed sets nothing, and the body as sent is only compared.
+				if (writeBody[column.propertyName] !== undefined || lockedKeyFields.includes(column.propertyName) || writeBody[relation.propertyName] === undefined) {
 					continue;
 				}
 
-				const component: unknown = components.find((candidate: unknown): boolean => candidate !== undefined);
+				const component: unknown = this.readRelationComponent(writeBody[relation.propertyName], referencedName);
 
 				if (component === undefined) {
 					throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_SPLIT_REJECTION_REASON);
@@ -1411,16 +1439,11 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Returns the form two written values are compared in: a valid `Date` as its canonical string, an array or another object by its content, because the body as sent is a copy, and anything else as it is.
+	 * Returns the form two written values are compared in: a valid `Date` as its canonical string, anything else as it is.
 	 * @param {unknown} value - Value the route writes.
 	 * @returns {unknown} The comparable value.
 	 */
 	private static toWriteValue(value: unknown): unknown {
-		if (value instanceof Date && !Number.isNaN(value.getTime())) {
-			return value.toISOString();
-		}
-
-		// The marker keeps an object apart from a string that spells the same JSON.
-		return typeof value === "object" && value !== null ? `\u0000${JSON.stringify(value)}` : value;
+		return value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString() : value;
 	}
 }

@@ -6,7 +6,7 @@ import { Injectable, Module, UnprocessableEntityException } from "@nestjs/common
 import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm";
 
-import { ApiController, ApiPropertyDescribe, ApiService, ApiServiceBase, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType, EErrorStringAction } from "../../../src/index";
+import { ApiController, ApiControllerObservable, ApiPropertyDescribe, ApiRouteSubscriber, ApiRouteSubscriberBase, ApiService, ApiServiceBase, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType, EErrorStringAction } from "../../../src/index";
 
 export const SINGLE_TENANT_PINNED: string = "T1";
 export const SINGLE_TENANT_OTHER: string = "T2";
@@ -66,6 +66,93 @@ export class RowPathSingleKeyChildEntity {
 	@PrimaryColumn({ type: "varchar" })
 	@ApiPropertyDescribe(TEXT_PROPERTY)
 	public tenantId!: string;
+}
+
+// The owner is server-managed: no generated body publishes the relation or its column.
+const HIDDEN_PROPERTIES = { properties: { [EApiRouteType.CREATE]: { [EApiDtoType.BODY]: { isEnabled: false } }, [EApiRouteType.PARTIAL_UPDATE]: { [EApiDtoType.BODY]: { isEnabled: false } }, [EApiRouteType.UPDATE]: { [EApiDtoType.BODY]: { isEnabled: false } } } };
+
+@Entity("row_path_single_owned")
+export class RowPathSingleOwnedEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe(UUID_PROPERTY)
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+
+	@ApiPropertyDescribe({ ...RELATION_PROPERTY, ...HIDDEN_PROPERTIES } as Parameters<typeof ApiPropertyDescribe>[0])
+	@JoinColumn({ name: "ownerId" })
+	@ManyToOne(() => RowPathSingleTenantEntity, { nullable: true })
+	public owner?: null | Relation<RowPathSingleTenantEntity>;
+
+	@Column({ nullable: true, type: "varchar" })
+	@ApiPropertyDescribe({ ...TEXT_PROPERTY, isNullable: true, ...HIDDEN_PROPERTIES } as Parameters<typeof ApiPropertyDescribe>[0])
+	public ownerId!: null | string;
+}
+
+// A relation whose cascade writes the related row the body describes.
+@Entity("row_path_single_cascaded")
+export class RowPathSingleCascadedEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe(UUID_PROPERTY)
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+
+	@ApiPropertyDescribe(RELATION_PROPERTY)
+	@JoinColumn({ name: "tenantId" })
+	@ManyToOne(() => RowPathSingleTenantEntity, { cascade: ["insert", "update"], nullable: true })
+	public tenant?: null | Relation<RowPathSingleTenantEntity>;
+
+	@Column({ nullable: true, type: "varchar" })
+	@ApiPropertyDescribe({ ...TEXT_PROPERTY, isNullable: true } as Parameters<typeof ApiPropertyDescribe>[0])
+	public tenantId!: null | string;
+}
+
+@Injectable()
+@ApiService<RowPathSingleOwnedEntity>({ entity: RowPathSingleOwnedEntity })
+class RowPathSingleOwnedService extends ApiServiceBase<RowPathSingleOwnedEntity> {
+	constructor(@InjectRepository(RowPathSingleOwnedEntity) public readonly repository: Repository<RowPathSingleOwnedEntity>) {
+		super();
+	}
+}
+
+@Injectable()
+@ApiService<RowPathSingleCascadedEntity>({ entity: RowPathSingleCascadedEntity })
+class RowPathSingleCascadedService extends ApiServiceBase<RowPathSingleCascadedEntity> {
+	constructor(@InjectRepository(RowPathSingleCascadedEntity) public readonly repository: Repository<RowPathSingleCascadedEntity>) {
+		super();
+	}
+}
+
+// The server removes whatever owner the client sent, before the route writes the body.
+@Injectable()
+@ApiRouteSubscriber({ entity: RowPathSingleOwnedEntity })
+class RowPathSingleOwnedSubscriber extends ApiRouteSubscriberBase<RowPathSingleOwnedEntity> {
+	public async onBeforeCreate(context: never): Promise<never> {
+		const result: { body?: Record<string, unknown> } = (context as { result: { body?: Record<string, unknown> } }).result;
+
+		if (result.body) {
+			Reflect.deleteProperty(result.body, "owner");
+			Reflect.deleteProperty(result.body, "ownerId");
+		}
+
+		return await Promise.resolve(result as never);
+	}
+}
+
+@ApiControllerObservable()
+@ApiController<RowPathSingleOwnedEntity>({ entity: RowPathSingleOwnedEntity, path: "single-owned", routes: {} })
+class RowPathSingleOwnedController {
+	constructor(public readonly service: RowPathSingleOwnedService) {}
+}
+
+@ApiController<RowPathSingleCascadedEntity>({ entity: RowPathSingleCascadedEntity, path: "single-cascaded", routes: {} })
+class RowPathSingleCascadedController {
+	constructor(public readonly service: RowPathSingleCascadedService) {}
 }
 
 @Injectable()
@@ -139,11 +226,11 @@ class RowPathSingleScopedController {
 	constructor(public readonly service: RowPathSingleChildService) {}
 }
 
-export const ROW_PATH_SINGLE_ENTITIES: Array<new () => object> = [RowPathSingleChildEntity, RowPathSingleKeyChildEntity, RowPathSingleTenantEntity];
+export const ROW_PATH_SINGLE_ENTITIES: Array<new () => object> = [RowPathSingleCascadedEntity, RowPathSingleChildEntity, RowPathSingleKeyChildEntity, RowPathSingleOwnedEntity, RowPathSingleTenantEntity];
 
 @Module({
-	controllers: [RowPathSingleKeyPinnedController, RowPathSingleKeyPlainController, RowPathSingleLoadedController, RowPathSinglePinnedController, RowPathSinglePlainController, RowPathSingleScopedController],
+	controllers: [RowPathSingleCascadedController, RowPathSingleKeyPinnedController, RowPathSingleKeyPlainController, RowPathSingleLoadedController, RowPathSingleOwnedController, RowPathSinglePinnedController, RowPathSinglePlainController, RowPathSingleScopedController],
 	imports: [TypeOrmModule.forFeature(ROW_PATH_SINGLE_ENTITIES)],
-	providers: [RowPathSingleChildService, RowPathSingleKeyChildService, RowPathSingleTenantService],
+	providers: [RowPathSingleCascadedService, RowPathSingleChildService, RowPathSingleKeyChildService, RowPathSingleOwnedService, RowPathSingleOwnedSubscriber, RowPathSingleTenantService],
 })
 export class RowPathSingleModule {}

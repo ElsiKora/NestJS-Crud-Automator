@@ -27,6 +27,7 @@ const CHILD_ID: string = "cccccccc-0000-4000-8000-000000000001";
 const CONFLICT_REASON: string = "relation must name the same value as the entity's own column";
 const KEY_CLEAR_REASON: string = "it cannot be cleared, because its columns are in the primary key";
 const UNNAMED_REASON: string = "a relation object must name its join columns";
+const COMPONENT_REASON: string = "a relation must name each of its join columns by a single value";
 const PATH_MISMATCH_REASON: string = "value must be the one the path names";
 const SLOT_AT: string = "2026-01-01T00:00:00.002Z";
 const SLOT_OTHER: string = "2026-01-01T00:00:00.003Z";
@@ -81,6 +82,8 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 		beforeEach(async () => {
 			await dataSource.query("DELETE FROM row_path_single_children");
 			await dataSource.query("DELETE FROM row_path_single_key_children");
+			await dataSource.query("DELETE FROM row_path_single_owned");
+			await dataSource.query("DELETE FROM row_path_single_cascaded");
 			await dataSource.query("DELETE FROM row_path_single_tenants");
 			await dataSource.query(`INSERT INTO row_path_single_tenants ("id", "name") VALUES ('${SINGLE_TENANT_PINNED}', 'pinned'), ('${SINGLE_TENANT_OTHER}', 'other')`);
 			await dataSource.query(`INSERT INTO row_path_single_children ("id", "name", "tenantId") VALUES ('${CHILD_ID}', 'seeded', '${SINGLE_TENANT_PINNED}')`);
@@ -316,6 +319,42 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 				expect(await dateRows("row_path_single_date_bookings", "at")).toEqual([]);
 			});
 
+			it.each([[{ at: { x: 1 } }], [{ at: [SLOT_AT] }]])("POST /single-date-event with the relation object %j answers 400 and adds no row", async (slot: object) => {
+				const response: TResponse = await send("POST", "/single-date-event", { id: "E1", name: "made", slot });
+
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toMatchObject({ details: { propertyName: "slot", reason: COMPONENT_REASON } });
+				}
+
+				expect(await dateRows("row_path_single_date_events", "eventAt")).toEqual([]);
+			});
+
+			// The body as sent is only compared, so a relation a transformer or a subscriber takes out of the written body sets no own column, and one it sets to null clears it.
+			it.each([["/single-date-event-removed"], ["/single-date-event-cleared"], ["/single-date-event-observed"]])("POST %s with the relation the route does not write leaves the own instant empty", async (path: string) => {
+				const response: TResponse = await send("POST", path, { id: "E1", name: "made", slot: SLOT_AT });
+				const status: number = liftStatus(createStatus);
+
+				expect(response.statusCode).toBe(status);
+				expect(await dateRows("row_path_single_date_events", "eventAt")).toEqual(status === 201 ? [["E1", null]] : []);
+
+				if (status === 201) {
+					expect(response.json()).toMatchObject({ eventAt: null, id: "E1" });
+				}
+			});
+
+			it.each([
+				["/single-date-event-removed", SLOT_AT],
+				["/single-date-event-cleared", null],
+				["/single-date-event-observed", SLOT_AT],
+			])("PATCH %s with the relation the route does not write leaves the own instant %s", async (path: string, instant: null | string) => {
+				await dataSource.query(`INSERT INTO row_path_single_date_events ("id", "name", "eventAt") VALUES ('E1', 'seeded', '${instantLiteral(SLOT_AT)}')`);
+
+				expect((await send("PATCH", `${path}/E1`, { slot: SLOT_OTHER })).statusCode).toBe(200);
+				expect(await dateRows("row_path_single_date_events", "eventAt")).toEqual([["E1", instant]]);
+			});
+
 			it.each([["PATCH"], ["PUT"]])("%s /single-date-event with the relation moves the own instant", async (method: string) => {
 				await dataSource.query(`INSERT INTO row_path_single_date_events ("id", "name", "eventAt") VALUES ('E1', 'seeded', '${instantLiteral(SLOT_AT)}')`);
 
@@ -357,6 +396,50 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 				}
 
 				expect(await rows("row_path_single_key_children")).toEqual(seeded);
+			});
+		});
+
+		describe("a server-managed relation a subscriber removes", () => {
+			it.each([[SINGLE_TENANT_OTHER], [{ id: SINGLE_TENANT_OTHER }]])("POST /single-owned with the owner %j writes no owner", async (owner: object | string) => {
+				const response: TResponse = await send("POST", "/single-owned", { name: "made", owner });
+				const status: number = pipe === "forbid" ? 400 : 201;
+
+				expect(response.statusCode).toBe(status);
+				expect(await dataSource.query(`SELECT "name", "ownerId" FROM row_path_single_owned`)).toEqual(status === 201 ? [{ name: "made", ownerId: null }] : []);
+			});
+		});
+
+		// A relation object with other values of the related row stays in the body for the cascade, and one that only names the row leaves it.
+		describe("a relation whose cascade writes the related row", () => {
+			const cascaded = async (): Promise<Array<unknown>> => await dataSource.query(`SELECT "name", "tenantId" FROM row_path_single_cascaded`);
+			const tenants = async (): Promise<Array<unknown>> => await dataSource.query(`SELECT "id", "name" FROM row_path_single_tenants ORDER BY "id"`);
+
+			it.runIf(pipe === "none")("POST /single-cascaded with an existing tenant and a new name renames the tenant", async () => {
+				expect((await send("POST", "/single-cascaded", { name: "made", tenant: { id: SINGLE_TENANT_PINNED, name: "renamed" } })).statusCode).toBe(201);
+				expect(await cascaded()).toEqual([{ name: "made", tenantId: SINGLE_TENANT_PINNED }]);
+				expect(await tenants()).toEqual([
+					{ id: SINGLE_TENANT_PINNED, name: "renamed" },
+					{ id: SINGLE_TENANT_OTHER, name: "other" },
+				]);
+			});
+
+			it.runIf(pipe === "none")("POST /single-cascaded with a tenant that does not exist inserts the tenant", async () => {
+				expect((await send("POST", "/single-cascaded", { name: "made", tenant: { id: "T3", name: "new" } })).statusCode).toBe(201);
+				expect(await cascaded()).toEqual([{ name: "made", tenantId: "T3" }]);
+				expect(await tenants()).toEqual([
+					{ id: SINGLE_TENANT_PINNED, name: "pinned" },
+					{ id: SINGLE_TENANT_OTHER, name: "other" },
+					{ id: "T3", name: "new" },
+				]);
+			});
+
+			it.runIf(pipe === "none")("POST /single-cascaded with an object naming only the tenant writes the own column and leaves the tenant", async () => {
+				expect((await send("POST", "/single-cascaded", { name: "made", tenant: { id: SINGLE_TENANT_OTHER } })).statusCode).toBe(201);
+				expect(await cascaded()).toEqual([{ name: "made", tenantId: SINGLE_TENANT_OTHER }]);
+				expect(await tenants()).toEqual([
+					{ id: SINGLE_TENANT_PINNED, name: "pinned" },
+					{ id: SINGLE_TENANT_OTHER, name: "other" },
+				]);
 			});
 		});
 

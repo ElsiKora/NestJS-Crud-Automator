@@ -8,7 +8,7 @@ import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 
 import type { TRowPathDriver, TRowPathFixture } from "./fixture";
 
-import { ApiController, ApiPropertyDescribe, ApiService, ApiServiceBase, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../src/index";
+import { ApiController, ApiControllerObservable, ApiPropertyDescribe, ApiRouteSubscriber, ApiRouteSubscriberBase, ApiService, ApiServiceBase, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 
 const TEXT_PROPERTY: Parameters<typeof ApiPropertyDescribe>[0] = { description: "text", exampleValue: "value", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING };
 const RELATION_PROPERTY: Parameters<typeof ApiPropertyDescribe>[0] = { description: "slot", type: EApiPropertyDescribeType.RELATION };
@@ -172,20 +172,92 @@ class RowPathSqliteSingleDateBookingController {
 	constructor(public readonly service: RowPathSqliteSingleDateBookingService) {}
 }
 
+// A transformer that removes the relation, or sets it to null, leaves the own column to the body the route writes.
+const routesWith = (value: null | undefined): never => {
+	const route = { request: { [EApiControllerRequestTarget.BODY]: { transformers: [{ key: "slot", shouldSetValueEvenIfMissing: true, type: EApiControllerRequestTransformerType.STATIC, value }] } } };
+
+	return { [EApiRouteType.CREATE]: route, [EApiRouteType.PARTIAL_UPDATE]: route, [EApiRouteType.UPDATE]: route } as never;
+};
+
+@ApiController<RowPathPostgresSingleDateEventEntity>({ entity: RowPathPostgresSingleDateEventEntity, path: "single-date-event-removed", routes: routesWith(undefined) })
+class RowPathPostgresSingleDateEventRemovedController {
+	constructor(public readonly service: RowPathPostgresSingleDateEventService) {}
+}
+
+@ApiController<RowPathSqliteSingleDateEventEntity>({ entity: RowPathSqliteSingleDateEventEntity, path: "single-date-event-removed", routes: routesWith(undefined) })
+class RowPathSqliteSingleDateEventRemovedController {
+	constructor(public readonly service: RowPathSqliteSingleDateEventService) {}
+}
+
+@ApiController<RowPathPostgresSingleDateEventEntity>({ entity: RowPathPostgresSingleDateEventEntity, path: "single-date-event-cleared", routes: routesWith(null) })
+class RowPathPostgresSingleDateEventClearedController {
+	constructor(public readonly service: RowPathPostgresSingleDateEventService) {}
+}
+
+@ApiController<RowPathSqliteSingleDateEventEntity>({ entity: RowPathSqliteSingleDateEventEntity, path: "single-date-event-cleared", routes: routesWith(null) })
+class RowPathSqliteSingleDateEventClearedController {
+	constructor(public readonly service: RowPathSqliteSingleDateEventService) {}
+}
+
+@ApiControllerObservable()
+@ApiController<RowPathPostgresSingleDateEventEntity>({ entity: RowPathPostgresSingleDateEventEntity, path: "single-date-event-observed", routes: {} })
+class RowPathPostgresSingleDateEventObservedController {
+	constructor(public readonly service: RowPathPostgresSingleDateEventService) {}
+}
+
+@ApiControllerObservable()
+@ApiController<RowPathSqliteSingleDateEventEntity>({ entity: RowPathSqliteSingleDateEventEntity, path: "single-date-event-observed", routes: {} })
+class RowPathSqliteSingleDateEventObservedController {
+	constructor(public readonly service: RowPathSqliteSingleDateEventService) {}
+}
+
+// A subscriber that removes the relation the client sent, before the route writes the body.
+const removeSlot = <T extends { result: { body?: Record<string, unknown> } }>(context: T): T["result"] => {
+	if (context.result.body) {
+		Reflect.deleteProperty(context.result.body, "slot");
+	}
+
+	return context.result;
+};
+
+@Injectable()
+@ApiRouteSubscriber({ entity: RowPathPostgresSingleDateEventEntity })
+class RowPathPostgresSingleDateEventSubscriber extends ApiRouteSubscriberBase<RowPathPostgresSingleDateEventEntity> {
+	public async onBeforeCreate(context: never): Promise<never> {
+		return await Promise.resolve(removeSlot(context) as never);
+	}
+
+	public async onBeforePartialUpdate(context: never): Promise<never> {
+		return await Promise.resolve(removeSlot(context) as never);
+	}
+}
+
+@Injectable()
+@ApiRouteSubscriber({ entity: RowPathSqliteSingleDateEventEntity })
+class RowPathSqliteSingleDateEventSubscriber extends ApiRouteSubscriberBase<RowPathSqliteSingleDateEventEntity> {
+	public async onBeforeCreate(context: never): Promise<never> {
+		return await Promise.resolve(removeSlot(context) as never);
+	}
+
+	public async onBeforePartialUpdate(context: never): Promise<never> {
+		return await Promise.resolve(removeSlot(context) as never);
+	}
+}
+
 const POSTGRES_ENTITIES: Array<new () => object> = [RowPathPostgresSingleDateBookingEntity, RowPathPostgresSingleDateEventEntity, RowPathPostgresSingleDateSlotEntity];
 const SQLITE_ENTITIES: Array<new () => object> = [RowPathSqliteSingleDateBookingEntity, RowPathSqliteSingleDateEventEntity, RowPathSqliteSingleDateSlotEntity];
 
 @Module({
-	controllers: [RowPathPostgresSingleDateBookingController, RowPathPostgresSingleDateEventController],
+	controllers: [RowPathPostgresSingleDateBookingController, RowPathPostgresSingleDateEventClearedController, RowPathPostgresSingleDateEventController, RowPathPostgresSingleDateEventObservedController, RowPathPostgresSingleDateEventRemovedController],
 	imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)],
-	providers: [RowPathPostgresSingleDateBookingService, RowPathPostgresSingleDateEventService],
+	providers: [RowPathPostgresSingleDateBookingService, RowPathPostgresSingleDateEventService, RowPathPostgresSingleDateEventSubscriber],
 })
 class RowPathSingleDatePostgresModule {}
 
 @Module({
-	controllers: [RowPathSqliteSingleDateBookingController, RowPathSqliteSingleDateEventController],
+	controllers: [RowPathSqliteSingleDateBookingController, RowPathSqliteSingleDateEventClearedController, RowPathSqliteSingleDateEventController, RowPathSqliteSingleDateEventObservedController, RowPathSqliteSingleDateEventRemovedController],
 	imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)],
-	providers: [RowPathSqliteSingleDateBookingService, RowPathSqliteSingleDateEventService],
+	providers: [RowPathSqliteSingleDateBookingService, RowPathSqliteSingleDateEventService, RowPathSqliteSingleDateEventSubscriber],
 })
 class RowPathSingleDateSqliteModule {}
 
