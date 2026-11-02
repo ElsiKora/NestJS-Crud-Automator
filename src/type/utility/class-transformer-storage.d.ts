@@ -18,6 +18,7 @@ declare module "class-transformer/cjs/storage.js" {
 	};
 
 	export const defaultMetadataStorage: {
+		_exposeMetadatas: Map<object, Map<string, TMetadata<TExposeOptions>>>;
 		_transformMetadatas: Map<object, Map<string, Array<TClassTransformerTransformMetadata>>>;
 		_typeMetadatas: Map<object, Map<string, TTypeMetadata>>;
 		addTypeMetadata: (metadata: TTypeMetadata) => void;

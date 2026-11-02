@@ -6,6 +6,7 @@ import { EXPOSED_SOURCE_DTO_CONSTANT } from "@constant/dto/exposed-source.consta
 import { ApiProperty } from "@nestjs/swagger";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
 import { ClassTransformerAssertExcludeUnnamed } from "@utility/class-transformer/assert-exclude-unnamed.utility";
+import { ClassTransformerAssertRenamedKeyFree } from "@utility/class-transformer/assert-renamed-key-free.utility";
 import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
 import { DeferPropertyDecoratorExecution } from "@utility/defer-property-decorator-execution.utility";
@@ -21,6 +22,7 @@ const AUTO_DTO_RESPONSE_EXPOSURE_METADATA_KEY: string = "crud-automator:auto-dto
  * Explicit response-only properties (`isResponse: true`) still rely on the decorator-specific
  * response branch that uses `ApiResponseProperty()`.
  *
+ * A child class that exposes another property under the property key of a renamed one fails here, or at the first conversion when it is defined later.
  * Every property also gets the check of its `@Expose` and exclude, and its schema publishes the exposed name; these wait for a microtask, as the other decorators of the property may run after this one.
  * A renamed property is read only from its exposed name. class-transformer also binds a key equal to the property key, so a request that sends it is refused with a 400 naming that key.
  * @param {object} target - Decorated DTO prototype.
@@ -51,6 +53,7 @@ export function ApplyAutoDtoResponseExposure(target: object, propertyKey: string
 				},
 				{ toClassOnly: true },
 			)(target, propertyKey);
+			ClassTransformerAssertRenamedKeyFree(target, propertyKey, exposedName);
 		}
 	});
 
@@ -81,6 +84,7 @@ export function ApplyAutoDtoResponseExposure(target: object, propertyKey: string
  * @param {string} exposedName - Name the property is exposed under.
  * @param {unknown} request - Object plain-to-class reads.
  * @throws {ApiRequestValidationException} If a request owns the property key. The failure's `property` is the key, without its path.
+ * @throws {Error} If a child class exposes another property under the property key, which leaves the request unreadable.
  * @private
  */
 function assertRequestWithoutPropertyKey(target: object, propertyKey: string | symbol, exposedName: string, request: unknown): void {
@@ -102,6 +106,9 @@ function assertRequestWithoutPropertyKey(target: object, propertyKey: string | s
 	) {
 		return;
 	}
+
+	// A child class defined after the deferred check could still take the key over; that layout is refused before any client is.
+	ClassTransformerAssertRenamedKeyFree(target, propertyKey, exposedName);
 
 	throw new ApiRequestValidationException([Object.assign(new ValidationError(), { children: [], constraints: { requestPropertyRenamed: `property ${property} should not exist, send it as ${exposedName}` }, property })]);
 }

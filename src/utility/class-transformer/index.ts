@@ -1,4 +1,5 @@
 export { ClassTransformerAssertExcludeUnnamed } from "./assert-exclude-unnamed.utility";
+export { ClassTransformerAssertRenamedKeyFree } from "./assert-renamed-key-free.utility";
 export { ClassTransformerAttachWireNames } from "./attach-wire-names.utility";
 export { ClassTransformerAutomatorTransform } from "./automator-transform.utility";
 export { ClassTransformerCopyExposure } from "./copy-exposure.utility";
