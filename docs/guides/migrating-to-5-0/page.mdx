@@ -253,7 +253,11 @@ See [Entities: Migration Notes](/docs/nestjs-crud-automator/core-concepts/entiti
 
 ## Explicit `@Expose` With `@ApiProperty*`
 
-An explicit `@Expose` now keeps its name, groups and versions whatever the decorator order. Before 5.0.0 an `@ApiProperty*` decorator erased it silently when it ran after the `@Expose`: with `@ApiProperty*` above `@Expose`, with a lazy `entity` in either order, and when a child class redeclared a property whose `@Expose` is on the parent. Such a property now follows its `@Expose`, so its wire name changes. A request body is read from the exposed name, while validation errors name the declared property. `ClassSerializerInterceptor` and `instanceToPlain` write the exposed name. `@ApiRouteCustom` without the interceptor reads the exposed name from what the handler returns and sends the property key, so a handler that returns the property key now gets `{}` where it got `{"value":"declaredKey"}`. Remove the `@Expose` to keep the property name.
+An explicit `@Expose` now keeps its name, groups and versions whatever the decorator order. Before 5.0.0 an `@ApiProperty*` decorator erased it silently when it ran after the `@Expose`: with `@ApiProperty*` above `@Expose`, with a lazy `entity` in either order, and when a child class redeclared a property whose `@Expose` is on the parent. Such a property now follows its `@Expose`, so its wire name changes. A request body is read from the exposed name, while validation errors name the declared property. `ClassSerializerInterceptor` and `instanceToPlain` write the exposed name. Remove the `@Expose` to keep the property name.
+
+A response property is read from its property key and sent under its exposed name on every path, with or without `ClassSerializerInterceptor`, and the schema publishes the exposed name. Before 5.0.0 a generated route and `@ApiRouteCustom` without the interceptor read the exposed name and sent the property key. Swap the key and the name: `@Expose({ name: "id" }) gameId` becomes `@Expose({ name: "gameId" }) id`. A property under `@Exclude({ toPlainOnly: true })` is now left out of a response without the interceptor too.
+
+A nested manual DTO on a generated route now keeps its `@Expose` and `@Exclude`: a request uses the exposed name, and an excluded property is neither stored nor returned.
 
 A named `@Expose`, own or inherited, next to `isExpose: false` or an `@Exclude` that applies to plain objects now fails at startup. `@Exclude({ toPlainOnly: true })` stays legal.
 

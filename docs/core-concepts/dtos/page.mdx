@@ -145,13 +145,13 @@ Automator copies validation/transformation and Swagger metadata from the primary
 
 All inherited `:parameters` must be mapped exactly once. A manual `dto[EApiDtoType.PARAMETERS]` is mutually exclusive with configured read identity or scope; `autoDto[EApiDtoType.PARAMETERS]` validators can still decorate the generated DTO.
 
-Identity aliases do not rename response fields. A manual response DTO can use the standard `class-transformer` alias when its wire contract needs `gameId` for an entity value named `id`:
+Identity aliases do not rename response fields. A manual response DTO can use the standard `class-transformer` alias when its wire contract needs `gameId` for an entity value named `id`. The property key names the entity value, and the exposed name is what the client sees:
 
 ```typescript
 import { Expose } from "class-transformer";
 
 export class PublicGameResponseDto {
-	@Expose({ name: "id" })
+	@Expose({ name: "gameId" })
 	@ApiPropertyString({
 		description: "Public game identifier",
 		entity: () => PublicGameResponseDto,
@@ -163,9 +163,13 @@ export class PublicGameResponseDto {
 		minLength: 36,
 		pattern: "/^[0-9a-f-]{36}$/",
 	})
-	gameId!: string;
+	id!: string;
 }
 ```
+
+A response has one wire name per property, on every path. A generated route and `@ApiRouteCustom` build the response DTO by property key from the row or from what the handler returns. A `toClassOnly` or undirected `@Transform` runs in that step, once, and its `obj` is the full row, including columns the DTO does not declare. The response is then written under the exposed names, with or without `ClassSerializerInterceptor`, and no transform runs again. A `toPlainOnly` `@Transform` runs only where class-to-plain runs: under `ClassSerializerInterceptor` and on a CURSOR GET_LIST response. A property under `@Exclude({ toPlainOnly: true })` is left out of every response. The OpenAPI schema publishes the exposed name, for a manual DTO and for a nested manual DTO too. A request reads the exposed name into the property key.
+
+A nested manual DTO on a generated route keeps its `@Expose` and `@Exclude` in the copy the route generates: a request uses the exposed name, and an excluded property is neither stored nor returned.
 
 The order of `@Expose` and the Automator property decorator does not matter, and neither does when a lazy `entity` resolves. An explicit `@Expose` keeps its name, groups and versions, also one inherited from a parent class; the property decorator exposes a property under its own name only when no `@Expose` covers it. `isExpose: false` and `@Exclude` win over an `@Expose` without a name in either order.
 
@@ -173,7 +177,11 @@ A named `@Expose`, own or inherited, next to `isExpose: false` or an `@Exclude` 
 
 #### `@Expose` Migration Notes
 
-Before 5.0.0 an `@ApiProperty*` decorator that ran after an explicit `@Expose` erased it, so only `@Expose` above the property decorator with an `entity` that resolves at once kept its name. A property that lost its name that way now follows its `@Expose`. A request body is read from the exposed name, while validation errors name the declared property. `ClassSerializerInterceptor` and `instanceToPlain` write the exposed name. `@ApiRouteCustom` without the interceptor reads the exposed name from what the handler returns and sends the property key, so a handler that returns the property key now gets `{}` where it got `{"value":"declaredKey"}`. Remove the `@Expose` to keep the property name.
+Before 5.0.0 an `@ApiProperty*` decorator that ran after an explicit `@Expose` erased it, so only `@Expose` above the property decorator with an `entity` that resolves at once kept its name. A property that lost its name that way now follows its `@Expose`. A request body is read from the exposed name, while validation errors name the declared property. `ClassSerializerInterceptor` and `instanceToPlain` write the exposed name. Remove the `@Expose` to keep the property name.
+
+Before 5.0.0 a generated route, and `@ApiRouteCustom` without `ClassSerializerInterceptor`, read a renamed property from its exposed name in the row or handler result and sent it under the property key, and the schema published the property key. Now the property key is read and the exposed name is sent and published on every path. Swap the key and the name of such a property: `@Expose({ name: "id" }) gameId` becomes `@Expose({ name: "gameId" }) id`. A property under `@Exclude({ toPlainOnly: true })` is now also left out of a response sent without the interceptor.
+
+Before 5.0.0 the copy a generated route made of a nested manual DTO dropped its `@Expose` and `@Exclude`, so an excluded property was stored from a request and returned, and a renamed one was read and sent under its property key. The copy now keeps both.
 
 A named `@Expose` next to `isExpose: false` or `@Exclude` used to read the exposed name into the excluded property, and now fails at startup. Remove one of them, or limit the exclude with `@Exclude({ toPlainOnly: true })`.
 
