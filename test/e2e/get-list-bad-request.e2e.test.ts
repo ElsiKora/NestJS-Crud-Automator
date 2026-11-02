@@ -20,6 +20,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiPropertyDescribe, ApiService, ApiServiceBase, ApiSubscriberModule, CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../src";
 
+import { expectEveryReferenceToResolve } from "./expect-every-reference-to-resolve";
+
 interface IBadRequestCase {
 	isMessageArray: boolean;
 	name: string;
@@ -98,7 +100,8 @@ const BAD_REQUEST_CASES: Array<[string, IBadRequestCase]> = (
 	[
 		{ isMessageArray: true, name: "a legacy route with an unknown order field", path: "/get-list-legacy", url: "/get-list-legacy?limit=10&page=1&orderBy=unknown&orderDirection=asc" },
 		{ isMessageArray: true, name: "a legacy route with an invalid limit", path: "/get-list-legacy", url: "/get-list-legacy?limit=bad&page=1" },
-		{ isMessageArray: false, name: "a typed route with a one-sided order", path: "/get-list-typed", url: "/get-list-typed?limit=10&page=1&orderBy=rank" },
+		{ isMessageArray: true, name: "a legacy route with a one-sided order", path: "/get-list-legacy", url: "/get-list-legacy?limit=10&page=1&orderBy=rank" },
+		{ isMessageArray: true, name: "a typed route with a one-sided order", path: "/get-list-typed", url: "/get-list-typed?limit=10&page=1&orderBy=rank" },
 		{ isMessageArray: true, name: "a typed route with an unlisted order field", path: "/get-list-typed", url: "/get-list-typed?limit=10&page=1&orderBy=id&orderDirection=asc" },
 		{ isMessageArray: true, name: "a manual QUERY route with an invalid limit", path: "/get-list-manual", url: "/get-list-manual?limit=bad" },
 	] satisfies Array<IBadRequestCase>
@@ -194,10 +197,7 @@ describe.each(ADAPTERS)("GET_LIST 400 bodies on %s (E2E)", (_adapterName: string
 		});
 
 		it("resolves every component reference", () => {
-			const references: Array<string> = [...JSON.stringify(document).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] ?? "");
-
-			expect(references.length).toBeGreaterThan(0);
-			expect(references.filter((name: string): boolean => !document.components?.schemas?.[name])).toEqual([]);
+			expectEveryReferenceToResolve(document);
 		});
 	});
 });

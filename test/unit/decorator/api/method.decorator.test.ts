@@ -647,11 +647,11 @@ describe("ApiMethod", () => {
 			expect(readHandlerMetadata<boolean>(METHOD_API_DECORATOR_CONSTANT.ROUTE_FORBIDDEN_RESPONSE_METADATA_KEY)).toBe(true);
 		});
 
-		it("declares 403 without 401 for a route with execution guards", () => {
+		it("declares 401 and 403 for a route with execution guards", () => {
 			applyDecorator(ApiMethod({ execution: { guards: [RefusingGuard] }, metadata: withoutErrors() }));
 
 			expect(readApiResponses()).toHaveProperty(String(HttpStatus.FORBIDDEN));
-			expect(readApiResponses()).not.toHaveProperty(String(HttpStatus.UNAUTHORIZED));
+			expect(readApiResponses()).toHaveProperty(String(HttpStatus.UNAUTHORIZED));
 		});
 
 		it("declares neither 401 nor 403 for a route without guards", () => {

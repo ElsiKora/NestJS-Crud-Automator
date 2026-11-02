@@ -138,14 +138,15 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	const errors: NonNullable<IApiMethodProperties<E>["metadata"]["response"]>["errors"] = metadata.response?.errors;
-	// An authentication guard can reject or refuse, and any route guard can refuse
-	const hasAuthentication: boolean = metadata.security?.authentication !== undefined;
-	const hasForbidden: boolean = !!errors?.hasForbidden || hasAuthentication || (options.execution?.guards?.length ?? 0) > 0;
+	// Any guard can reject or refuse; `ApiControllerApplyGuardResponses` adds the guards of the class and of `@UseGuards`
+	const hasGuard: boolean = metadata.security?.authentication !== undefined || (options.execution?.guards?.length ?? 0) > 0;
+	const hasForbidden: boolean = !!errors?.hasForbidden || hasGuard;
+	const hasUnauthorized: boolean = !!errors?.hasUnauthorized || hasGuard;
 	// A status the route documents itself replaces the default response of that status, since Swagger joins two declarations
 	const documentedStatuses: ReadonlySet<unknown> = new Set<unknown>((metadata.documentation?.response?.statuses ?? []).map((response: { status: unknown }): unknown => response.status));
 
 	const errorStatuses: Array<[boolean, HttpStatus]> = [
-		[!!errors?.hasUnauthorized || hasAuthentication, HttpStatus.UNAUTHORIZED],
+		[hasUnauthorized, HttpStatus.UNAUTHORIZED],
 		[hasForbidden, HttpStatus.FORBIDDEN],
 		// A handler or a guard that throws can fail any route
 		[true, HttpStatus.INTERNAL_SERVER_ERROR],
@@ -167,6 +168,10 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 
 	if (hasForbidden || documentedStatuses.has(HttpStatus.FORBIDDEN)) {
 		decorators.push(SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_FORBIDDEN_RESPONSE_METADATA_KEY, true));
+	}
+
+	if (hasUnauthorized || documentedStatuses.has(HttpStatus.UNAUTHORIZED)) {
+		decorators.push(SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_UNAUTHORIZED_RESPONSE_METADATA_KEY, true));
 	}
 
 	// eslint-disable-next-line @elsikora/typescript/switch-exhaustiveness-check

@@ -21,6 +21,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, ApiSubscriberModule, CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor, EApiPropertyDescribeType, EApiPropertyStringType } from "../../src/index";
 
+import { expectEveryReferenceToResolve } from "./expect-every-reference-to-resolve";
+
 type TAdapterName = "express" | "fastify";
 
 type TBodyCaseName = "malformedJson" | "noBody" | "oversizedBody" | "unsupportedCharset" | "unsupportedContentEncoding" | "unsupportedContentType";
@@ -259,10 +261,7 @@ describe.each(ADAPTERS)("body parser statuses on %s (E2E)", (adapterName: TAdapt
 		});
 
 		it("resolves every component reference", () => {
-			const references: Array<string> = [...JSON.stringify(document).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] ?? "");
-
-			expect(references.length).toBeGreaterThan(0);
-			expect(references.filter((name: string): boolean => !document.components?.schemas?.[name])).toEqual([]);
+			expectEveryReferenceToResolve(document);
 		});
 
 		const expectTableStatus = async (bodyCaseName: TBodyCaseName, operationName: TOperationName): Promise<void> => {

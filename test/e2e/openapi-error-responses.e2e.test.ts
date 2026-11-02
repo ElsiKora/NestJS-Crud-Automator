@@ -209,6 +209,10 @@ class OpenApiErrorBlockGuard implements CanActivate {
 			throw new Error("guard failure");
 		}
 
+		if (request.headers["x-guard-reject"]) {
+			throw new UnauthorizedException();
+		}
+
 		return !request.headers["x-block"];
 	}
 }
@@ -675,6 +679,7 @@ const GUARD_CASES: Array<IWireCase> = SECURED_OPERATIONS.flatMap((operation: (ty
 	wireCase("get", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "execution guard failure without authorization", `${ITEMS}/item-1`, { headers: GUARD_CRASH_HEADERS }),
 	wireCase("get", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "authentication guard failure without authorization", `${ITEMS}/item-1`, { headers: AUTHENTICATION_CRASH_HEADERS }),
 	wireCase("get", ITEM_THROTTLED, HttpStatus.TOO_MANY_REQUESTS, "route throttling", ITEM_THROTTLED, { precedingRequests: 1 }),
+	wireCase("get", ITEM_GUARDED, HttpStatus.UNAUTHORIZED, "custom route guard rejecting", ITEM_GUARDED, { headers: { ...ADMIN_HEADERS, "x-guard-reject": "true" } }),
 	wireCase("get", ITEM_GUARDED, HttpStatus.FORBIDDEN, "custom route guard returning false", ITEM_GUARDED, { headers: BLOCKED_HEADERS }),
 	wireCase("get", ITEM_GUARDED, HttpStatus.INTERNAL_SERVER_ERROR, "custom route guard failure", ITEM_GUARDED, { headers: GUARD_CRASH_HEADERS }),
 	...[SECURED_PING, SECURED_STATUS].map((path: string): IWireCase => wireCase("get", path, HttpStatus.INTERNAL_SERVER_ERROR, "custom route authorization guard failure", path, { headers: PRINCIPAL_CRASH_HEADERS })),
@@ -842,7 +847,7 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 		expect(declaredStatuses(SECURED_EXPORT, "get")).toEqual([400, 401, 403, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_PING, "get")).toEqual([400, 403, 413, 415, 500]);
 		expect(declaredStatuses(ITEM_THROTTLED, "get")).toEqual([400, 413, 415, 429, 500]);
-		expect(declaredStatuses(ITEM_GUARDED, "get")).toEqual([400, 403, 413, 415, 500]);
+		expect(declaredStatuses(ITEM_GUARDED, "get")).toEqual([400, 401, 403, 413, 415, 500]);
 	});
 
 	it("declares 403 on an inherited custom route only for the securable controller", async () => {

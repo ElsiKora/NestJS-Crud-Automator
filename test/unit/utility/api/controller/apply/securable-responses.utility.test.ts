@@ -264,6 +264,20 @@ describe("ApiControllerApplySecurableResponses", () => {
 		expect(getResponses(CustomCreateController, "import")[HttpStatus.NOT_FOUND]).toBeUndefined();
 	});
 
+	it("leaves 404 off an ApiMethod route of a securable controller that calls itself CREATE", () => {
+		@ApiControllerSecurable()
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, routes: {} })
+		class MethodCreateController {
+			public service!: ApiServiceBase<ForbiddenResponseEntity>;
+
+			@ApiMethod<ForbiddenResponseEntity>({ metadata: { resource: { action: "import", entity: ForbiddenResponseEntity }, response: { status: HttpStatus.CREATED, type: undefined }, route: { method: RequestMethod.POST, path: "import", type: EApiRouteType.CREATE } } })
+			public import(): void {}
+		}
+
+		expect(getResponses(MethodCreateController, "import")[HttpStatus.NOT_FOUND]).toBeUndefined();
+		expect(getResponses(MethodCreateController, "import")[HttpStatus.FORBIDDEN]).toBeDefined();
+	});
+
 	it("does not declare 403 on custom routes that cannot be refused", () => {
 		@ApiController<ForbiddenResponseEntity>({
 			authorization: { defaultMode: EApiAuthorizationMode.HOOKS },

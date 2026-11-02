@@ -61,6 +61,7 @@ import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get
 import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
+import { ApiControllerHasResponseRelationInclude } from "@utility/api/controller/has-response-relation-include.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest, ApiControllerParametersValidate } from "@utility/api/controller/parameters";
 import { ApiControllerParametersCreateFailure } from "@utility/api/controller/parameters/create-failure.utility";
@@ -160,7 +161,7 @@ export class ApiRouteRuntime {
 	}
 
 	public static async executeCustomResponseRelations<E extends IApiBaseEntity, R>(controller: TApiControllerMethod<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: R, routeType?: EApiRouteType, entity?: Type<unknown>): Promise<R> {
-		if (!this.hasResponseRelationInclude(runtimeProperties.relations?.response?.load?.include)) {
+		if (!ApiControllerHasResponseRelationInclude(runtimeProperties.relations?.response?.load?.include)) {
 			return response;
 		}
 
@@ -731,15 +732,6 @@ export class ApiRouteRuntime {
 		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { body: request.body as E | undefined }, contextData);
 		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, controllerProperties, request.body ?? {});
 		await this.executeDiscriminatedRequestBodyDto(runtimeProperties, request);
-	}
-
-	/**
-	 * Checks whether response relation loading has at least one configured include key.
-	 * @param {unknown} include - Response include map.
-	 * @returns {boolean} Whether response relation loading should run.
-	 */
-	private static hasResponseRelationInclude(include: unknown): boolean {
-		return include !== null && typeof include === "object" && Object.keys(include).length > 0;
 	}
 
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {

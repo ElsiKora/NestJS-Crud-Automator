@@ -5,6 +5,7 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 
 import { EApiControllerRequestTarget, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus } from "@nestjs/common";
+import { ApiControllerHasResponseRelationInclude } from "@utility/api/controller/has-response-relation-include.utility";
 
 /**
  * Resolves the error statuses a custom route raises from its own configuration, on top of the ones `ApiMethod` declares.
@@ -16,7 +17,7 @@ import { HttpStatus } from "@nestjs/common";
 export function ApiControllerGetCustomErrorStatuses<E extends IApiBaseEntity>(properties: Pick<IApiRouteRuntimeProperties<E, undefined>, "relations" | "request">): Array<number> {
 	const statuses: Set<number> = new Set<number>(getValidatorStatuses(properties.request, [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.QUERY, EApiControllerRequestTarget.BODY]));
 
-	if (hasEnabledInclude(properties.relations?.request?.load?.include) || hasEnabledInclude(properties.relations?.response?.load?.include)) {
+	if (hasEnabledRequestInclude(properties.relations?.request?.load?.include) || ApiControllerHasResponseRelationInclude(properties.relations?.response?.load?.include)) {
 		statuses.add(HttpStatus.NOT_FOUND);
 	}
 
@@ -37,7 +38,7 @@ export function ApiControllerGetCustomErrorStatuses<E extends IApiBaseEntity>(pr
 export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, hasReadPlan: boolean): Array<number> {
 	const statuses: Set<number> = new Set<number>([HttpStatus.BAD_REQUEST, HttpStatus.INTERNAL_SERVER_ERROR]);
 
-	if (routeType === EApiRouteType.CREATE ? hasEnabledInclude(routeConfig.relations?.request?.load?.include) : routeType !== EApiRouteType.GET_LIST) {
+	if (routeType === EApiRouteType.CREATE ? hasEnabledRequestInclude(routeConfig.relations?.request?.load?.include) : routeType !== EApiRouteType.GET_LIST) {
 		statuses.add(HttpStatus.NOT_FOUND);
 	}
 
@@ -97,10 +98,10 @@ function getValidatorStatuses(request: Partial<Record<EApiControllerRequestTarge
 }
 
 /**
- * Checks whether a relation load include enables at least one relation.
- * @param {unknown} include - Relation load include.
- * @returns {boolean} Whether a relation is enabled.
+ * Checks whether a request relation load reads at least one relation, since it skips a relation set to `false`.
+ * @param {unknown} include - Request relation load include.
+ * @returns {boolean} Whether a relation is read.
  */
-function hasEnabledInclude(include: unknown): boolean {
+function hasEnabledRequestInclude(include: unknown): boolean {
 	return include !== null && typeof include === "object" && Object.values(include).some((value: unknown): boolean => value !== false && value !== undefined);
 }

@@ -5,6 +5,7 @@ import type { TApiControllerConstructor } from "@type/decorator/api/controller";
 
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { ApiControllerFactory } from "@factory/api-controller.factory";
+import { ApiControllerApplyGuardResponses } from "@utility/api/controller/apply/guard-responses.utility";
 import { ApiControllerApplySecurableResponses } from "@utility/api/controller/apply/securable-responses.utility";
 
 /**
@@ -37,6 +38,7 @@ export const ApiController =
 		factory.init();
 		factory.installBootstrapChecks();
 		ApiControllerApplySecurableResponses(target);
+		ApiControllerApplyGuardResponses(target);
 
 		let isStartupChecked: boolean = false;
 
@@ -58,6 +60,8 @@ export const ApiController =
 				// A REQUEST-scoped controller is constructed per request, after startup has checked it, so a request never fails this check.
 				if (!isStartupChecked) {
 					runStartupCheck();
+					// A guard decorator above this one writes to the class this decorator returns, so it only shows from here on, before Swagger reads the routes
+					ApiControllerApplyGuardResponses(new.target);
 				}
 			}
 		};
@@ -67,6 +71,7 @@ export const ApiController =
 			CONTROLLER_STARTUP_CHECK_METADATA_KEY,
 			(isConstructedPerRequest: boolean): void => {
 				runStartupCheck();
+				ApiControllerApplyGuardResponses(ValidatedController);
 				isStartupChecked = isConstructedPerRequest;
 			},
 			target,

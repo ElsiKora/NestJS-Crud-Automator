@@ -89,7 +89,8 @@ describe("ApiControllerGetCustomErrorStatuses", () => {
 		["request", { request: { load: { include: { owner: true } } } }, [HttpStatus.NOT_FOUND]],
 		["response", { response: { load: { include: { owner: true } } } }, [HttpStatus.NOT_FOUND]],
 		["disabled request", { request: { load: { include: { owner: false } } } }, []],
-		["disabled response", { response: { load: { include: { owner: false } } } }, []],
+		["disabled response, which the runtime reloads all the same", { response: { load: { include: { owner: false } } } }, [HttpStatus.NOT_FOUND]],
+		["empty response", { response: { load: { include: {} } } }, []],
 	])("resolves the %s relation load", (_name: string, relations: object, expected: Array<HttpStatus>) => {
 		expect(ApiControllerGetCustomErrorStatuses({ relations } as never)).toEqual(expected);
 	});
