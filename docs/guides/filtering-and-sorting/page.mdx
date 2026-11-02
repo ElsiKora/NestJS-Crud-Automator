@@ -51,7 +51,7 @@ With or without a pipe, the `orderBy` enum of every GET_LIST route, typed plans 
 
 From 5.0.0, the rules above apply on every such route. Change these requests if your clients send them:
 
-- `orderDirection=ASC` or `DESC`: send lowercase. Hosts without a pipe used to accept the uppercase form.
+- `orderDirection=ASC` or `DESC`: send lowercase, on every route. Hosts without a pipe used to accept the uppercase form, and routes with a typed filter accepted it unless a host pipe rejected it first.
 - `limit` or `page` above 100, `limit=0` or `page=0`, or a request without `limit` or `page`: send values from 1 to 100. Hosts without a pipe used to serve any `page`.
 - A `between` filter with one item or more than two, such as `age[operator]=between&age[values]=18`: send exactly two items. A single numeric item used to return `500`.
 

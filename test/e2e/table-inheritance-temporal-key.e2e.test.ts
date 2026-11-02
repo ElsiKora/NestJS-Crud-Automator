@@ -83,7 +83,7 @@ describe("single-table inheritance reads of a temporal primary key with joins (E
 
 	const withQuery = (path: string, query: string, parameters: string): string => `/${path}?${[parameters, query].filter(Boolean).join("&")}`;
 
-	const walkOffsetPages = async (path: string, query: string, direction: "ASC" | "DESC"): Promise<{ items: Array<TEntryItem>; totalCount: number }> => {
+	const walkOffsetPages = async (path: string, query: string, direction: "asc" | "desc"): Promise<{ items: Array<TEntryItem>; totalCount: number }> => {
 		const firstPage: TOffsetPage = await get<TOffsetPage>(withQuery(path, query, `limit=${PAGE_SIZE}&page=1&orderBy=sequence&orderDirection=${direction}`));
 		const pages: Array<TOffsetPage> = [firstPage];
 
@@ -171,7 +171,7 @@ describe("single-table inheritance reads of a temporal primary key with joins (E
 		process.env.TZ = timezone;
 
 		try {
-			const offsetWalk: { items: Array<TEntryItem>; totalCount: number } = await walkOffsetPages(`${variant.path}-page`, variant.query, direction === "forward" ? "ASC" : "DESC");
+			const offsetWalk: { items: Array<TEntryItem>; totalCount: number } = await walkOffsetPages(`${variant.path}-page`, variant.query, direction === "forward" ? "asc" : "desc");
 			const cursorWalk: { backward: Array<TEntryItem>; forward: Array<TEntryItem> } = await walkCursorPages(`${variant.path}-cursor`, variant.query);
 
 			expect(offsetWalk.items).toEqual(direction === "forward" ? expected : expected.toReversed());

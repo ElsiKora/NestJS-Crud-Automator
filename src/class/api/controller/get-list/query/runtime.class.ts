@@ -322,9 +322,7 @@ export class ApiControllerGetListQueryRuntime {
 			throw new BadRequestException("INVALID_ORDER");
 		}
 
-		const normalizedDirection: string = orderDirectionValue.toLowerCase();
-
-		if (!EnumIsValue(EFilterOrderDirection, normalizedDirection)) {
+		if (!EnumIsValue(EFilterOrderDirection, orderDirectionValue)) {
 			throw new BadRequestException("INVALID_ORDER");
 		}
 
@@ -334,7 +332,7 @@ export class ApiControllerGetListQueryRuntime {
 
 		return {
 			orderBy: orderByValue,
-			orderDirection: normalizedDirection,
+			orderDirection: orderDirectionValue,
 		};
 	}
 
