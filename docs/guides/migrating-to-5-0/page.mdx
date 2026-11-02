@@ -173,9 +173,10 @@ On a controller decorated with `@ApiControllerSecurable()`, every route Nest ser
 - Declare the route with `@ApiRouteCustom` or `@ApiMethod`, or move it to a controller that is not securable. There is no public or skip option, so a health check moves too.
 - Route metadata written by hand counts only with `ApiAuthorizationGuard` or a subclass of it in `@UseGuards` on the method or the controller. A guard instance and `APP_GUARD` do not count.
 - An application with a securable controller and no `ApiAuthorizationModule` now fails startup. With only plain routes `app.init()` fails, naming the controller and the module. With a generated, `@ApiMethod` or `@ApiRouteCustom` route Nest fails first, already on `compile()`, with its dependency error that names `ApiAuthorizationGuard`. Import the module, or remove `@ApiControllerSecurable()`. Before 5.0.0 such a controller started when it had only plain routes, and nothing validated it.
-- A `@MessagePattern` or `@EventPattern` handler counts as a served handler. On a securable controller it now fails startup. Before 5.0.0 it answered with no authorization. Move it to a controller that is not securable.
+- A `@MessagePattern`, `@EventPattern` or `@SubscribeMessage` handler on a securable controller now fails startup, with or without `@ApiMethod`, because the caller of such a transport writes the payload the guard would read as the request, `user` included. Before 5.0.0 it answered with no authorization, or with `@ApiMethod` took the identity from the message. Move it to a controller that is not securable. A gateway with `@ApiControllerSecurable()` starts and denies every message.
 - A handler replaced on the instance now fails startup, for example `this.report = this.report.bind(this)` in a constructor. Nest takes the guards from that function, so before 5.0.0 the route answered without authorization, generated routes included. Remove the assignment: Nest already calls a handler with `this` set to the controller. A request-scoped controller answers `403` per request instead, because its instance does not exist at startup.
 - Route metadata written by hand without `route` now fails startup instead of answering `500` per request.
+- `ApiAuthorizationBootstrapValidationService` now takes `MetadataScanner` and `ModulesContainer` as its second and third constructor arguments, which moves the others back. Code that calls the constructor by hand passes them in those positions.
 - An override with no route decorator, a helper method and a controller that is not securable are unaffected.
 
 A test harness that stubs `ApiAuthorizationRuntime` without the module is refused too. Import the module and replace the validation service and the runtime:
@@ -201,7 +202,7 @@ See [Authorization: Every Served Route Goes Through Authorization](/docs/nestjs-
 
 `generation.isEnabled: false` on a child controller now stops the route the parent controller generates. Before 5.0.0 the child kept serving it over HTTP and in the OpenAPI document. The generated handler stays callable from the child's own methods, and a route the parent declares with `@ApiMethod` or `@ApiRouteCustom` under the same method name stays served.
 
-If a child relied on the old behavior, remove `@ApiController` from the child so that it inherits the parent's routes and path as they are, or declare the route on the child with `@ApiRouteCustom`. See [`@ApiController`](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller).
+If a child relied on the old behavior, remove `@ApiController` from the child so that it inherits the parent's routes and path as they are, replace it with `@Controller("own-path")` to serve those routes under a path of its own, or declare the route on the child with `@ApiRouteCustom`. See [`@ApiController`](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller).
 
 ## Base Entity Type
 

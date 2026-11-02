@@ -374,7 +374,7 @@ Stores IAM policy document records by normalized document id set only in explici
 
 ### ApiAuthorizationBootstrapValidationService
 
-Applies resolver cache configuration and validates cache bounds, securable controller configuration, custom route metadata including inherited routes, authorization mode selection, hooks policy presence, and IAM prerequisites during application bootstrap.
+Applies resolver cache configuration and validates cache bounds, securable controller configuration, custom route metadata including inherited routes, every handler a securable controller serves (plain routes, pattern handlers, handlers replaced on the instance), authorization mode selection, hooks policy presence, and IAM prerequisites during application bootstrap.
 
 **Location:** `src/class/api/authorization/bootstrap-validation.service.class.ts`
 

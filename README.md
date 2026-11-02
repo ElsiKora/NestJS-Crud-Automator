@@ -482,7 +482,7 @@ Authorization now has two first-class modes:
 - `hooks`: auto-discovered `@ApiAuthorizationPolicy({ entity })` classes
 - `iam`: attachment/document-based IAM evaluation with optional boundaries
 
-`@ApiControllerSecurable()` is marker-only. It turns on the authorization pipeline, but mode selection and all authorization configuration live in `@ApiController({ authorization: ... })`. Each route uses exactly one mode: route config can override the controller default with `routes[routeType].security.authorization.mode`, and a route without a mode falls back to `authorization.defaultMode`.
+`@ApiControllerSecurable()` turns on the authorization pipeline and takes no options: mode selection and all authorization configuration live in `@ApiController({ authorization: ... })`. Every handler Nest serves on such a controller goes through authorization, or the application does not start. Each route uses exactly one mode: route config can override the controller default with `routes[routeType].security.authorization.mode`, and a route without a mode falls back to `authorization.defaultMode`.
 
 #### Runtime authorization actions
 
