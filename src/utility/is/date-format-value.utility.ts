@@ -10,7 +10,7 @@ const TIME_PATTERN: RegExp = /^(\d{2}):(\d{2}):(\d{2})$/u;
 
 /**
  * Checks whether a value is text in the published form of a date property format, naming a moment that exists.
- * `DATE` is `YYYY-MM-DD` for an existing day, `DATE_TIME` is the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, and `TIME` is `HH:mm:ss` within one day.
+ * `DATE` is `YYYY-MM-DD` for an existing day, `DATE_TIME` is the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, both in a year from 0001 to 9999, and `TIME` is `HH:mm:ss` within one day.
  * @param {unknown} value - Value to check, usually a raw query string.
  * @param {EApiPropertyDateType} format - Date property format whose published pattern applies.
  * @returns {boolean} True when the value is text in that form.
@@ -32,7 +32,7 @@ export function IsDateFormatValue(value: unknown, format: EApiPropertyDateType):
 
 			const date: Date = new Date(value);
 
-			return !Number.isNaN(date.getTime()) && date.toISOString() === value;
+			return !Number.isNaN(date.getTime()) && date.toISOString() === value && date.getUTCFullYear() >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && date.getUTCFullYear() <= PROPERTY_DATE_DECORATOR_API_CONSTANT.MAXIMUM_YEAR;
 		}
 
 		case EApiPropertyDateType.TIME: {

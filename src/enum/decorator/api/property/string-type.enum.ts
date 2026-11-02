@@ -13,6 +13,7 @@ export enum EApiPropertyStringType {
 	CRON = EApiPropertyDataType.CRON,
 	CURRENCY_CODE = EApiPropertyDataType.CURRENCY_CODE,
 	DATA_URI = EApiPropertyDataType.DATA_URI,
+	/** Refused by `ApiPropertyString` at decoration; describe a calendar date with `ApiPropertyDate` and `EApiPropertyDateType.DATE`. */
 	DATE = EApiPropertyDataType.DATE,
 	DOMAIN = EApiPropertyDataType.DOMAIN,
 	EMAIL = EApiPropertyDataType.EMAIL,

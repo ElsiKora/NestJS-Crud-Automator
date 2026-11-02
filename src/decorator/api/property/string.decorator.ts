@@ -8,6 +8,7 @@ import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-pr
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
+import { ApiPropertyGetTargetClassName } from "@utility/api/property-get-target-class-name.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
@@ -25,7 +26,6 @@ import {
 	IsBtcAddress,
 	IsCreditCard,
 	IsDataURI,
-	IsDate,
 	IsEmail,
 	IsEthereumAddress,
 	IsFQDN,
@@ -325,13 +325,8 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 				break;
 			}
 
+			// validateOptions refuses this format before any decorator is built; ApiPropertyDate describes dates.
 			case EApiPropertyStringType.DATE: {
-				decorators.push(
-					// eslint-disable-next-line @elsikora/typescript/naming-convention
-					IsDate({ each: isArray }),
-					Type(() => Date),
-				);
-
 				break;
 			}
 
@@ -652,7 +647,7 @@ function buildStringValidationDecorators(properties: TApiPropertyStringPropertie
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
 
-	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.format !== EApiPropertyStringType.DATE) {
+	if (properties.isResponse === false || properties.isResponse === undefined) {
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(Matches(new RegExp(properties.pattern.slice(1, -1)), { each: isArray }), Length(properties.minLength, properties.maxLength, { each: isArray }));
 	}
@@ -677,6 +672,11 @@ function buildStringValidationDecorators(properties: TApiPropertyStringPropertie
  */
 function validateOptions(properties: TApiPropertyStringProperties, target: object, propertyKey: string | symbol): void {
 	const errors: Array<string> = [];
+
+	// A date has one published form and one rule, which ApiPropertyDate holds.
+	if (properties.format === EApiPropertyStringType.DATE) {
+		errors.push(`Property '${ApiPropertyGetTargetClassName(target)}.${String(propertyKey)}' cannot use format DATE; describe a calendar date with ApiPropertyDate and EApiPropertyDateType.DATE`);
+	}
 
 	if ((!properties.isResponse && (!properties.exampleValue || !properties.pattern)) || (properties.exampleValue && properties.pattern)) {
 		const matches: null | RegExpMatchArray = /^\/(?<pattern>.*?)\/(?<flags>[gimuy]*)$/.exec(properties.pattern);

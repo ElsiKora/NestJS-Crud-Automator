@@ -427,6 +427,8 @@ async function bootstrap() {
 bootstrap();
 ```
 
+`enableImplicitConversion` does not loosen date properties: `@ApiPropertyDate` checks a value as it was sent, even when the property is typed `Date`. See [Request values](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date#request-values).
+
 ### Root-level discriminated custom route bodies
 
 A global `ValidationPipe` does not validate root-level discriminated `@ApiRouteCustom` bodies: Crud Automator selects the variant DTO, transforms it, and validates it itself. Mirror the pipe options you need on the discriminated body config with `validatorOptions`, `transformOptions`, and `exceptionFactory`. `exceptionFactory` behaves like the `ValidationPipe` option and may be sync or async: it receives the selected variant's native `ValidationError[]`, or one synthetic `mustMatchDiscriminatorMapping` error without `value` for a non-object body or a missing or unknown discriminator, and its return value is thrown. Discriminator messages never echo the rejected value. Errors thrown while transforming the selected variant, including an `HttpException` or any other error from your own `@Transform`, are not passed to `exceptionFactory` and propagate unchanged, exactly as with Nest `ValidationPipe`. See [`@ApiRouteCustom`](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-route-custom#root-level-discriminated-dtos) for a full example.

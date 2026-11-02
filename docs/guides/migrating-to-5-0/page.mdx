@@ -328,10 +328,13 @@ Under a host `ValidationPipe`, a request value of an `@ApiPropertyDate` property
 - A `DATE` value is `YYYY-MM-DD` text for a day that exists and stays that text. With `transform: true` it used to become a `Date` at UTC midnight, which stored the previous day in time zones west of UTC. A TypeORM value transformer on a `date` column now receives the text in `to` on writes too.
 - A `TIME` value is `HH:mm:ss` text and stays text. A valid time of day used to return `400`.
 - A `DATE_TIME` value is the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, as `Date.prototype.toISOString()` writes it. Any text `new Date()` could read used to pass, including `March 1 2026`, `1`, zone-less text read in the process time zone, and epoch numbers.
-- A one-element array on a single property returns `400`.
+- A one-element array on a single property returns `400`, and so does a date or date-time in year `0000`. Bodies and filters accept years 0001 to 9999.
+- The rule holds under `enableImplicitConversion`. A `DATE_TIME` property typed `Date` used to accept anything class-transformer turned into a `Date`, and a `DATE` or `TIME` property typed `Date` used to refuse a valid value.
 - The message is `<property> must be in <form> format` with constraint `isDateFormatValue`, instead of `<property> must be a Date instance` with `isDate`.
 
 Type `DATE` and `TIME` properties of request DTOs as `string`, and change custom handlers that call `Date` methods on them. Without a host pipe a generated route does not check the body, as before, and stores the text as sent.
+
+`@ApiPropertyString` with `format: EApiPropertyStringType.DATE` now fails at decoration, on request and response properties. It accepted any text `new Date()` could read and turned it into a `Date`. Use `@ApiPropertyDate` with `EApiPropertyDateType.DATE`, or `DATE_TIME` for an instant.
 
 ## Checking The Upgrade
 

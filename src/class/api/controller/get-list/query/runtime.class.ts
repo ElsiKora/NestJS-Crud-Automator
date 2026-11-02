@@ -2,6 +2,7 @@ import type { IApiControllerGetListQueryAst, IApiControllerGetListQueryAstNode, 
 import type { TApiFunctionGetListPropertiesWhere } from "@type/decorator/api/function";
 import type { FindOperator } from "typeorm";
 
+import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
@@ -17,8 +18,6 @@ const DATE_VALUE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
 const DATE_VALUE_LENGTH: number = "YYYY-MM-DD".length;
 const TIME_VALUE_PATTERN: RegExp = /^[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?$/iu;
 const ZONE_VALUE_PATTERN: RegExp = /(?:Z|[+-]\d{2}:?\d{2})$/iu;
-// Years the database and the cursor token both accept.
-const DATE_TIME_VALUE_MAXIMUM_YEAR: number = 9999;
 
 export class ApiControllerGetListQueryRuntime {
 	/**
@@ -166,7 +165,7 @@ export class ApiControllerGetListQueryRuntime {
 		const instantYear: number = new Date(value).getUTCFullYear();
 
 		// An offset beyond what JavaScript parses names no instant, and its NaN year fails the range as well.
-		return isCalendarValid && year >= 1 && (zonePart === "" || (instantYear >= 1 && instantYear <= DATE_TIME_VALUE_MAXIMUM_YEAR));
+		return isCalendarValid && year >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && (zonePart === "" || (instantYear >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && instantYear <= PROPERTY_DATE_DECORATOR_API_CONSTANT.MAXIMUM_YEAR));
 	}
 
 	private static parseCursor(afterValue: unknown, beforeValue: unknown, pageValue: unknown): { after?: string; before?: string } {

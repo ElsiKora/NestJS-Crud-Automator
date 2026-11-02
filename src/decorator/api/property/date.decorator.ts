@@ -1,6 +1,7 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyDateProperties } from "@type/decorator/api/property";
+import type { TransformFnParams } from "class-transformer";
 import type { ValidationOptions } from "class-validator";
 
 import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
@@ -258,6 +259,7 @@ function buildResponseDecorators(properties: TApiPropertyDateProperties): Array<
 /**
  * Builds the request transform. Only a `DATE_TIME` value in its published form becomes a Date; every other value stays as sent, so the validator names the published form.
  * A `DATE` or `TIME` value is never converted, so the stored text does not depend on the process time zone. An array property wraps a single value.
+ * Under `enableImplicitConversion` class-transformer turns a value into a Date before this transform runs when the property is typed `Date`, so the transform reads the value as sent instead.
  * @param {TApiPropertyDateProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} The request transform, or none for a response property
  * @private
@@ -271,18 +273,21 @@ function buildTransformDecorators(properties: TApiPropertyDateProperties): Array
 		if (properties.isArray) {
 			decorators.push(
 				Transform(
-					({ value }: { value: unknown }): unknown => {
+					({ key, obj, value }: TransformFnParams): unknown => {
 						if (value === undefined || value === null) {
 							return value;
 						}
 
-						return (Array.isArray(value) ? value : [value]).map((item: unknown): unknown => toRequestValue(item, format));
+						const sent: unknown = readSentValue(obj, key);
+						const sentItems: Array<unknown> = Array.isArray(sent) ? sent : [sent];
+
+						return (Array.isArray(value) ? (value as Array<unknown>) : [value]).map((item: unknown, index: number): unknown => toRequestValue(restoreSentValue(item, sentItems[index]), format));
 					},
 					{ toClassOnly: true },
 				),
 			);
 		} else {
-			decorators.push(Transform(({ value }: { value: unknown }): unknown => toRequestValue(value, format), { toClassOnly: true }));
+			decorators.push(Transform(({ key, obj, value }: TransformFnParams): unknown => toRequestValue(restoreSentValue(value, readSentValue(obj, key)), format), { toClassOnly: true }));
 		}
 	}
 
@@ -387,6 +392,28 @@ function isPublishedValue(value: unknown, format: EApiPropertyDateType): boolean
 	}
 
 	return IsDateFormatValue(value, format);
+}
+
+/**
+ * Reads a property of the plain object being transformed as the client sent it.
+ * @param {unknown} source - Plain object class-transformer reads, `obj` of the transform.
+ * @param {string} key - Property key.
+ * @returns {unknown} The sent value, or undefined when the source is not an object.
+ * @private
+ */
+function readSentValue(source: unknown, key: string): unknown {
+	return typeof source === "object" && source !== null ? Reflect.get(source, key) : undefined;
+}
+
+/**
+ * Undoes class-transformer's implicit conversion: a Date built from a value that was not a Date is replaced by that value, so only a Date the server set counts as one.
+ * @param {unknown} value - Value after class-transformer's own conversion.
+ * @param {unknown} sent - The same value as sent, or undefined when it cannot be read.
+ * @returns {unknown} The value as sent when the conversion made the Date, otherwise the value.
+ * @private
+ */
+function restoreSentValue(value: unknown, sent: unknown): unknown {
+	return value instanceof Date && sent !== undefined && !(sent instanceof Date) ? sent : value;
 }
 
 /**

@@ -316,7 +316,7 @@ Do not set `shouldKeepDiscriminatorProperty: false` on an `@ApiPropertyObject` r
 
 ## Calendar Dates As `Date` Objects
 
-Do not type a `DATE` or `TIME` request property as `Date` or call `Date` methods on it: `@ApiPropertyDate` keeps `YYYY-MM-DD` and `HH:mm:ss` as text, so the stored day does not move with the process time zone. Only a `DATE_TIME` value, which must be the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, becomes a `Date`. Do not expect a generated route to check a body without a host `ValidationPipe`; list filters are the exception, the route checks them itself.
+Do not type a `DATE` or `TIME` request property as `Date` or call `Date` methods on it: `@ApiPropertyDate` keeps `YYYY-MM-DD` and `HH:mm:ss` as text, so the stored day does not move with the process time zone. Only a `DATE_TIME` value, which must be the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, becomes a `Date`; `enableImplicitConversion` does not change that. Do not describe a date with `ApiPropertyString` and `format: DATE`: it fails at decoration. Do not expect a generated route to check a body without a host `ValidationPipe`; list filters are the exception, the route checks them itself.
 
 ## Docs Drift
 
