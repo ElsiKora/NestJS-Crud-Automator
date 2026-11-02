@@ -87,7 +87,6 @@ class FactoryService extends ApiServiceBase<FactoryEntity> {
 
 		ApiControllerGeneratedInsertedKeyStorage.claim(properties, "FactoryEntity")?.({ id: created.id });
 		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
-		ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, created);
 
 		return created;
 	});
@@ -232,7 +231,14 @@ describe("ApiController", () => {
 			@ApiService<IApiBaseEntity>({ entity: FactoryEntity })
 			class ProtectedService extends ApiServiceBase<IApiBaseEntity> {}
 
-			const service: ApiServiceBase<IApiBaseEntity> = isProtected ? new ProtectedService() : new ApiServiceBase<IApiBaseEntity>();
+			@ApiService<IApiBaseEntity>({ entity: FactoryEntity })
+			class PlainCreateService extends ApiServiceBase<IApiBaseEntity> {
+				public override async create(properties: Partial<IApiBaseEntity>): Promise<IApiBaseEntity> {
+					return properties as IApiBaseEntity;
+				}
+			}
+
+			const service: ApiServiceBase<IApiBaseEntity> = isProtected ? new ProtectedService() : new PlainCreateService();
 
 			class StartupController {
 				public service = Object.assign(service, { repository }) as ApiServiceBase<any>;
@@ -252,7 +258,7 @@ describe("ApiController", () => {
 		});
 
 		it("names the controller and the reason of an undecorated create", async () => {
-			await expect(createController({}, false).onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create": Generated create service function is not');
+			await expect(createController({}, false).onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create" writes through the CREATE function of service "PlainCreateService", but its create method is a plain method');
 		});
 
 		it("does not check a controller whose create is not generated", async () => {

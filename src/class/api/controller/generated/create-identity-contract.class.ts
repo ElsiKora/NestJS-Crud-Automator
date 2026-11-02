@@ -1,10 +1,8 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiEntityColumn } from "@interface/entity";
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { FindOptionsWhere, Repository } from "typeorm";
 
 import { ApiControllerGeneratedCreateTemporalKeyContract } from "@class/api/controller/generated/create-temporal-key-contract.class";
-import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
 import { ApiFunctionBoundOperator } from "@class/api/function/bound-operator.class";
 import { DatabaseTypeOrmBindInstant } from "@utility/database/typeorm/bind/instant.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -14,27 +12,6 @@ import { And, LessThan, MoreThanOrEqual } from "typeorm";
  * Identifies the row a generated CREATE stored, so its reload never matches a sibling row or falls back to the scope alone.
  */
 export class ApiControllerGeneratedCreateIdentityContract {
-	/**
-	 * Copies the primary column values a create result holds, before anything can change the result.
-	 * @template E The entity type
-	 * @param {object} result - Stored row or create function result.
-	 * @param {Array<IApiEntityColumn<E>>} primaryColumns - Primary columns of the entity.
-	 * @returns {Partial<Record<keyof E, unknown>>} Present primary column values.
-	 */
-	public static capture<E extends IApiBaseEntity>(result: object, primaryColumns: Array<IApiEntityColumn<E>>): Partial<Record<keyof E, unknown>> {
-		const values: Partial<Record<keyof E, unknown>> = {};
-
-		for (const column of primaryColumns) {
-			const value: unknown = Reflect.get(result, column.name);
-
-			if (value !== undefined && value !== null) {
-				values[column.name] = ApiControllerGeneratedSecuritySnapshot.detach(value);
-			}
-		}
-
-		return values;
-	}
-
 	/**
 	 * Confirms that reload criteria match exactly one stored row.
 	 * The database counts the rows, because rows whose date and time keys differ only below a millisecond read back as one entity.
@@ -58,13 +35,13 @@ export class ApiControllerGeneratedCreateIdentityContract {
 	}
 
 	/**
-	 * Builds reload criteria from captured primary column values and confirms that they match exactly one stored row, which is then the created one.
+	 * Builds reload criteria from the reported primary key values and confirms that they match exactly one stored row, which is then the created one.
 	 * A generated CREATE confirms the criteria again after its reload, because a row another request commits meanwhile may match them too.
 	 * A date and time column matches its whole millisecond, because the database may store a finer precision than the driver reads back.
 	 * A transformed date and time column matches its stored value, because each end of that range would go through the transformer on its own.
 	 * @template E The entity type
 	 * @param {Repository<E> | undefined} repository - Repository bound to the active transaction, if any.
-	 * @param {Partial<Record<keyof E, unknown>>} values - Values from {@link ApiControllerGeneratedCreateIdentityContract.capture}.
+	 * @param {Partial<Record<keyof E, unknown>>} values - Primary key values the create function reported for the row it inserted.
 	 * @returns {Promise<FindOptionsWhere<E>>} Criteria for the created row.
 	 */
 	public static async identify<E extends IApiBaseEntity>(repository: Repository<E> | undefined, values: Partial<Record<keyof E, unknown>>): Promise<FindOptionsWhere<E>> {

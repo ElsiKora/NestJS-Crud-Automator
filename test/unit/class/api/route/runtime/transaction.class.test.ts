@@ -1,6 +1,6 @@
 import type { IApiRouteRuntimeGeneratedExecutionOptions } from "@interface/class/api/route";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
-import type { DataSource, EntityManager, ObjectLiteral, Repository } from "typeorm";
+import type { DataSource, EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionLifecycle } from "@class/api/function/transaction/lifecycle.class";
@@ -196,9 +196,22 @@ function createRouteTransactionFixture(storedRows: Array<RuntimeRouteEntity> = [
 	return createTransactionFixture({ getRepository: vi.fn(() => repository) } as unknown as EntityManager);
 }
 
-function storeCreatedRow(properties: Partial<RuntimeRouteEntity>): RuntimeRouteEntity {
+/**
+ * Claims the scope of a mocked create and reports the key of its stored row, as the built-in create function does.
+ * @param {object} properties - Body the create function received.
+ * @param {object} storedRow - Row the mocked create stored.
+ * @param {ReadonlyArray<string>} keys - Primary columns of the row.
+ */
+function reportStoredRow(properties: object, storedRow: object, keys: ReadonlyArray<string>): void {
+	const values: Array<[string, unknown]> = keys.map((key: string): [string, unknown] => [key, Reflect.get(storedRow, key)]);
+
 	ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
-	ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, properties);
+	// Like EntityMetadata.getEntityIdMap, a row with a missing primary value reports no key.
+	ApiControllerGeneratedInsertedKeyStorage.claim(properties, "RuntimeRouteEntity")?.(values.some(([, value]: [string, unknown]): boolean => value === undefined || value === null) ? undefined : Object.fromEntries(values));
+}
+
+function storeCreatedRow(properties: Partial<RuntimeRouteEntity>, keys: ReadonlyArray<string> = ["id"]): RuntimeRouteEntity {
+	reportStoredRow(properties, properties, keys);
 
 	return properties as RuntimeRouteEntity;
 }
@@ -245,8 +258,6 @@ function createRouteService(dataSource?: DataSource, storedRows: Array<RuntimeRo
 	ApiControllerGeneratedFunctionCapability.mark(service.getList, EApiFunctionType.GET_LIST, RuntimeRouteEntity);
 	ApiControllerGeneratedFunctionCapability.mark(service.update, EApiFunctionType.UPDATE, RuntimeRouteEntity);
 	ApiControllerGeneratedFunctionCapability.mark(service.delete, EApiFunctionType.DELETE, RuntimeRouteEntity);
-	// The mocked CREATE functions do not save a row, so the key the route reads by is the id they return.
-	vi.spyOn(ApiControllerGeneratedInsertedKeyStorage, "run").mockImplementation(async (_input: object, callback: () => Promise<unknown>): Promise<ObjectLiteral> => ({ id: ((await callback()) as RuntimeRouteEntity).id }));
 
 	return service;
 }
@@ -1035,31 +1046,30 @@ describe("ApiRouteRuntime generated transactions", () => {
 		it("reloads a composite key through every primary column", async () => {
 			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(createRouteTransactionFixture().dataSource);
 
+			vi.mocked(service.create).mockImplementation(async (properties): Promise<RuntimeRouteEntity> => storeCreatedRow(properties, ["id", "source"]));
+
 			await ApiRouteRuntime.executeGenerated(createCompositeOptions(service, undefined));
 
 			expect(vi.mocked(service.get).mock.calls[0]?.[0].where).toEqual({ id: "route-transaction-1", source: "request" });
 		});
 
-		function mockStoredRow(service: ApiServiceBase<RuntimeRouteEntity>, storedRow: object, returnedRow: object = storedRow): void {
+		function mockStoredRow(service: ApiServiceBase<RuntimeRouteEntity>, storedRow: object, returnedRow: object = storedRow, keys: ReadonlyArray<string> = ["id"]): void {
 			vi.mocked(service.create).mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
-				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
-				ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, storedRow);
+				reportStoredRow(properties, storedRow, keys);
 
 				return returnedRow as RuntimeRouteEntity;
 			});
 		}
 
-		it.each([undefined, null])("reloads by the primary columns a create result holds when one is %s", async (value: null | undefined) => {
+		it.each([undefined, null])("rolls back, naming the cause, when a part of the composite key the create stored is %s", async (value: null | undefined) => {
 			const transaction = createRouteTransactionFixture();
 			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 
-			mockStoredRow(service, { id: "route-transaction-1", source: value });
+			mockStoredRow(service, { id: "route-transaction-1", source: value }, undefined, ["id", "source"]);
 
-			await ApiRouteRuntime.executeGenerated(createCompositeOptions(service, { source: "response" }));
-
-			expect(vi.mocked(transaction.entityManager.getRepository).mock.results[0]?.value.count).toHaveBeenCalledWith({ loadEagerRelations: false, where: { id: "route-transaction-1" } });
-			expect(vi.mocked(service.get).mock.calls[0]?.[0].where).toEqual({ id: Equal("route-transaction-1"), source: Equal("response") });
-			expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+			await expect(ApiRouteRuntime.executeGenerated(createCompositeOptions(service, { source: "response" }))).rejects.toThrow("Generated CREATE route cannot read the RuntimeRouteEntity row it inserted: the saved entity has no primary key value TypeORM knows");
+			expect(service.get).not.toHaveBeenCalled();
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
 		});
 
 		it.each([
@@ -1070,10 +1080,10 @@ describe("ApiRouteRuntime generated transactions", () => {
 			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 			const options = createCompositeOptions(service, where);
 
-			mockStoredRow(service, { id: null, name: "stored" });
+			mockStoredRow(service, { id: null, name: "stored" }, undefined, ["id", "source"]);
 			options.properties.routes[EApiRouteType.CREATE] = { ...options.properties.routes[EApiRouteType.CREATE], transaction: { mode: EApiFunctionTransactionMode.REQUIRED } } as never;
 
-			await expect(ApiRouteRuntime.executeGenerated(options)).rejects.toThrow("Generated create result must hold a primary key column");
+			await expect(ApiRouteRuntime.executeGenerated(options)).rejects.toThrow("Generated CREATE route cannot read the RuntimeRouteEntity row it inserted: the saved entity has no primary key value TypeORM knows");
 			expect(service.get).not.toHaveBeenCalled();
 			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
 			expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
@@ -1141,7 +1151,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 				{ isPrimary: true, name: "id", type: "varchar" },
 				{ isPrimary: true, name: "createdAt" as never, type: columnType as never },
 			];
-			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" });
+			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" }, undefined, ["id", "createdAt"]);
 
 			await ApiRouteRuntime.executeGenerated(options);
 
@@ -1163,7 +1173,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 				{ isPrimary: true, name: "id", type: "varchar" },
 				{ isPrimary: true, name: "createdAt" as never, type: "date" },
 			];
-			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" });
+			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" }, undefined, ["id", "createdAt"]);
 
 			await ApiRouteRuntime.executeGenerated(options);
 
@@ -1182,7 +1192,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 				{ isPrimary: true, name: "id", type: "varchar" },
 				{ isPrimary: true, name: "createdAt" as never, type: "timestamptz" },
 			];
-			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" });
+			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" }, undefined, ["id", "createdAt"]);
 
 			await expect(ApiRouteRuntime.executeGenerated(options)).rejects.toThrow("Generated create result holds an invalid date in primary column createdAt");
 			expect(service.get).not.toHaveBeenCalled();
@@ -1230,13 +1240,13 @@ describe("ApiRouteRuntime generated transactions", () => {
 				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
 
 				if (nestedOrder === "before") {
-					ApiControllerGeneratedReadScopeStorage.captureCreatedEntity({ id: "inner" }, { id: "inner", source: "inner" });
+					ApiControllerGeneratedInsertedKeyStorage.claim({ id: "inner" }, "RuntimeRouteEntity")?.({ id: "inner" });
 				}
 
-				ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, { id: "route-transaction-1", source: "request" });
+				ApiControllerGeneratedInsertedKeyStorage.claim(properties, "RuntimeRouteEntity")?.({ id: "route-transaction-1" });
 
 				if (nestedOrder === "after") {
-					ApiControllerGeneratedReadScopeStorage.captureCreatedEntity({ id: "inner" }, { id: "inner", source: "inner" });
+					ApiControllerGeneratedInsertedKeyStorage.claim({ id: "inner" }, "RuntimeRouteEntity")?.({ id: "inner" });
 				}
 
 				return properties as RuntimeRouteEntity;
@@ -1270,25 +1280,26 @@ describe("ApiRouteRuntime generated transactions", () => {
 				return properties as RuntimeRouteEntity;
 			});
 
-			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toThrow("Generated create did not capture its stored row");
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toThrow("Generated CREATE function did not report the key of the row it inserted");
 			expect(service.get).not.toHaveBeenCalled();
 			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
 		});
 
-		it("rejects a second stored row report from one scoped create", async () => {
+		it("keeps the key of the first claim when one scoped create claims twice", async () => {
 			const transaction = createRouteTransactionFixture();
 			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 
 			vi.mocked(service.create).mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
-				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
-				ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, properties);
-				ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, { id: "decoy" });
+				reportStoredRow(properties, properties, ["id"]);
+				ApiControllerGeneratedInsertedKeyStorage.claim(properties, "RuntimeRouteEntity")?.({ id: "decoy" });
 
 				return properties as RuntimeRouteEntity;
 			});
 
-			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toThrow("Generated create must capture its stored row exactly once");
-			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+			await ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }));
+
+			expect(vi.mocked(service.get).mock.calls[0]?.[0].where).toEqual({ id: Equal("route-transaction-1"), source: Equal("response") });
+			expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
 		});
 
 		it("rejects an empty WHERE array before opening a transaction or writing", async () => {

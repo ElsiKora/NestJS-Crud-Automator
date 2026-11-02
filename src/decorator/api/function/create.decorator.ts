@@ -78,7 +78,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 						throw ErrorException("Repository is not available in this context");
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionCreateProperties<E>), reportInsertedKey, repository, serviceRepository: this.repository }, createProperties);
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionCreateProperties<E>), reportInsertedKey, repository, serviceRepository: this.repository });
 				},
 				entity,
 				functionType: EApiFunctionType.CREATE,
@@ -136,11 +136,10 @@ async function executeAfterErrorSubscribers<E extends IApiBaseEntity>(options: I
  * Executes the entity creation operation with error handling
  * @template E The entity type
  * @param {IApiFunctionCreateExecutorProperties<E>} options - Properties required for entity creation
- * @param {object} input - Original create input, which identifies a generated create whose stored row is reported to the route runtime
  * @returns {Promise<E>} The created entity instance
  * @throws {InternalServerErrorException} If the creation operation fails
  */
-async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>, input: object): Promise<E> {
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>): Promise<E> {
 	const { constructor, entity, properties, reportInsertedKey, repository }: IApiFunctionCreateExecutorProperties<E> = options;
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
@@ -148,7 +147,6 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 		const result: E = await repository.save(properties);
 		// A generated route reads its response by the key TypeORM saved, taken before a function subscriber can replace or change the result.
 		reportInsertedKey?.(repository.metadata.getEntityIdMap(result));
-		ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(input, result);
 		const entityInstance: E = new entity();
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>> = {

@@ -31,7 +31,7 @@ import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
 
-import { ApiControllerGeneratedCreateIdentityContract, ApiControllerGeneratedCreateTemporalKeyContract, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
+import { ApiControllerGeneratedCreateIdentityContract, ApiControllerGeneratedCreateTemporalKeyContract, ApiControllerGeneratedInsertedKeyStorage, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGetListCursorDataSourceContract } from "@class/api/controller/get-list/cursor/data-source-contract.class";
 import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
@@ -355,20 +355,16 @@ export class ApiRouteRuntime {
 					options,
 					routeConfig,
 					async (eventManager: EntityManager | undefined): Promise<E> => {
-						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
-						const primaryColumns: Array<IApiEntityColumn<E>> = this.resolvePrimaryColumns(options.entityMetadata);
+						const createInput: DeepPartial<E> = targets.body ?? ({} as DeepPartial<E>);
+						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, createInput);
+						// An entity without primary key metadata fails here, before the route writes, as GET, PUT, PATCH and DELETE fail.
+						this.resolvePrimaryKey(createInput, options.entityMetadata);
 						markAfterBoundary();
-						const createProperties: object = targets.body ?? {};
 
-						// The reload checks the row the protected function stored, not a result its subscribers may replace.
-						const createdKey: Partial<Record<keyof E, unknown>> = await ApiControllerGeneratedReadScopeStorage.runCreate(
-							createProperties,
-							scopeWhere,
-							async (): Promise<E> => await Reflect.apply(createFunction, service, [createProperties]),
-							(entity: object): Partial<Record<keyof E, unknown>> => ApiControllerGeneratedCreateIdentityContract.capture(entity, primaryColumns),
-						);
+						// The reload checks the row the protected function stored, by the key it reported before its subscribers could replace the result.
+						const insertedKey: ObjectLiteral = await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.CREATE, createInput, scopeWhere, async (): Promise<ObjectLiteral> => await ApiControllerGeneratedInsertedKeyStorage.run(createInput, async (): Promise<E> => await Reflect.apply(createFunction, service, [createInput])));
 						const identityRepository: Repository<E> | undefined = repository && eventManager?.getRepository<E>(repository.target);
-						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(identityRepository, createdKey);
+						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(identityRepository, insertedKey as Partial<Record<keyof E, unknown>>);
 
 						const requestProperties: TApiFunctionGetProperties<E> = {
 							relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
@@ -864,16 +860,6 @@ export class ApiRouteRuntime {
 		const handler: unknown = Reflect.get(controller, methodName);
 
 		return typeof handler === "function" ? ApiControllerParametersDtoGet(handler) : undefined;
-	}
-
-	private static resolvePrimaryColumns<E extends IApiBaseEntity>(entityMetadata: IApiEntity<E>): Array<IApiEntityColumn<E>> {
-		const primaryColumns: Array<IApiEntityColumn<E>> = entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary);
-
-		if (primaryColumns.length === 0) {
-			throw ErrorException("Primary key not found in entity columns");
-		}
-
-		return primaryColumns;
 	}
 
 	private static resolvePrimaryKey<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> {

@@ -1,6 +1,7 @@
 import type { EntityManager, Repository } from "typeorm";
 
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedInsertedKeyStorage } from "@class/api/controller/generated/inserted-key-storage.class";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
@@ -97,6 +98,7 @@ describe("ApiFunctionCreate", () => {
 
 	it("reports the saved row to a generated create before after subscribers replace the result", async () => {
 		const repository = {
+			metadata: { getEntityIdMap: vi.fn((entity: Partial<CreateEntity>) => ({ id: entity.id })) },
 			save: vi.fn(async (value: Partial<CreateEntity>) => ({ id: "stored", ...value })),
 		} as unknown as Repository<CreateEntity>;
 		const service = new CreateService(repository);
@@ -106,14 +108,9 @@ describe("ApiFunctionCreate", () => {
 			.mockResolvedValueOnce(undefined)
 			.mockResolvedValueOnce({ id: "decoy", name: "decoy" } as CreateEntity);
 
-		const captured: object = await ApiControllerGeneratedReadScopeStorage.runCreate(
-			input,
-			{ name: "initial" },
-			async () => await service.create(input),
-			(entity: object): object => ({ ...entity }),
-		);
+		const insertedKey: object = await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.CREATE, input, undefined, async () => await ApiControllerGeneratedInsertedKeyStorage.run(input, async () => await service.create(input)));
 
-		expect(captured).toEqual({ id: "stored", name: "initial" });
+		expect(insertedKey).toEqual({ id: "stored" });
 	});
 
 	it("binds the preflight error repository to the active transaction", async () => {

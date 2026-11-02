@@ -592,11 +592,11 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 			expect(await events.count()).toBe(0);
 		});
 
-		it("reloads by the primary columns the create result holds when a trigger fills another one", async () => {
+		it("answers 500 and rolls back when a trigger fills a primary column TypeORM does not know", async () => {
 			const response = await fastify.inject({ method: "POST", payload: { id: "region-1", name: "Region" }, url: "/create-scope-pg-region" });
 
-			expect(response.statusCode).toBe(201);
-			expect(response.json()).toMatchObject({ id: "region-1", region: "eu" });
+			expect(response.statusCode).toBe(500);
+			expect(await regions.findBy({ id: "region-1" })).toEqual([]);
 		});
 
 		it("answers 500 and rolls back when a trigger overwrites a primary value the create result still holds", async () => {
