@@ -20,7 +20,7 @@ import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod, ValidationPipe } from "@nestjs/common";
 import { addLeadingSlash, METHOD_METADATA, MODULE_PATH, PATH_METADATA, stripEndSlash, VERSION_METADATA } from "@nestjs/common/internal";
-import { ApplicationConfig, DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
+import { ApplicationConfig, DiscoveryService, HttpAdapterHost, MetadataScanner, ModulesContainer } from "@nestjs/core";
 import { ApiControllerGetMethodName } from "@utility/api/controller/get/method-name.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity/plan/get.utility";
 import { ApiControllerParametersAssertComparableColumns, ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
@@ -58,6 +58,8 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry,
 		@Optional()
 		private readonly applicationConfig?: ApplicationConfig,
+		@Optional()
+		private readonly httpAdapterHost?: HttpAdapterHost,
 	) {
 		// A manual `new` without the registry, from JavaScript or through a cast, fails here instead of on the first start.
 		if (!(parametersRuleRegistry instanceof ApiAuthorizationParametersRuleRegistry)) {
@@ -385,7 +387,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Lists the path parameters of the paths Nest serves a handler at: the global prefix, unless `setGlobalPrefix` excludes the route, the `RouterModule` path, the controller path, and the route path.
+	 * Lists the path parameters of the paths Nest serves a handler at: the global prefix, unless `setGlobalPrefix` excludes the route, the `RouterModule` path, the controller path, and the route path, read as the router of the running HTTP adapter reads them.
 	 * A handler served at several paths gets the parameters of all of them, because each request carries the parameters of one.
 	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller, whose module holds the `RouterModule` path.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
@@ -401,6 +403,8 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		const excludedRoutes: ReadonlyArray<{ pathRegex: RegExp; requestMethod: RequestMethod }> = this.applicationConfig?.getGlobalPrefixOptions().exclude ?? [];
 		const controllerPaths: Array<unknown> = [Reflect.getMetadata(PATH_METADATA, metatype) as unknown].flat();
 		const routePaths: Array<unknown> = [Reflect.getMetadata(PATH_METADATA, handler) as unknown].flat();
+		// The path is read with the grammar of the router that serves it; without a known adapter, with both.
+		const adapterType: string | undefined = this.httpAdapterHost?.httpAdapter?.getType();
 		const parameters: Set<string> = new Set<string>();
 
 		for (const controllerPath of controllerPaths) {
@@ -422,7 +426,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 							[-1, requestMethod, RequestMethod.ALL].includes(excluded.requestMethod) && excluded.pathRegex.exec(addLeadingSlash(path)) !== null,
 					);
 
-				for (const parameter of ApiControllerParametersReadPath([isExcluded ? "" : globalPrefix, modulePath, controllerPath, routePath], route)) {
+				for (const parameter of ApiControllerParametersReadPath([isExcluded ? "" : globalPrefix, modulePath, controllerPath, routePath], route, adapterType)) {
 					parameters.add(parameter);
 				}
 			}
