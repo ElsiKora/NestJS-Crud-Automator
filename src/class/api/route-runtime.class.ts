@@ -314,8 +314,7 @@ export class ApiRouteRuntime {
 			await this.executeGeneratedRequestPipeline(options, targets, [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.BODY]);
 			const service: ApiServiceBase<E> = options.controller.service;
 			const updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, options.properties.entity);
-			const responseLoad: IApiControllerPropertiesRouteBaseRelationsResponseLoad<E> | undefined = routeConfig.relations?.response?.load;
-			const getFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E>) | undefined = responseLoad && this.hasResponseRelationInclude(responseLoad.include) ? ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity) : undefined;
+			const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 
 			return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<E> => await this.executeGeneratedUpdateOperation(options, targets, authorizationDecision, routeConfig, markAfterBoundary, service, updateFunction, getFunction));
 		}
@@ -667,7 +666,7 @@ export class ApiRouteRuntime {
 		markAfterBoundary: () => void,
 		service: ApiServiceBase<E>,
 		updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E>,
-		getFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E>) | undefined,
+		getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E>,
 	): Promise<E> {
 		const responseLoad: IApiControllerPropertiesRouteBaseRelationsResponseLoad<E> | undefined = routeConfig.relations?.response?.load;
 
@@ -679,14 +678,13 @@ export class ApiRouteRuntime {
 		markAfterBoundary();
 		const updateResponse: E = await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.UPDATE, updateCriteria, updateCriteria, async (): Promise<E> => await Reflect.apply(updateFunction, service, [updateCriteria, (targets.body ?? {}) as never]));
 
-		if (!responseLoad || !getFunction) {
-			return updateResponse;
-		}
+		// The route answers with the row it wrote, read as GET reads it, so the response never carries the body's raw relation keys.
+		const writtenRowWhere: FindOptionsWhere<E> = Object.fromEntries(options.entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary).map((column: IApiEntityColumn<E>): [string, unknown] => [String(column.name), updateResponse[column.name]])) as FindOptionsWhere<E>;
 
 		const requestProperties: TApiFunctionGetProperties<E> = {
-			relationLoadStrategy: responseLoad.relationLoadStrategy,
-			relations: responseLoad.include,
-			where: AuthorizationScopeMergeWhere({ [primaryKey.key]: updateResponse[primaryKey.key] } as FindOptionsWhere<E>, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
+			relationLoadStrategy: responseLoad?.relationLoadStrategy,
+			relations: responseLoad?.include,
+			where: AuthorizationScopeMergeWhere(writtenRowWhere, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
 		};
 
 		return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => await Reflect.apply(getFunction, service, [requestProperties]));
