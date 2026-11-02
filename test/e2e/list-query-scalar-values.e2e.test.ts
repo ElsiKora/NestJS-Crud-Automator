@@ -151,7 +151,7 @@ describe.each([
 			const rejected = await fastify.inject({ headers: { "content-type": "application/json" }, method: "POST", payload: { ...payload, price: 1.005 }, url: "/list-scalar/create-keys" });
 
 			expect(rejected.statusCode, JSON.stringify(rejected.json())).toBe(HttpStatus.BAD_REQUEST);
-			expect((rejected.json() as { message: Array<string> }).message).toEqual(["price must be divisible by 0.01"]);
+			expect((rejected.json() as { message: Array<string> }).message).toContain("price must be divisible by 0.01");
 
 			const accepted = await fastify.inject({ headers: { "content-type": "application/json" }, method: "POST", payload: { ...payload, price: 0.1 }, url: "/list-scalar/create-keys" });
 

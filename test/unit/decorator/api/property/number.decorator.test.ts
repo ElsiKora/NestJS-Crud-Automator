@@ -55,6 +55,36 @@ class NumberDoubleDto {
 	public ratio!: number;
 }
 
+class NumberFractionalStepDto {
+	@ApiPropertyNumber({
+		description: "price",
+		entity: NumberEntity,
+		exampleValue: 29.99,
+		format: EApiPropertyNumberType.DOUBLE,
+		isRequired: true,
+		maximum: 1000,
+		minimum: 0,
+		multipleOf: 0.01,
+	})
+	public price!: number;
+
+	@ApiPropertyNumber({
+		description: "prices",
+		entity: NumberEntity,
+		exampleValue: [0.1],
+		format: EApiPropertyNumberType.DOUBLE,
+		isArray: true,
+		isRequired: true,
+		isUniqueItems: false,
+		maxItems: 3,
+		maximum: 1000,
+		minItems: 1,
+		minimum: 0,
+		multipleOf: 0.01,
+	})
+	public prices!: Array<number>;
+}
+
 class NumberOptionalDto {
 	@ApiPropertyNumber({
 		description: "count",
@@ -116,6 +146,16 @@ describe("ApiPropertyNumber", () => {
 
 		expect(instance.count).toBeUndefined();
 		expect(errors).toHaveLength(0);
+	});
+
+	it("reads a fractional multipleOf as a decimal under the constraint name hosts map", () => {
+		const accepted = plainToInstance(NumberFractionalStepDto, { price: 0.1, prices: [0.1, 29.99] });
+
+		expect(validateSync(accepted)).toEqual([]);
+
+		const errors = validateSync(plainToInstance(NumberFractionalStepDto, { price: 1.005, prices: [0.1, 1.005] }));
+
+		expect(errors.map((error) => error.constraints)).toEqual([{ isDivisibleBy: "price must be divisible by 0.01" }, { isDivisibleBy: "each value in prices must be divisible by 0.01" }]);
 	});
 
 	it("validates numeric arrays and size constraints", () => {

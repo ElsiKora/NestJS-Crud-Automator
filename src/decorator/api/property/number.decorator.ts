@@ -12,10 +12,11 @@ import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-e
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { IsDecimalDivisibleBy } from "@utility/is/decimal-divisible-by.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { Exclude, Transform, Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, Max, Min, Validate, ValidateIf } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, buildMessage, IS_DIVISIBLE_BY, IsArray, IsInt, IsNumber, Max, Min, Validate, ValidateBy, ValidateIf } from "class-validator";
 import random from "lodash/random.js";
 
 /**
@@ -218,8 +219,23 @@ function buildNumberValidationDecorators(properties: TApiPropertyNumberPropertie
 	}
 
 	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf != undefined) {
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }));
+		const { multipleOf }: { multipleOf: number } = properties;
+
+		decorators.push(
+			ValidateBy(
+				{
+					constraints: [multipleOf],
+					name: IS_DIVISIBLE_BY,
+					validator: {
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
+						defaultMessage: buildMessage((eachPrefix: string): string => `${eachPrefix}$property must be divisible by $constraint1`, { each: isArray }),
+						validate: (value: unknown): boolean => IsDecimalDivisibleBy(value, multipleOf),
+					},
+				},
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				{ each: isArray },
+			),
+		);
 	}
 
 	return decorators;
@@ -388,11 +404,11 @@ function validateOptions(properties: TApiPropertyNumberProperties, target: objec
 	if (properties.multipleOf != undefined) {
 		if (Array.isArray(properties.exampleValue)) {
 			for (const example of properties.exampleValue) {
-				if (!isInt(example / properties.multipleOf)) {
+				if (!IsDecimalDivisibleBy(example, properties.multipleOf)) {
 					errors.push("'exampleValue' is not a multiple of 'multipleOf' value: " + String(example));
 				}
 			}
-		} else if (properties.exampleValue !== undefined && !isInt(properties.exampleValue / properties.multipleOf)) {
+		} else if (properties.exampleValue !== undefined && !IsDecimalDivisibleBy(properties.exampleValue, properties.multipleOf)) {
 			errors.push("'exampleValue' is not a multiple of 'multipleOf' value: " + String(properties.exampleValue));
 		}
 	}
