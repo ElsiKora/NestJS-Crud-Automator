@@ -434,7 +434,7 @@ describe("ApiPropertyObject", () => {
 			["minItems", null],
 			["minItems", "0"],
 		])("rejects %s set to %s", (name: string, value: unknown) => {
-			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, [name]: value })).toThrow(`ApiPropertyObject error: '${name}' must be a non-negative integer`);
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, [name]: value })).toThrow(`ApiPropertyObject error: Property 'ArrayBoundsDto.children': '${name}' must be a non-negative integer`);
 		});
 
 		it.each([
@@ -442,7 +442,7 @@ describe("ApiPropertyObject", () => {
 			["a string", "true"],
 			["null", null],
 		])("rejects isArray set to %s, which would skip the bound checks", (_name: string, isArray: unknown) => {
-			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isArray, maxItems: Number.NaN })).toThrow("ApiPropertyObject error: 'isArray' must be a boolean");
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isArray, maxItems: Number.NaN })).toThrow("ApiPropertyObject error: Property 'ArrayBoundsDto.children': 'isArray' must be a boolean");
 		});
 
 		it("names the class of a static property", () => {
@@ -460,15 +460,15 @@ describe("ApiPropertyObject", () => {
 		});
 
 		it("rejects isUniqueItems that is not a boolean", () => {
-			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isUniqueItems: null })).toThrow("ApiPropertyObject error: 'isUniqueItems' must be a boolean");
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isUniqueItems: null })).toThrow("ApiPropertyObject error: Property 'ArrayBoundsDto.children': 'isUniqueItems' must be a boolean");
 		});
 
 		it("rejects a bad value on a response array too, which may only leave a bound out", () => {
-			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isResponse: true, isUniqueItems: undefined, maxItems: Number.NaN, minItems: undefined })).toThrow("ApiPropertyObject error: 'maxItems' must be a non-negative integer");
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isResponse: true, isUniqueItems: undefined, maxItems: Number.NaN, minItems: undefined })).toThrow("ApiPropertyObject error: Property 'ArrayBoundsDto.children': 'maxItems' must be a non-negative integer");
 		});
 
 		it("keeps the less-than-zero error for a negative bound", () => {
-			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, minItems: -1 })).toThrow("ApiPropertyObject error: 'minItems' is less than 0");
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, minItems: -1 })).toThrow("ApiPropertyObject error: Property 'ArrayBoundsDto.children': 'minItems' is less than 0");
 		});
 
 		it.each([

@@ -84,6 +84,6 @@ describe("ApiPropertyUUID", () => {
 			decorator({}, "ids");
 		};
 
-		expect(applyDecorator).toThrow("ApiPropertyUUID error: 'minItems' is greater than 'maxItems'");
+		expect(applyDecorator).toThrow("ApiPropertyUUID error: Property 'Object.ids': 'minItems' is greater than 'maxItems'");
 	});
 });

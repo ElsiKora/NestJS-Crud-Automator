@@ -97,6 +97,6 @@ describe("ApiPropertyBoolean", () => {
 			decorator({}, "flags");
 		};
 
-		expect(applyDecorator).toThrow("ApiPropertyBoolean error: 'minItems' is greater than 'maxItems'");
+		expect(applyDecorator).toThrow("ApiPropertyBoolean error: Property 'Object.flags': 'minItems' is greater than 'maxItems'");
 	});
 });

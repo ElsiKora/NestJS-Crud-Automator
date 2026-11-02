@@ -124,6 +124,6 @@ describe("ApiPropertyDate", () => {
 			decorator({}, "dates");
 		};
 
-		expect(applyDecorator).toThrow("ApiPropertyDate error: 'minItems' is greater than 'maxItems'");
+		expect(applyDecorator).toThrow("ApiPropertyDate error: Property 'Object.dates': 'minItems' is greater than 'maxItems'");
 	});
 });
