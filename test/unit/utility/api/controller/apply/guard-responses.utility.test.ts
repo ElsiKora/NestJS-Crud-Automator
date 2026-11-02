@@ -3,8 +3,10 @@ import "reflect-metadata";
 import { ApiServiceBase } from "@class/api";
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { ApiController } from "@decorator/api/controller/decorator";
+import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
+import { EApiAuthorizationMode } from "@enum/class/authorization/mode.enum";
 import { EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod, UseGuards } from "@nestjs/common";
 import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
@@ -140,6 +142,36 @@ describe("ApiControllerApplyGuardResponses", () => {
 		expect(getResponses(GuardedController, "export")[HttpStatus.UNAUTHORIZED]).toBeDefined();
 		expect(getResponses(OpenController, "export")[HttpStatus.UNAUTHORIZED]).toBeUndefined();
 		expect(getResponses(BaseController, "export")[HttpStatus.UNAUTHORIZED]).toBeUndefined();
+	});
+
+	it("does not count the guard a securable controller attaches, in either decorator order", () => {
+		@ApiControllerSecurable()
+		@ApiController<GuardResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: GuardResponseEntity, routes: {} })
+		class SecurableAboveController {
+			public service!: ApiServiceBase<GuardResponseEntity>;
+
+			@route("export")
+			public export(): void {}
+		}
+
+		@ApiController<GuardResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: GuardResponseEntity, routes: {} })
+		@ApiControllerSecurable()
+		class SecurableBelowController {
+			public service!: ApiServiceBase<GuardResponseEntity>;
+
+			@route("export")
+			public export(): void {}
+		}
+
+		for (const controller of [SecurableAboveController, SecurableBelowController]) {
+			new controller();
+			(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, controller) as (isConstructedPerRequest: boolean) => void)(false);
+
+			for (const methodName of ["export", EApiRouteType.GET, EApiRouteType.CREATE]) {
+				expect(getResponses(controller, methodName)[HttpStatus.UNAUTHORIZED], `${controller.name} ${methodName}`).toBeUndefined();
+				expect(getResponses(controller, methodName)[HttpStatus.FORBIDDEN]?.description, `${controller.name} ${methodName}`).toBe("Forbidden");
+			}
+		}
 	});
 
 	it("declares neither without a guard", () => {

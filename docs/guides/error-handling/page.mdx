@@ -772,7 +772,7 @@ A path value that does not fit its column used to reach the database: PostgreSQL
 From 5.0.0, generated routes declare the error statuses they can return instead of a fixed set, as described in [Error Responses in OpenAPI](#error-responses-in-openapi):
 
 - every route declares `400`, and secured routes declare `403`;
-- `401` is declared only with a guard: `security.authentication`, `execution.guards`, or `@UseGuards` on the class or the route;
+- `401` is declared only with a guard: `security.authentication`, `execution.guards`, or `@UseGuards` on the class or the route, not counting the authorization guards that `ApiMethod` and `@ApiControllerSecurable()` attach;
 - every route declares `413` and `415`, GET and DELETE included, because Express parses a body on GET and Fastify on DELETE;
 - custom routes (`@ApiRouteCustom`, `@ApiMethod`) declare `401` and `403` from `security.authentication`, `execution.guards`, and `@UseGuards`, and `403` from a securable controller with `authorization`, even when `response.errors` leaves `hasUnauthorized` or `hasForbidden` unset;
 - custom routes declare `429` with `throttling.default`, and every custom route declares `400`, `413`, `415`, and `500`;
