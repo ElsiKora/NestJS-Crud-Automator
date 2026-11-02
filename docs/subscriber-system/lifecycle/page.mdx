@@ -46,9 +46,9 @@ With route `REQUIRED`, steps 6–11 share one transaction manager, and step 12 c
 13. Function subscribers: onBeforeUpdate (priority: high → low)
 14. Merge the returned patch into the internal loaded entity
 15. Repository: save() executed with updates
-16. Function subscribers: onAfterUpdate (priority: high → low)
+16. Function subscribers: onAfterUpdate (priority: high → low); a generated route drops their result and any change to context.result
 17. Commit and post-commit lifecycle when UPDATE owns the function transaction
-18. Generated response reload when response relations are configured
+18. Generated response reload through service.get() by the key in the request path
 19. Commit and post-commit lifecycle when the route owns the transaction
 20. Controller transformers (response)
 21. Route subscribers: onAfterUpdate (priority: high → low)
@@ -57,7 +57,7 @@ With route `REQUIRED`, steps 6–11 share one transaction manager, and step 12 c
 24. HTTP Response sent to client
 ```
 
-When the route owns the transaction, UPDATE joins it and step 17 does not commit; response reload remains inside the route boundary before step 19. With omitted/`SUPPORTS` route config and function `REQUIRED`, step 17 commits the narrower function transaction before response reload. If the decorated GET misses, its GET error lifecycle runs, `onBeforeUpdate` is skipped, and the UPDATE error lifecycle receives the same error.
+When the route owns the transaction, UPDATE joins it and step 17 does not commit; response reload remains inside the route boundary before step 19. With omitted/`SUPPORTS` route config and function `REQUIRED`, step 17 commits the narrower function transaction before response reload, so a reload that misses the row (step 18 runs the GET function subscribers and the caller's scope) fails the route while the write stays; route `REQUIRED` rolls it back. If the decorated GET misses, its GET error lifecycle runs, `onBeforeUpdate` is skipped, and the UPDATE error lifecycle receives the same error.
 
 ### Get Operation
 
