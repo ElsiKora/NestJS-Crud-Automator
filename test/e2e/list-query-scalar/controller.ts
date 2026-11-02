@@ -22,6 +22,8 @@ const filter = {
 		accountId: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN, EFilterOperation.NE], isEnabled: true },
 		amount: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.GTE, EFilterOperation.IN, EFilterOperation.NE], isEnabled: true },
 		id: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN, EFilterOperation.NE], isEnabled: true },
+		level: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN, EFilterOperation.NE], isEnabled: true },
+		price: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.GTE, EFilterOperation.IN], isEnabled: true },
 	},
 	unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
 } as const;
@@ -96,6 +98,23 @@ export class E2eListScalarPageKeyController {
 	},
 })
 export class E2eListScalarCursorKeyController {
+	@Inject(E2eListScalarKeyService)
+	public readonly service!: E2eListScalarKeyService;
+}
+
+@ApiController<E2eListScalarKeyEntity>({
+	entity: E2eListScalarKeyEntity,
+	name: "E2eListScalarCreateKeys",
+	path: "list-scalar/create-keys",
+	routes: {
+		[EApiRouteType.DELETE]: disabledRoute,
+		[EApiRouteType.GET]: disabledRoute,
+		[EApiRouteType.GET_LIST]: disabledRoute,
+		[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+		[EApiRouteType.UPDATE]: disabledRoute,
+	},
+})
+export class E2eListScalarCreateKeyController {
 	@Inject(E2eListScalarKeyService)
 	public readonly service!: E2eListScalarKeyService;
 }
