@@ -1,4 +1,5 @@
 export * from "./array-bounds.test";
+export * from "./array-unique-items.test";
 export * from "./boolean.decorator.test";
 export * from "./copy.decorator.test";
 export * from "./date.decorator.test";
