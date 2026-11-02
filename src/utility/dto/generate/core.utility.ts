@@ -68,7 +68,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		dtoType,
 		entityName: String(entityMetadata.name),
 		guardName: currentGuard?.name,
-		listResponseName: listResponseDto?.name,
+		listResponseDto,
 		method,
 		queryPlanSignature: isCursorGetListResponse ? EApiControllerGetListQueryPaginationMode.CURSOR : queryPlan?.signature,
 		responseVariantName,

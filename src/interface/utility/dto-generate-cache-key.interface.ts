@@ -1,5 +1,6 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
+import type { Type } from "@nestjs/common";
 
 export interface IDtoGenerateCacheKey {
 	controllerName?: string;
@@ -7,7 +8,7 @@ export interface IDtoGenerateCacheKey {
 	dtoType: EApiDtoType;
 	entityName: string;
 	guardName?: string;
-	listResponseName?: string;
+	listResponseDto?: Type<unknown>;
 	method: EApiRouteType;
 	queryPlanSignature?: string;
 	responseVariantName?: string;
