@@ -194,6 +194,10 @@ function createService(
 }
 
 describe("ApiAuthorizationBootstrapValidationService", () => {
+	it("refuses to be built without the path value rule registry", () => {
+		expect(() => new ApiAuthorizationBootstrapValidationService({} as never, {} as never, {} as never, {} as never, new ApiAuthorizationHookPermissionCache(), new ApiAuthorizationIamAttachmentCache(), new ApiAuthorizationIamDocumentCache(), [], {}, undefined as never)).toThrow("ApiAuthorizationBootstrapValidationService needs ApiAuthorizationParametersRuleRegistry");
+	});
+
 	it("accepts source-first cache mode by default and when explicit", () => {
 		const caches = {
 			hookPermission: new ApiAuthorizationHookPermissionCache(),

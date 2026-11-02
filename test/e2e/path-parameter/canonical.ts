@@ -15,6 +15,8 @@ import {
 	ApiPropertyCopy,
 	ApiPropertyDescribe,
 	ApiPropertyNumber,
+	ApiPropertyString,
+	ApiPropertyUUID,
 	ApiRouteCustom,
 	ApiService,
 	ApiServiceBase,
@@ -500,6 +502,72 @@ export class E2ePathParameterCanonicalGetterBaseController extends E2ePathParame
 @ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-getter", E2ePathParameterCanonicalIntItemEntity, "ppc-getter/{id}", ["id"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalGetter", path: "path-parameter/canonical/ppc-getter", routes: noRoutes })
 export class E2ePathParameterCanonicalGetterController extends E2ePathParameterCanonicalGetterBaseController {}
 
+/**
+ * Describes the custom route `:id` with a plain `ApiPropertyNumber`, not copied from a column.
+ */
+export class E2ePathParameterCanonicalDescribedIntParametersDto {
+	@ApiPropertyNumber({ description: "id", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: 1, format: EApiPropertyNumberType.INTEGER, isRequired: true, maximum: 2_147_483_647, minimum: 0, multipleOf: 1 } as never)
+	public id!: number;
+}
+
+/**
+ * Describes the custom route `:id` with a plain `ApiPropertyUUID`, not copied from a column.
+ */
+export class E2ePathParameterCanonicalDescribedUuidParametersDto {
+	@ApiPropertyUUID({ description: "id", entity: E2ePathParameterCanonicalUuidItemEntity, isRequired: true } as never)
+	public id!: string;
+}
+
+/**
+ * A securable custom route whose resource path names no placeholder and whose `:id` is described but not copied, so only a `request.parameters` condition reads it.
+ */
+@ApiControllerSecurable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-described-int", E2ePathParameterCanonicalIntItemEntity, "ppc-described-int/item", ["id"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalDescribedInt", path: "path-parameter/canonical/ppc-described-int", routes: noRoutes })
+export class E2ePathParameterCanonicalDescribedIntController {
+	@Inject(E2ePathParameterCanonicalIntItemService)
+	public readonly service!: E2ePathParameterCanonicalIntItemService;
+
+	@buildCustomRoute(E2ePathParameterCanonicalIntItemEntity, E2ePathParameterCanonicalDescribedIntParametersDto)
+	public read(@Param("id") id: unknown): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: `${typeof id}:${String(id)}` };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<E2ePathParameterCanonicalUuidItemEntity>({ authorization: buildAuthorization("ppc-described-uuid", E2ePathParameterCanonicalUuidItemEntity, "ppc-described-uuid/item", ["id"]), entity: E2ePathParameterCanonicalUuidItemEntity, name: "E2ePathParameterCanonicalDescribedUuid", path: "path-parameter/canonical/ppc-described-uuid", routes: noRoutes })
+export class E2ePathParameterCanonicalDescribedUuidController {
+	@Inject(E2ePathParameterCanonicalUuidItemService)
+	public readonly service!: E2ePathParameterCanonicalUuidItemService;
+
+	@buildCustomRoute(E2ePathParameterCanonicalUuidItemEntity, E2ePathParameterCanonicalDescribedUuidParametersDto)
+	public read(@Param("id") id: unknown): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: `${typeof id}:${String(id)}` };
+	}
+}
+
+/**
+ * List properties of every scalar type and a single DOUBLE, for one value and comma lists in a query.
+ */
+export class E2ePathParameterCanonicalSentListDto {
+	@ApiPropertyNumber({ description: "amount", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: 1.5, format: EApiPropertyNumberType.DOUBLE, isRequired: false, maximum: 1_000_000, minimum: -1_000_000 } as never)
+	public amount?: number;
+
+	@ApiPropertyNumber({ description: "amounts", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: [1.5], format: EApiPropertyNumberType.DOUBLE, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maximum: 1_000_000, minimum: -1_000_000, minItems: 1 } as never)
+	public amounts?: Array<number>;
+
+	@ApiPropertyNumber({ description: "counts", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: [1], format: EApiPropertyNumberType.INTEGER, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maximum: 100, minimum: 0, minItems: 1, multipleOf: 1 } as never)
+	public counts?: Array<number>;
+
+	@ApiPropertyBoolean({ description: "flags", entity: E2ePathParameterCanonicalIntItemEntity, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
+	public flags?: Array<boolean>;
+
+	@ApiPropertyUUID({ description: "ids", entity: E2ePathParameterCanonicalIntItemEntity, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
+	public ids?: Array<string>;
+
+	@ApiPropertyString({ description: "names", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: ["abc"], format: EApiPropertyStringType.STRING, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maxLength: 16, minItems: 1, minLength: 1, pattern: "/^[a-z]+$/" } as never)
+	public names?: Array<string>;
+}
+
 const SENT_BOOLEAN = { description: "flag", entity: E2ePathParameterCanonicalIntItemEntity, isRequired: false } as never;
 const SENT_BOOLEANS = { description: "flags", entity: E2ePathParameterCanonicalIntItemEntity, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never;
 const SENT_INTEGER = { description: "count", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: 1, format: EApiPropertyNumberType.INTEGER, isRequired: false, maximum: 100, minimum: 0, multipleOf: 1 } as never;
@@ -582,6 +650,11 @@ export class E2ePathParameterCanonicalSentValueController {
 		return { value: JSON.stringify(query) };
 	}
 
+	@buildBooleanEchoRoute(RequestMethod.GET, "list", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentListDto })
+	public listQuery(@Query() query: E2ePathParameterCanonicalSentListDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(query) };
+	}
+
 	@buildBooleanEchoRoute(RequestMethod.POST, "integer-plain", { [EApiDtoType.BODY]: E2ePathParameterCanonicalSentIntegerDto })
 	public integerPlainBody(@Body() body: E2ePathParameterCanonicalSentIntegerDto): E2ePathParameterCanonicalCustomResponseDto {
 		return { value: JSON.stringify(body) };
@@ -623,6 +696,8 @@ export const E2E_PATH_PARAMETER_CANONICAL_DOCUMENTS: Array<Record<string, unknow
 	buildDocument("ppc-inh-b", [allow("ppc-inh-b")]),
 	buildDocument("ppc-cond-only", [allow("ppc-cond-only"), deny("ppc-cond-only", ["*"], { StringEquals: { "request.parameters.id": "16" } })]),
 	buildDocument("ppc-getter", [allow("ppc-getter")]),
+	buildDocument("ppc-described-int", [allow("ppc-described-int"), deny("ppc-described-int", ["*"], { StringEquals: { "request.parameters.id": "16" } })]),
+	buildDocument("ppc-described-uuid", [allow("ppc-described-uuid"), deny("ppc-described-uuid", ["*"], { StringEquals: { "request.parameters.id": E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID } })]),
 ];
 
 export const E2E_PATH_PARAMETER_CANONICAL_CONTROLLERS: Array<new () => unknown> = [
@@ -642,4 +717,6 @@ export const E2E_PATH_PARAMETER_CANONICAL_CONTROLLERS: Array<new () => unknown> 
 	E2ePathParameterCanonicalBooleanEchoController,
 	E2ePathParameterCanonicalSentValueController,
 	E2ePathParameterCanonicalConditionOnlyController,
+	E2ePathParameterCanonicalDescribedIntController,
+	E2ePathParameterCanonicalDescribedUuidController,
 ];

@@ -11,3 +11,4 @@ export * from "./object.decorator.test";
 export * from "./string.decorator.test";
 export * from "./uuid.decorator.test";
 export * from "./path-value-rules.test";
+export * from "./request-list-rules.test";

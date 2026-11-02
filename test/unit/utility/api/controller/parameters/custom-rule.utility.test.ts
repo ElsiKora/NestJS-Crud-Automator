@@ -4,6 +4,8 @@ import "reflect-metadata";
 
 import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
+import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
+import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersValidate } from "@utility/api/controller/parameters/validate.utility";
@@ -42,6 +44,14 @@ class CustomRuleParametersDto {
 	public id!: number;
 }
 
+class CustomRuleDescribedParametersDto {
+	@ApiPropertyNumber({ description: "id", entity: CustomRuleItemEntity, exampleValue: 1, format: EApiPropertyNumberType.INTEGER, isRequired: true, maximum: 1_000_000, minimum: 0, multipleOf: 1 })
+	public id!: number;
+
+	@ApiPropertyUUID({ description: "owner", entity: CustomRuleItemEntity, isRequired: true })
+	public owner!: string;
+}
+
 class CustomRuleUndescribedParametersDto {
 	public id!: number;
 }
@@ -57,6 +67,18 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		expect(rule).toBeDefined();
 		await expect(ApiControllerParametersValidate(rule!, { id: "16" } as never)).resolves.toEqual({ id: 16 });
 		await expect(ApiControllerParametersValidate(rule!, { id: "016" } as never)).rejects.toThrow();
+	});
+
+	it("checks a path value the DTO describes without copying a column, by the DTO's own rule", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleDescribedParametersDto, methodName: "describedOnly", pathParameters: ["id", "owner"], resourcePath: "custom-rule/item" });
+		const owner: string = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+		expect(rule).toBeDefined();
+		await expect(ApiControllerParametersValidate(rule!, { id: "16", owner: owner.toUpperCase() } as never)).resolves.toEqual({ id: 16, owner });
+
+		for (const id of ["016", "1e1", "abc"]) {
+			await expect(ApiControllerParametersValidate(rule!, { id, owner } as never)).rejects.toThrow();
+		}
 	});
 
 	it("builds no rule when no path parameter is described or named", () => {

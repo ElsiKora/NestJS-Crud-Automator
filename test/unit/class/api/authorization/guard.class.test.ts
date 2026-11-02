@@ -58,6 +58,10 @@ const defineRouteMetadata = (handler: () => void, action: string, routeType?: EA
 };
 
 describe("ApiAuthorizationGuard", () => {
+	it("refuses to be built without the path value rule registry", () => {
+		expect(() => new ApiAuthorizationGuard({} as never, undefined as never)).toThrow("ApiAuthorizationGuard needs ApiAuthorizationParametersRuleRegistry");
+	});
+
 	it("allows access when controller is not securable", async () => {
 		const runtime = { evaluate: vi.fn() };
 		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());

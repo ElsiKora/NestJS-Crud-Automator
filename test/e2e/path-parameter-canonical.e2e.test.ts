@@ -96,6 +96,32 @@ const SENT_VALUE_CASES: Array<ISentValueCase> = (["plain", "renamed"] as const).
 	...INTEGER_SENT.flatMap(([sent, received, targets]: [unknown, unknown, Array<"body" | "query">]) => targets.map((target: "body" | "query"): ISentValueCase => ({ received, route: `integer-${naming}`, sent, target }))),
 ]);
 
+const LIST_UUID: string = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+// A lone value is a one-item list for every list type; a comma is not a separator, so the item `1,2` fails a typed item rule.
+const SENT_LIST_CASES: Array<[string, Record<string, unknown> | undefined]> = [
+	["amounts=1.5", { amounts: [1.5] }],
+	["amounts=1.5&amounts=2", { amounts: [1.5, 2] }],
+	["amounts=1.5,2", undefined],
+	["counts=7", { counts: [7] }],
+	["counts=1,2", undefined],
+	["counts=007", undefined],
+	["flags=false", { flags: [false] }],
+	["flags=true,false", undefined],
+	[`ids=${LIST_UUID.toUpperCase()}`, { ids: [LIST_UUID] }],
+	[`ids=${LIST_UUID},${LIST_UUID}`, undefined],
+	["names=abc", { names: ["abc"] }],
+	["names=ab,cd", undefined],
+	["amount=1e2", { amount: 100 }],
+	["amount=-0.25", { amount: -0.25 }],
+	["amount=16.0", { amount: 16 }],
+	["amount=", undefined],
+	["amount=0x10", undefined],
+	["amount=%2016%20", undefined],
+	["amount=.5", undefined],
+	["amount=Infinity", undefined],
+];
+
 /**
  * Builds the testing module of the canonical path value suite.
  * @param {StartedPostgreSqlContainer | undefined} container - PostgreSQL container, or undefined for SQLite.
@@ -310,6 +336,32 @@ describe.each([
 		}
 
 		expect(await expectStatus("/path-parameter/canonical/ppc-cond-only/1", HttpStatus.OK)).toEqual({ value: "string:1" });
+	});
+
+	it("gives IAM the canonical text of a path value its PARAMETERS DTO describes without copying a column", async () => {
+		await expectStatus("/path-parameter/canonical/ppc-described-int/16", HttpStatus.FORBIDDEN);
+
+		for (const value of [...NON_CANONICAL_INTEGERS, "1e1", "abc"]) {
+			await expectStatus(`/path-parameter/canonical/ppc-described-int/${value}`, HttpStatus.BAD_REQUEST);
+		}
+
+		expect(await expectStatus("/path-parameter/canonical/ppc-described-int/1", HttpStatus.OK)).toEqual({ value: "string:1" });
+		await expectStatus(`/path-parameter/canonical/ppc-described-uuid/${E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase()}`, HttpStatus.FORBIDDEN);
+		await expectStatus("/path-parameter/canonical/ppc-described-uuid/not-a-uuid", HttpStatus.BAD_REQUEST);
+		expect(await expectStatus(`/path-parameter/canonical/ppc-described-uuid/${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID.toUpperCase()}`, HttpStatus.OK)).toEqual({ value: `string:${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID}` });
+	});
+
+	it.each(SENT_LIST_CASES)("reads the query %s by one rule for every list type", async (query: string, received: Record<string, unknown> | undefined) => {
+		const response = await fastify.inject({ method: "GET", url: `/path-parameter/canonical/sent-value/list?${query}` });
+
+		// Without a host pipe the route validates no query: the handler reads the request as sent.
+		if (pipe === "none") {
+			expect(response.statusCode).toBe(HttpStatus.OK);
+
+			return;
+		}
+
+		expect({ body: response.json(), status: response.statusCode }).toEqual(received === undefined ? { body: expect.anything(), status: HttpStatus.BAD_REQUEST } : { body: { value: JSON.stringify(received) }, status: HttpStatus.OK });
 	});
 
 	it("filters a UUID text column by the lower-case value it stores", async () => {
