@@ -7,12 +7,34 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { describe, expect, it, vi } from "vitest";
-import { ChildEntity, Column, Entity, Equal, IsNull, ManyToOne, Not, PrimaryColumn, TableInheritance } from "typeorm";
+import { And, ChildEntity, Column, Entity, Equal, IsNull, ManyToOne, Not, PrimaryColumn, TableInheritance } from "typeorm";
+
+@Entity("planner_teams")
+class PlannerTeamEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public code!: string;
+
+	@Column({ type: "varchar" })
+	public label!: string;
+}
+
+// An entity table without a primary column, so a missing relation to it cannot be told apart from a NULL column.
+@Entity("planner_keyless")
+class PlannerKeylessEntity {
+	@Column({ type: "varchar" })
+	public label!: string;
+}
 
 @Entity("planner_operators")
 class PlannerOperatorEntity {
 	@PrimaryColumn({ type: "varchar" })
 	public id!: string;
+
+	@Column({ nullable: true, type: "varchar" })
+	public name!: null | string;
+
+	@ManyToOne(() => PlannerTeamEntity, { nullable: true })
+	public team!: null | PlannerTeamEntity;
 }
 
 @Entity("planner_items")
@@ -40,6 +62,9 @@ class PlannerItemEntity {
 		type: EApiPropertyDescribeType.STRING,
 	})
 	public externalId!: string;
+
+	@ManyToOne(() => PlannerKeylessEntity)
+	public keyless!: PlannerKeylessEntity;
 
 	@ManyToOne(() => PlannerOperatorEntity)
 	public operator!: PlannerOperatorEntity;
@@ -107,6 +132,9 @@ const resourceDefinition: IApiAuthorizationResourceDefinition<PlannerItemEntity>
 		{ isFilterable: false, path: "resource.secret", queryPath: "secret" },
 		{ isFilterable: true, path: "resource.externalId", queryPath: "externalId" },
 		{ isFilterable: true, path: "resource.token", queryPath: "token" },
+		{ isFilterable: true, path: "resource.operatorName", queryPath: "operator.name" },
+		{ isFilterable: true, path: "resource.teamLabel", queryPath: "operator.team.label" },
+		{ isFilterable: true, path: "resource.keylessLabel", queryPath: "keyless.label" },
 	],
 	namespace: "admin:item",
 	resourcePath: "gameport:admin:item/{id}",
@@ -185,11 +213,57 @@ const planDeny = (exclusions: ReadonlyArray<{ condition?: Record<string, Record<
 
 describe("ApiAuthorizationIamQueryPlanner", () => {
 	describe("plan (Allow)", () => {
-		it.each(["StringEquals", "StringEqualsIfExists"])("compiles %s on a filterable field into an equality scope", (operator: string) => {
-			expect(planAllow({ [operator]: { "resource.operatorId": "${principal.attributes.operatorId}" } })).toEqual({
+		it.each(["StringEquals", "StringEqualsIfExists"])("compiles %s on a root column into an equality scope", (operator: string) => {
+			expect(planAllow({ [operator]: { "resource.status": "archived" } })).toEqual({ isFullyCompilable: true, scope: { where: { status: "archived" } } });
+		});
+
+		it("compiles StringEquals on a relation column into an equality scope", () => {
+			expect(planAllow({ StringEquals: { "resource.operatorId": "${principal.attributes.operatorId}" } })).toEqual({
 				isFullyCompilable: true,
 				scope: { where: { operator: { id: "operator-1" } } },
 			});
+		});
+
+		it.each([
+			["the relation primary key", "resource.operatorId", [{ operator: { id: "operator-1" } }, { operator: { id: IsNull() } }]],
+			["a relation column", "resource.operatorName", [{ operator: { name: "operator-1" } }, { operator: { id: IsNull() } }]],
+			["a column two relations away", "resource.teamLabel", [{ operator: { team: { label: "operator-1" } } }, { operator: { team: { code: IsNull() } } }]],
+		])("also allows a missing relation for StringEqualsIfExists on %s", (_name: string, path: string, where: unknown) => {
+			expect(planAllow({ StringEqualsIfExists: { [path]: "${principal.attributes.operatorId}" } })).toEqual({ isFullyCompilable: true, scope: { where } });
+		});
+
+		it("crosses the alternatives of several IfExists keys of one statement", () => {
+			expect(planAllow({ StringEqualsIfExists: { "resource.operatorName": "ann", "resource.teamLabel": "red" } }).scope).toEqual({
+				where: [{ operator: { name: "ann", team: { label: "red" } } }, { operator: { name: "ann", team: { code: IsNull() } } }, { operator: { id: IsNull(), team: { label: "red" } } }, { operator: { id: IsNull(), team: { code: IsNull() } } }],
+			});
+		});
+
+		it("combines keys on one query path with And, so different values allow no row", () => {
+			expect(planAllow({ StringEquals: { "resource.operatorId": "operator-1" }, StringEqualsIfExists: { "resource.operatorId": "operator-2" } }).scope).toEqual({
+				where: [{ operator: { id: And(Equal("operator-1"), Equal("operator-2")) } }, { operator: { id: And(Equal("operator-1"), IsNull()) } }],
+			});
+		});
+
+		it("keeps a condition repeated on one query path once", () => {
+			expect(planAllow({ StringEquals: { "resource.status": "archived" }, StringEqualsIfExists: { "resource.status": "archived" } }).scope).toEqual({ where: { status: Equal("archived") } });
+		});
+
+		it("fails closed once the IfExists alternatives exceed the where-branch cap", () => {
+			const maxWhereBranches: number = AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES;
+
+			Reflect.set(AUTHORIZATION_IAM_SCOPE_CONSTANT, "MAX_WHERE_BRANCHES", 2);
+
+			try {
+				expect(planAllow({ StringEqualsIfExists: { "resource.operatorName": "ann" } }).isFullyCompilable).toBe(true);
+				expect(planAllow({ StringEqualsIfExists: { "resource.operatorName": "ann", "resource.teamLabel": "red" } })).toEqual({ isFullyCompilable: false });
+			} finally {
+				Reflect.set(AUTHORIZATION_IAM_SCOPE_CONSTANT, "MAX_WHERE_BRANCHES", maxWhereBranches);
+			}
+		});
+
+		it("does not compile StringEqualsIfExists through a relation to an entity without a primary column", () => {
+			expect(planAllow({ StringEqualsIfExists: { "resource.keylessLabel": "red" } })).toEqual({ isFullyCompilable: false });
+			expect(planAllow({ StringEquals: { "resource.keylessLabel": "red" } })).toEqual({ isFullyCompilable: true, scope: { where: { keyless: { label: "red" } } } });
 		});
 
 		it.each(["StringNotEquals", "StringNotEqualsIfExists"])("does not compile %s", (operator: string) => {
@@ -228,6 +302,22 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 				isFullyCompilable: true,
 				scope: { where },
 			});
+		});
+
+		it.each([
+			["the relation primary key", "resource.operatorId", [{ operator: { id: Not(Equal("ann")) } }]],
+			["a relation column", "resource.operatorName", [{ operator: { name: Not(Equal("ann")) } }, { operator: { id: Not(IsNull()), name: IsNull() } }]],
+			["a column two relations away", "resource.teamLabel", [{ operator: { team: { label: Not(Equal("ann")) } } }, { operator: { team: { code: Not(IsNull()), label: IsNull() } } }]],
+		])("keeps a NULL column but not a missing relation for a Deny StringEqualsIfExists on %s", (_name: string, path: string, where: Array<unknown>) => {
+			expect(planDeny([{ condition: { StringEqualsIfExists: { [path]: "ann" } } }]).scope).toEqual({ where: where.length === 1 ? where[0] : where });
+		});
+
+		it("negates StringEquals on a relation column like a root column", () => {
+			expect(planDeny([{ condition: { StringEquals: { "resource.teamLabel": "red" } } }]).scope).toEqual({ where: [{ operator: { team: { label: Not(Equal("red")) } } }, { operator: { team: { label: IsNull() } } }] });
+		});
+
+		it("does not compile a Deny StringEqualsIfExists through a relation to an entity without a primary column", () => {
+			expect(planDeny([{ condition: { StringEqualsIfExists: { "resource.keylessLabel": "red" } } }])).toEqual({ isFullyCompilable: false });
 		});
 
 		it("follows nested query paths and resolves variables", () => {

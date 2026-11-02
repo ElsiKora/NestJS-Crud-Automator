@@ -241,6 +241,49 @@ describe("ApiAuthorizationIamEngine", () => {
 		});
 	});
 
+	describe("loaded resource read through query paths", () => {
+		const aliasResourceDefinition: IApiAuthorizationResourceDefinition<EngineItemEntity> = {
+			...itemResourceDefinition,
+			fields: [
+				{ isFilterable: true, path: "resource.id", queryPath: "id" },
+				{ isFilterable: true, path: "resource.state", queryPath: "status" },
+				{ isFilterable: true, path: "resource.ownerName", queryPath: "owner.name" },
+			],
+			resourcePath: "gameport:admin:item/{state}",
+		};
+		const resource = { id: "item-1", operatorId: "operator-1", owner: { name: "ann" }, secret: "s", status: "archived", tenantId: "t" } as unknown as EngineItemEntity;
+		const read = async (statements: ReadonlyArray<IApiPolicyStatement>, loadedResource: EngineItemEntity = resource) => await evaluate({ action: "admin:item:read", resource: loadedResource, resourceDefinition: aliasResourceDefinition, routeType: EApiRouteType.GET, statements });
+
+		it("reads an alias of a root column through its query path", async () => {
+			expect((await read([{ ...allowAll, Condition: { StringEquals: { "resource.state": "archived" } } }])).effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.state": "archived" } } })])).effect).toBe(EApiPolicyEffect.DENY);
+		});
+
+		// The fixture entity maps no owner relation, so only a Deny, which is not planned for a loaded resource, reads the nested path here.
+		it("reads a nested query path through the loaded relation", async () => {
+			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.ownerName": "ann" } } })])).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.ownerName": "bob" } } })])).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("reads a path through a relation the resource does not carry as missing", async () => {
+			const ownerless = { ...resource, owner: null } as unknown as EngineItemEntity;
+
+			expect((await read([allowAll, deny({ Condition: { StringEqualsIfExists: { "resource.ownerName": "bob" } } })], ownerless)).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.ownerName": "bob" } } })], ownerless)).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("fails an Allow and holds a Deny on a resource key with no field mapping", async () => {
+			expect((await read([{ ...allowAll, Condition: { StringEquals: { "resource.status": "archived" } } }])).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.status": "active" } } })])).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.state": "active", "resource.status": "archived" } } })])).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("renders a placeholder that names a field through its query path", async () => {
+			expect((await read([allowAll, deny({ Resource: ["gameport:admin:item/archived"] })])).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await read([allowAll, deny({ Resource: ["gameport:admin:item/active"] })])).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+	});
+
 	describe("row-scoped Deny on lists", () => {
 		it("excludes an exact row from the list scope", async () => {
 			const decision = await evaluate({ statements: [allowOwnOperator, deny({ Action: ["admin:item:list"], Resource: ["gameport:admin:item/item-1"] })] });
