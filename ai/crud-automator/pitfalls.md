@@ -163,7 +163,7 @@ Root-level discriminated `@ApiRouteCustom` bodies are validated by Crud Automato
 
 ## Serializing The Interceptor Cause
 
-`CorrelationIDResponseBodyInterceptor` rethrows a new `HttpException` with what it caught in `cause`: the `ThrottlerException` or `HttpException` itself, whose own cause stays at `exception.cause.cause`, otherwise the value as thrown, which may not be an `Error`. A filter must answer with `exception.getResponse()`, which is always an object with `correlationID`, `error`, `message`, `statusCode`, and `timestamp`, and report only `FormatErrorEvidenceForLog(exception.cause)`.
+`CorrelationIDResponseBodyInterceptor` rethrows a new `HttpException` with what it caught in `cause`: the `ThrottlerException` or `HttpException` itself, whose own cause stays at `exception.cause.cause`, otherwise the value as thrown, which may not be an `Error`. A filter must answer with `exception.getResponse()`, which is always an object with `correlationID`, `statusCode`, and `timestamp`, and with `error` and `message` unless the thrown object response left them out, and report only `FormatErrorEvidenceForLog(exception.cause)`.
 
 Never send, log, or serialize `exception.cause`, its message, or the exception itself. `logger.error(exception)`, `util.inspect(exception)`, `JSON.stringify(exception)`, and `FormatUnknownForLog(exception)` all include it and can expose SQL text and parameters. Removing `cause` from a copy is not enough, because Nest keeps the same value in `exception.options.cause`. `JSON.stringify(exception)` can also throw on a cyclic object or a `BigInt`.
 

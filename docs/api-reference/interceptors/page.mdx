@@ -186,7 +186,7 @@ Every exception the interceptor rethrows, and every exception `CorrelationIDNorm
 
 `cause` can hold SQL text, parameters, driver objects, messages, and stacks, so it must stay out of responses, logs, and any serialized output. Do not send, log, or serialize `exception.cause`, its message, or the exception itself: `logger.error(exception)`, `util.inspect(exception)`, `JSON.stringify(exception)`, and `FormatUnknownForLog(exception)` all include it. Removing `cause` from a copy is not enough, because Nest keeps the same value in `exception.options.cause`.
 
-Exception filters should log `FormatErrorEvidenceForLog(exception.cause)`, which emits only a bounded error type and a validated SQLSTATE, and answer with `exception.getResponse()`, which is always an object with the fields below. See [Reading the Original Failure](/docs/nestjs-crud-automator/guides/error-handling#reading-the-original-failure) and the [Migration Notes](/docs/nestjs-crud-automator/guides/error-handling#migration-notes).
+Exception filters should log `FormatErrorEvidenceForLog(exception.cause)`, which emits only a bounded error type and a validated SQLSTATE, and answer with `exception.getResponse()`, which is always an object with the required fields below. See [Reading the Original Failure](/docs/nestjs-crud-automator/guides/error-handling#reading-the-original-failure) and the [Migration Notes](/docs/nestjs-crud-automator/guides/error-handling#migration-notes).
 
 ## Client Usage
 
@@ -265,13 +265,13 @@ export class AuditSubscriber extends ApiRouteSubscriberBase<UserEntity> {
 
 ## Response Structure
 
-The interceptor and the filter give every error response these fields, wherever the failure is thrown. A field the exception body sets keeps its value only when it has the contract type: `statusCode` equal to the response status, `message` a string or an array of strings, `error` a string. Any other value, `null` included, is replaced: `statusCode` by the response status, and `message` and `error` by the status text, such as `Unauthorized`, or `"Error"` for a status Node.js does not name, such as `599`. A string or an array response becomes `message`. This includes Fastify errors such as a malformed JSON body, which Nest wraps in an exception with a string response. An unknown failure answers `500` with `message: "Internal server error"` and `error: "Internal Server Error"`, and so does an `HttpException` whose status is not an integer from `200` to `599`, such as `new HttpException("text", 1000)`. The exception DTOs of generated routes declare the same fields, with `message` and `error` as free text, so the OpenAPI schema matches the body:
+The interceptor and the filter give every error response `correlationID`, `statusCode`, and `timestamp`, wherever the failure is thrown. An object response is the application's body: an `error` or `message` it lacks stays absent. A present field keeps its value only when it has the contract type: `statusCode` equal to the response status, `message` a string or an array of strings, `error` a string. Any other value, `null` included, is replaced: `statusCode` by the response status, and `message` and `error` by the status text, such as `Unauthorized`, or `"Error"` for a status Node.js does not name, such as `599`. A string or an array response becomes `message`, next to `error` with the status text. This includes Fastify errors such as a malformed JSON body, which Nest wraps in an exception with a string response. An unknown failure answers `500` with `message: "Internal server error"` and `error: "Internal Server Error"`, and so does an `HttpException` whose status is not an integer from `200` to `599`, such as `new HttpException("text", 1000)`. The exception DTOs of generated routes declare these fields, with `message` and `error` as free text. A body your application builds without `message` or `error` differs from them, and the application owns that difference:
 
 ```typescript
 interface ErrorResponse {
 	statusCode: number; // HTTP status code
-	message: string | string[]; // Error message(s)
-	error: string; // Error name
+	message?: string | string[]; // Error message(s), absent when an object response has none
+	error?: string; // Error name, absent when an object response has none
 	timestamp: number; // Unix timestamp
 	correlationID: string; // Accepted client ID or generated UUID
 	[key: string]: any; // Other error details

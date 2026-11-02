@@ -32,7 +32,7 @@ describe("CorrelationIDResponseBodyExceptionFilter", () => {
 
 		expect(adapter.setHeader).toHaveBeenCalledWith(reply, "x-correlation-id", "corr-id");
 		expect(adapter.reply).toHaveBeenCalledTimes(1);
-		expect(adapter.reply).toHaveBeenCalledWith(reply, { correlationID: "corr-id", error: "Forbidden", message: "Forbidden", statusCode: HttpStatus.FORBIDDEN, timestamp: expect.any(Number) }, HttpStatus.FORBIDDEN);
+		expect(adapter.reply).toHaveBeenCalledWith(reply, { correlationID: "corr-id", message: "Forbidden", statusCode: HttpStatus.FORBIDDEN, timestamp: expect.any(Number) }, HttpStatus.FORBIDDEN);
 	});
 
 	it.each([[199], [600], [1000], [404.5]])("answers an HttpException with status %d as an unknown failure", (status: number) => {

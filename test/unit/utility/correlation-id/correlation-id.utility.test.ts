@@ -150,7 +150,7 @@ describe("CorrelationIDBuildException", () => {
 
 		expect(built).not.toBe(lookalike);
 		expect(built.cause).toBe(lookalike);
-		expect(built.getResponse()).toEqual({ correlationID: "corr-id", error: "Bad Request", message: "bad", statusCode: HttpStatus.BAD_REQUEST, timestamp: expect.any(Number) });
+		expect(built.getResponse()).toEqual({ correlationID: "corr-id", message: "bad", statusCode: HttpStatus.BAD_REQUEST, timestamp: expect.any(Number) });
 		expect((built.getResponse() as { timestamp: number }).timestamp).not.toBe(1);
 	});
 
@@ -167,17 +167,26 @@ describe("CorrelationIDBuildException", () => {
 	});
 
 	it.each<[string, Record<string, unknown>]>([
-		["missing", {}],
 		["null", { error: null, message: null, statusCode: null }],
 		["of the wrong type", { error: 1, message: { text: "m" }, statusCode: "409" }],
 		["a mixed message array and another status", { error: ["Conflict"], message: ["a", 1], statusCode: 400 }],
-		["a fractional status", { statusCode: 409.5 }],
 	])("replaces fields that are %s", (_name: string, response: Record<string, unknown>) => {
 		expect(CorrelationIDBuildException(new HttpException(response, HttpStatus.CONFLICT), "corr-id", buildLogger()).getResponse()).toEqual({ correlationID: "corr-id", error: "Conflict", message: "Conflict", statusCode: HttpStatus.CONFLICT, timestamp: expect.any(Number) });
 	});
 
+	it.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+		["an empty body", {}, {}],
+		["a codes-only body", { code: "X" }, { code: "X" }],
+		["a fractional status", { statusCode: 409.5 }, {}],
+		["undefined fields", { error: undefined, message: undefined }, {}],
+	])("adds neither error nor message to %s", (_name: string, response: Record<string, unknown>, kept: Record<string, unknown>) => {
+		const body: unknown = CorrelationIDBuildException(new HttpException(response, HttpStatus.CONFLICT), "corr-id", buildLogger()).getResponse();
+
+		expect(JSON.parse(JSON.stringify(body))).toEqual({ ...kept, correlationID: "corr-id", statusCode: HttpStatus.CONFLICT, timestamp: expect.any(Number) });
+	});
+
 	it("names a status Node does not know Error", () => {
-		expect(CorrelationIDBuildException(new HttpException({}, 499), "corr-id", buildLogger()).getResponse()).toEqual({ correlationID: "corr-id", error: "Error", message: "Error", statusCode: 499, timestamp: expect.any(Number) });
+		expect(CorrelationIDBuildException(new HttpException({ error: 1, message: 1 }, 499), "corr-id", buildLogger()).getResponse()).toEqual({ correlationID: "corr-id", error: "Error", message: "Error", statusCode: 499, timestamp: expect.any(Number) });
 	});
 
 	it("answers a ThrottlerException with the contract body and warns through the given logger", () => {

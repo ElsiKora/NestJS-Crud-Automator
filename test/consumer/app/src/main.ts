@@ -105,7 +105,8 @@ async function main(): Promise<void> {
 
 		assert.equal(response.statusCode, 403, JSON.stringify(response.json()));
 		assert.equal(response.json().message, "Forbidden");
-		assert.equal(response.json().error, "Forbidden");
+		// A ForbiddenException without arguments has no `error`, and the object response keeps its shape
+		assert.equal(response.json().error, undefined);
 		assert.equal(response.json().statusCode, 403);
 		assert.equal(typeof response.json().correlationID, "string");
 		assert.equal(typeof response.json().timestamp, "number");

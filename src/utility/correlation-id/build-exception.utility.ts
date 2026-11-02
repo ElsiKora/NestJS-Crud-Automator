@@ -20,7 +20,7 @@ const builtExceptions: WeakSet<HttpException> = new WeakSet<HttpException>();
 
 /**
  * Builds the HttpException that carries the correlation contract, keeping what it received as `cause`.
- * Every body has `correlationID`, `error`, `message`, `statusCode` and `timestamp`; a field the thrown value sets is kept only when it has the contract type.
+ * Every body has `correlationID`, `statusCode` and `timestamp`. `error` and `message` come from the thrown value when it has them with the contract type; an object response without them stays without them, since it is the application's body.
  * The same value gives the same answer wherever it was thrown. An exception this function already built is returned as is, so a failure is never processed twice.
  * @param {unknown} error - The thrown value.
  * @param {string} correlationId - The resolved correlation ID.
@@ -40,20 +40,21 @@ export function CorrelationIDBuildException(error: unknown, correlationId: strin
 }
 
 /**
- * Builds the response body with the correlation contract. A field keeps its value only when it has the contract type: `statusCode` equal to the response status, `message` a string or an array of strings, `error` a string.
- * @param {unknown} response - The exception response; a string, an array or any other value that is not an object becomes `message`.
+ * Builds the response body with the correlation contract. An object response is the application's body, so an `error` or `message` it lacks stays absent, and one of the wrong type, `null` included, is replaced by the status text.
+ * `statusCode` is always the response status. A string, an array or any other value that is not an object becomes `message`, next to `error` with the status text.
+ * @param {unknown} response - The exception response.
  * @param {number} status - The response status.
  * @param {string} correlationId - The resolved correlation ID.
  * @returns {Record<string, unknown>} The response body.
  */
 function buildBody(response: unknown, status: number, correlationId: string): Record<string, unknown> {
-	const body: Record<string, unknown> = typeof response === "object" && response !== null && !Array.isArray(response) ? { ...response } : { message: response };
+	const body: Record<string, unknown> = typeof response === "object" && response !== null && !Array.isArray(response) ? { ...response } : buildLibraryBody(response, status);
 
-	if (!isMessage(body.message)) {
+	if (body.message !== undefined && !isMessage(body.message)) {
 		body.message = getStatusText(status);
 	}
 
-	if (typeof body.error !== "string") {
+	if (body.error !== undefined && typeof body.error !== "string") {
 		body.error = getStatusText(status);
 	}
 
@@ -95,17 +96,29 @@ function buildException(error: unknown, correlationId: string, logger: LoggerUti
 		}
 
 		// Only a value that marks its message as public sends it, so an upstream client error cannot leak through
-		return new HttpException(buildBody({ message: error.expose === true ? error.message : undefined }, status, correlationId), status, { cause: error });
+		return new HttpException(buildBody(buildLibraryBody(error.expose === true ? error.message : undefined, status), status, correlationId), status, { cause: error });
 	}
 
 	logger.error(`HTTP ${HttpStatus.INTERNAL_SERVER_ERROR} ${FormatErrorEvidenceForLog(error)}`);
 
-	const exception: HttpException = new HttpException(buildBody({ message: SANITIZED_MESSAGE }, HttpStatus.INTERNAL_SERVER_ERROR, correlationId), HttpStatus.INTERNAL_SERVER_ERROR, { cause: error });
+	const exception: HttpException = new HttpException(buildBody(buildLibraryBody(SANITIZED_MESSAGE, HttpStatus.INTERNAL_SERVER_ERROR), HttpStatus.INTERNAL_SERVER_ERROR, correlationId), HttpStatus.INTERNAL_SERVER_ERROR, { cause: error });
 
 	// HttpException drops a falsy cause, and any value can be thrown
 	exception.cause = error;
 
 	return exception;
+}
+
+/**
+ * Builds the `error` and `message` of a body the library writes, which always has both.
+ * @param {unknown} message - The message; the status text replaces one without the contract type.
+ * @param {number} status - The response status.
+ * @returns {Record<string, unknown>} The body fields.
+ */
+function buildLibraryBody(message: unknown, status: number): Record<string, unknown> {
+	// `message` stays first on the wire, as Nest writes it
+	// eslint-disable-next-line @elsikora/perfectionist/sort-objects
+	return { message: isMessage(message) ? message : getStatusText(status), error: getStatusText(status) };
 }
 
 /**

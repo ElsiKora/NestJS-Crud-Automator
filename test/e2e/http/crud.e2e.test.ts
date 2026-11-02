@@ -1573,7 +1573,9 @@ describe("CRUD routes (E2E)", () => {
 			const { correlationID, error, message, statusCode, timestamp, ...body } = response.json();
 
 			expect(typeof correlationID).toBe("string");
-			expect({ error, message, statusCode }).toEqual({ error: "Bad Request", message: "Bad Request", statusCode: 400 });
+			expect(error).toBeUndefined();
+			expect(message).toBeUndefined();
+			expect(statusCode).toBe(400);
 			expect(typeof timestamp).toBe("number");
 
 			return body;

@@ -409,7 +409,7 @@ describe("CorrelationIDResponseBodyExceptionFilter (E2E)", () => {
 			const application: INestApplication = await createApplication({ filters: [fullFilter] });
 			const response: IInjectResponse = await inject(application, { headers: { "x-correlation-id": CLIENT_CORRELATION_ID }, url: "/contract/guard-consumer-body" });
 
-			expect(response.json()).toEqual({ correlationID: CLIENT_CORRELATION_ID, error: "Forbidden", message: "CONSUMER_BODY", statusCode: HttpStatus.FORBIDDEN, timestamp: expect.any(Number) });
+			expect(response.json()).toEqual({ correlationID: CLIENT_CORRELATION_ID, message: "CONSUMER_BODY", statusCode: HttpStatus.FORBIDDEN, timestamp: expect.any(Number) });
 			expect(response.headers["x-correlation-id"]).toBe(CLIENT_CORRELATION_ID);
 		});
 
