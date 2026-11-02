@@ -1,12 +1,14 @@
 import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiEntity } from "@interface/entity";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation } from "@enum/filter";
+import { BadRequestException } from "@nestjs/common";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list/query-properties.utility";
@@ -155,6 +157,19 @@ class FilterAmbiguousHolder {
 	public owner!: FilterAmbiguousOwner;
 }
 
+function expectInvalidFilter<E>(query: Record<string, unknown>, metadata: IApiEntity<E>): void {
+	let error: unknown;
+
+	try {
+		ApiControllerGetListTransformFilter<E>(query, metadata);
+	} catch (caught: unknown) {
+		error = caught;
+	}
+
+	expect(error).toBeInstanceOf(BadRequestException);
+	expect((error as BadRequestException).getResponse()).toEqual({ error: "Bad Request", message: "FILTER_NOT_VALID", statusCode: 400 });
+}
+
 describe("ApiControllerGetListTransformFilter", () => {
 	it("publishes and applies one-hop filters on to-one relations only", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
@@ -162,19 +177,13 @@ describe("ApiControllerGetListTransformFilter", () => {
 		const publishedNames: Array<string> = DtoGenerateGetListQueryProperties(metadata, relationProperties).map(({ name }: { name: string }): string => name);
 
 		expect(publishedNames).toEqual(["owner.name"]);
-		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "notes.text[operator]": EFilterOperation.EQ, "notes.text[value]": "x" }, metadata)).toEqual({});
+		expectInvalidFilter({ "notes.text[operator]": EFilterOperation.EQ, "notes.text[value]": "x" }, metadata);
 	});
 
-	it("ignores root primary filters that legacy query DTOs do not publish", () => {
+	it("rejects root primary filters that legacy query DTOs do not publish", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
-		const query = {
-			"id[operator]": EFilterOperation.EQ,
-			"id[value]": "item-1",
-		};
 
-		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
-
-		expect(filter).not.toHaveProperty("id");
+		expectInvalidFilter({ "id[operator]": EFilterOperation.EQ, "id[value]": "item-1" }, metadata);
 	});
 
 	it("applies isnull and notnull from the operator alone", () => {
@@ -184,10 +193,24 @@ describe("ApiControllerGetListTransformFilter", () => {
 		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "name[operator]": EFilterOperation.NOTNULL }, metadata)).toEqual({ name: Not(IsNull()) });
 	});
 
-	it("ignores any other operator without a value", () => {
+	it.each([
+		["an operator without a value", { "name[operator]": EFilterOperation.EQ }],
+		["a value without an operator", { "name[value]": "x" }],
+		["values without an operator", { "name[values]": ["x", "y"] }],
+		["an unknown operator", { "name[operator]": "bogus", "name[value]": "x" }],
+		["both value and values", { "name[operator]": EFilterOperation.EQ, "name[value]": "x", "name[values]": ["y", "z"] }],
+		["a valueless operator with a value", { "name[operator]": EFilterOperation.ISNULL, "name[value]": "x" }],
+		["a valueless operator with values", { "name[operator]": EFilterOperation.NOTNULL, "name[values]": ["x", "y"] }],
+		["a null value", { "name[operator]": EFilterOperation.EQ, "name[value]": null }],
+		["a group without a field", { "[operator]": EFilterOperation.EQ, "[value]": "x" }],
+	])("rejects %s", (_case: string, query: Record<string, unknown>) => {
+		expectInvalidFilter(query, GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity));
+	});
+
+	it("leaves keys that are not filter groups, and keys a subscriber cleared, to the QUERY DTO", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
 
-		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "name[operator]": EFilterOperation.EQ }, metadata)).toEqual({});
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ campaign: "spring", "name[foo]": "x", "name[operator]": undefined, "name[value]": undefined }, metadata)).toEqual({});
 	});
 
 	it("transforms scalar filters", () => {
@@ -203,28 +226,16 @@ describe("ApiControllerGetListTransformFilter", () => {
 		expect((filter.name as { value?: unknown }).value).toBe("Sample");
 	});
 
-	it("ignores a globally hidden nested relation primary key", () => {
+	it("rejects a globally hidden nested relation primary key", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
-		const query = {
-			"owner.id[operator]": EFilterOperation.EQ,
-			"owner.id[value]": "owner-1",
-		};
 
-		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
-
-		expect(filter).not.toHaveProperty("owner");
+		expectInvalidFilter({ "owner.id[operator]": EFilterOperation.EQ, "owner.id[value]": "owner-1" }, metadata);
 	});
 
-	it("ignores globally hidden direct scalar filters", () => {
+	it("rejects globally hidden direct scalar filters", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
-		const query = {
-			"internalReference[operator]": EFilterOperation.EQ,
-			"internalReference[value]": "internal-1",
-		};
 
-		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
-
-		expect(filter).not.toHaveProperty("internalReference");
+		expectInvalidFilter({ "internalReference[operator]": EFilterOperation.EQ, "internalReference[value]": "internal-1" }, metadata);
 	});
 
 	it("transforms nested relation scalar filters", () => {
@@ -241,48 +252,8 @@ describe("ApiControllerGetListTransformFilter", () => {
 		expect(((filter.owner as { name?: { value?: unknown } }).name as { value?: unknown }).value).toBe("Owner");
 	});
 
-	it("ignores legacy top-level relation filters", () => {
-		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
-		const query = {
-			"owner[operator]": EFilterOperation.EQ,
-			"owner[value]": "owner-1",
-		};
-
-		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
-
-		expect(filter).not.toHaveProperty("owner");
-	});
-
-	it("ignores invalid nested relation paths", () => {
-		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
-		const query = {
-			"owner.missing[operator]": EFilterOperation.EQ,
-			"owner.missing[value]": "Owner",
-			"owner.name..deep[operator]": EFilterOperation.EQ,
-			"owner.name..deep[value]": "Owner",
-			"owner.name.deep[operator]": EFilterOperation.EQ,
-			"owner.name.deep[value]": "Owner",
-		};
-
-		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
-
-		expect(filter).not.toHaveProperty("owner");
-	});
-
-	it("ignores related object, relation, and globally hidden fields even when locally enabled", () => {
-		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
-		const query = {
-			"owner.group[operator]": EFilterOperation.EQ,
-			"owner.group[value]": "group-1",
-			"owner.hiddenName[operator]": EFilterOperation.EQ,
-			"owner.hiddenName[value]": "Hidden",
-			"owner.metadata[operator]": EFilterOperation.EQ,
-			"owner.metadata[value]": "Metadata",
-		};
-
-		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
-
-		expect(filter).not.toHaveProperty("owner");
+	it.each(["owner", "foo", "owner.missing", "owner.name..deep", "owner.name.deep", ".name", "owner.", "notes.text", "owner.group", "owner.hiddenName", "owner.metadata"])("rejects a filter on %s, which it cannot apply", (field: string) => {
+		expectInvalidFilter({ [`${field}[operator]`]: EFilterOperation.EQ, [`${field}[value]`]: "x" }, GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity));
 	});
 
 	it("fails for a nested relation filter whose string relation target names several entity classes", () => {

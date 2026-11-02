@@ -230,6 +230,11 @@ describe.each([
 				expect(await listLabels(`/unknown-filter/items?${PAGE}&${BY_LABEL}&${query}`)).toEqual(labels);
 			});
 
+			// A manual QUERY DTO has no pairing validator, so the route itself refuses a group it cannot apply rather than answering the unfiltered list.
+			it.each(["label[value]=Alpha", "label[operator]=eq", "label[values]=Alpha&label[values]=Beta", "label[operator]=eq&label[value]=Alpha&label[values]=Beta", "label[operator]=isnull&label[value]=Alpha"])("rejects the group %s a manual QUERY DTO publishes but the route cannot apply", async (query: string) => {
+				await expectRejected(`/unknown-filter/manual-items?${PAGE}&${query}`, FILTER_NOT_VALID_BODY);
+			});
+
 			it("rejects filter groups a manual QUERY DTO does not publish", async () => {
 				await expectRejected(`/unknown-filter/manual-items?${PAGE}&rank[operator]=eq&rank[value]=1`, { error: "Bad Request", message: [unknown("rank[operator]"), unknown("rank[value]")], statusCode: HttpStatus.BAD_REQUEST });
 				await expectRejected(`/unknown-filter/manual-items?${PAGE}&id[operator]=eq&id[value]=${ITEM_ALPHA}`, { error: "Bad Request", message: [unknown("id[operator]"), unknown("id[value]")], statusCode: HttpStatus.BAD_REQUEST });
