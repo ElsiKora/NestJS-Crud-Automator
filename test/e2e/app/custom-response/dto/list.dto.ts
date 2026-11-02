@@ -3,19 +3,19 @@ import { Expose, Type } from "class-transformer";
 import { E2eCustomResponseItemDto } from "./item.dto";
 
 export class E2eCustomResponseListDto {
-	@Expose({ name: "count" })
-	public visibleCount!: number;
+	@Expose({ name: "visibleCount" })
+	public count!: number;
 
-	@Expose({ name: "currentPage" })
-	public page!: number;
+	@Expose({ name: "page" })
+	public currentPage!: number;
 
-	@Expose({ name: "items" })
+	@Expose({ name: "entries" })
 	@Type(() => E2eCustomResponseItemDto)
-	public entries!: Array<E2eCustomResponseItemDto>;
+	public items!: Array<E2eCustomResponseItemDto>;
 
-	@Expose({ name: "totalCount" })
-	public totalItems!: number;
+	@Expose({ name: "totalItems" })
+	public totalCount!: number;
 
-	@Expose({ name: "totalPages" })
-	public pageCount!: number;
+	@Expose({ name: "pageCount" })
+	public totalPages!: number;
 }
