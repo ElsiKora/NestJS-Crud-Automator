@@ -294,6 +294,10 @@ Use `EApiGetDefaultStringFormatPropertiesBigIntStringSign` instead of the remove
 
 Do not put a raw `class-validator` `@ValidateNested()` without `@Type` on a plain object: `whitelist: true` removes every key and `forbidNonWhitelisted: true` rejects them. For a free-form value use `@ApiPropertyObject({ type: Object })` without `shouldValidateNested`, which keeps its keys apart from `__proto__`, `prototype` and `constructor`, removed by any `ValidationPipe`. Under a `ClassSerializerInterceptor` with `strategy: "excludeAll"` a free-form response value comes back as `{}`, at every level, so declare a class or leave the strategy off that route. Nothing inside it is validated beyond `isUniqueItems` comparing array items, so do not treat it as checked input.
 
+## Discriminator Keep Option
+
+Do not set `shouldKeepDiscriminatorProperty: false` on an `@ApiPropertyObject` request property: it fails at decoration, because a removed discriminator cannot be validated. Leave the option out to keep the property. For entity metadata that is only read, set `properties[route][BODY].isEnabled: false` on each write route; `isResponse: true` on a write body decorates and then rejects every write. At root level on `@ApiRouteCustom`, `false` removes the property before validation, so a variant that requires it fails at startup, unless `validatorOptions.skipMissingProperties` is set. A variant that requires it only through raw `class-validator` is not detected and rejects every body.
+
 ## Docs Drift
 
 If docs conflict with source, source wins. Check `src/interface/**`, `src/type/**`, tests, and public barrels before treating a docs snippet as current API.

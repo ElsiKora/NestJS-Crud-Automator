@@ -15,5 +15,8 @@ export type TApiPropertyObjectDynamicWithDiscriminatorProperties = {
 export type TTypeDynamicDiscriminator = {
 	mapping: Record<string, string>;
 	propertyName: string;
+	/**
+	 * Left out or `true` keeps the property. `false` removes it, and on a nested `ApiPropertyObject` request property it fails at decoration.
+	 */
 	shouldKeepDiscriminatorProperty?: boolean;
 };

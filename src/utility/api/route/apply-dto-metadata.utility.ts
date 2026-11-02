@@ -13,7 +13,7 @@ import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
 import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
-import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
+import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties, ApiRouteValidateDiscriminatedBodyProperties } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerate } from "@utility/dto";
@@ -76,6 +76,7 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
 	const swaggerDecorators: Array<MethodDecorator> = requestDtos.length > 0 ? [ApiExtraModels(...requestDtos)] : [];
 
 	if (ApiRouteIsDiscriminatedDtoProperties(bodyDto)) {
+		ApiRouteValidateDiscriminatedBodyProperties(bodyDto, "ApiRouteCustom body");
 		swaggerDecorators.push(
 			ApiBody({
 				schema: ApiRouteBuildDiscriminatedDtoOpenApiSchema(bodyDto, "ApiRouteCustom body"),

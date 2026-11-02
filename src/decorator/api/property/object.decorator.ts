@@ -293,7 +293,7 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 					}),
 				},
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
+				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty !== false,
 			}),
 		);
 	} else if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
@@ -314,7 +314,7 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 					}),
 				},
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
+				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty !== false,
 			}),
 		);
 	} else if (isFreeFormObjectProperties(properties)) {
@@ -477,6 +477,11 @@ function validateOptions(properties: TApiPropertyObjectProperties, target: objec
 
 	if (Array.isArray(properties.type) && (properties.type as Array<unknown>).includes(Object)) {
 		errors.push(`Property ${propertyName} cannot list Object in 'type': it declares no class, so every request would fail. Use 'type: Object' for a free-form value, or list the classes of a polymorphic value`);
+	}
+
+	// class-transformer deletes the property before validation, and neither MustMatchOneOfSchemasValidator nor the variant DTO could read it.
+	if (properties.discriminator?.shouldKeepDiscriminatorProperty === false && properties.isResponse !== true) {
+		errors.push(`Request property '${ApiPropertyGetTargetClassName(target)}.${String(propertyKey)}' cannot set 'discriminator.shouldKeepDiscriminatorProperty' to false: a removed discriminator cannot be validated. Leave the option out. A manual DTO property that is only returned sets 'isResponse: true'; a generated write body that should not carry it sets 'properties[route][BODY].isEnabled: false'`);
 	}
 
 	errors.push(...ApiPropertyGetArrayOptionsErrors(properties, target, propertyKey));

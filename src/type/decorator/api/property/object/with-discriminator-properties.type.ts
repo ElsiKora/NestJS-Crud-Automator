@@ -13,5 +13,8 @@ export type TApiPropertyObjectWithDiscriminatorProperties = {
 export type TTypeDiscriminator = {
 	mapping: Record<string, ClassConstructor<unknown>>;
 	propertyName: string;
+	/**
+	 * Left out or `true` keeps the property. `false` removes it, and on a nested `ApiPropertyObject` request property it fails at decoration.
+	 */
 	shouldKeepDiscriminatorProperty?: boolean;
 };

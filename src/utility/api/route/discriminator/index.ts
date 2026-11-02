@@ -3,4 +3,5 @@ export { ApiRouteCreateDiscriminatedDtoValidationFailure } from "./create-valida
 export { ApiRouteIsDiscriminatedDtoProperties } from "./is-dto-properties.utility";
 export { ApiRoutePrepareDiscriminatedDtoPayload } from "./prepare-payload.utility";
 export { ApiRouteResolveDiscriminatedDto } from "./resolve-dto.utility";
+export { ApiRouteValidateDiscriminatedBodyProperties } from "./validate-body-properties.utility";
 export { ApiRouteValidateDiscriminatedDtoProperties } from "./validate-dto-properties.utility";

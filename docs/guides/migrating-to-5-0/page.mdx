@@ -125,6 +125,16 @@ An `@ApiProperty*` request array without `minItems`, `maxItems` or `isUniqueItem
 
 A free-form `@ApiPropertyObject` request value (`type: Object` or `type: undefined`) keeps its keys, apart from `__proto__`, `prototype` and `constructor`, which any `ValidationPipe` removes. Before 5.0.0, `shouldValidateNested: true`, which every request array needs, attached `ValidateNested` to it: under a `ValidationPipe` with `whitelist: true`, `[{ "id": 1 }, { "id": 2 }]` reached the handler as `[{}, {}]`, a generated route stored the empty objects, and with `forbidNonWhitelisted: true` each key answered `400`. Nothing inside the value is validated now, apart from `isUniqueItems` comparing array items, so check it in the handler or declare a class. A free-form array item that is not an object answers `400` with `each value in <name> must be an object`, and that includes a nested array, which passed before. Remove `shouldValidateNested: true` from a free-form property: it no longer compiles and fails at decoration, and a free-form array does not need it. `type: [Object]`, which compiled and answered `500` on every request, fails the same way; use `type: Object`. See [`@ApiPropertyObject`: Migration Notes](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#migration-notes).
 
+## Discriminator Keep Option
+
+A nested `@ApiPropertyObject` discriminator now reads `shouldKeepDiscriminatorProperty` like a root-level one: only `false` removes the property. Leaving it out keeps the property. Before 5.0.0, leaving it out removed it, so a request property rejected every body that carried it and a response property left the discriminator out of the response.
+
+`false` on a request property fails at decoration, naming the class and property: remove the option, because such a property rejected every body that carried it before too. A response that must keep leaving the discriminator out sets `shouldKeepDiscriminatorProperty: false` and `isResponse: true`.
+
+On entity metadata used by GET and a write route, removing the option also brings the discriminator back into the GET response. To keep GET as it was, leave `false` and set `properties[route][BODY].isEnabled: false` on each write route. A read-only property with `false` now fails at import unless its write bodies are disabled.
+
+A root-level `@ApiRouteCustom` body with `false` and a variant that requires the property through an `@ApiProperty*` decorator fails at startup, because every body answered `400`. Leave the option out or make the property optional. `validatorOptions.skipMissingProperties` stays allowed, and so does a variant that requires it only through raw `class-validator`, which startup cannot see and which still answers `400`. See [`@ApiPropertyObject`: Migration Notes](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#migration-notes).
+
 ## Generated Controller Method Types
 
 `TApiControllerMethodName`, `TApiControllerMethodNameMap` and `TApiControllerTargetMethod` now give the names the methods have at runtime: `create`, `delete`, `get`, `getList`, `partialUpdate` and `update`. Before 5.0.0 they gave `${string}Create` and the like, so `controller.create` did not compile while `controller.xCreate` did, although no such method exists.
