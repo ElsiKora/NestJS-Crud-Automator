@@ -18,7 +18,7 @@ interface ITemporalKeyColumn {
 
 function createRepository(columns: Array<ITemporalKeyColumn>, driverType: string = "postgres", dataTypeDefaults?: Record<string, { precision?: number }>): Repository<object> {
 	return {
-		manager: { dataSource: { driver: { dataTypeDefaults, normalizeType: (column: ITemporalKeyColumn): string => column.type }, options: { type: driverType } } },
+		manager: { dataSource: { driver: { dataTypeDefaults, normalizeType: (column: ITemporalKeyColumn): string => column.type }, isInitialized: true, options: { type: driverType } } },
 		metadata: { name: "TemporalKeyEntity", primaryColumns: columns },
 	} as unknown as Repository<object>;
 }
@@ -203,6 +203,15 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 
 	describe("assertIdentifiable", () => {
 		const SOURCE: string = 'Controller "TemporalKeyController" route "create"';
+
+		it("waits for a data source that has not started", () => {
+			const repository: Repository<object> = { manager: { dataSource: { isInitialized: false } } } as unknown as Repository<object>;
+
+			expect(() => {
+				ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, SOURCE, true);
+			}).not.toThrow();
+		});
+
 		const FILLED_COLUMNS: Array<[string, ITemporalKeyColumn]> = [
 			["a column default", { ...INSTANT, default: (): string => "now()" }],
 			["a create date", { ...INSTANT, isCreateDate: true }],

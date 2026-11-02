@@ -45,6 +45,7 @@ import { ApiRouteRebindInheritedCustom } from "@utility/api/route/rebind-inherit
 import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeorm/assert/service-repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+import { InstanceChecker } from "typeorm";
 
 export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
 	private static readonly GENERATED_METHODS: WeakSet<object> = new WeakSet<object>();
@@ -327,7 +328,18 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			return;
 		}
 
-		const repository: Repository<E> = DatabaseTypeOrmAssertServiceRepository<E>(Reflect.get(controller, "service"), `Controller "${this.target.name}" of entity "${this.properties.entity.name}"`, `. In tests, use a repository of an in-memory DataSource and stub its methods: ${API_CONTROLLER_TESTING_GUIDE_URL}`);
+		const service: unknown = Reflect.get(controller, "service");
+		const isSecurable: boolean = Boolean(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, controller.constructor));
+		const pendingRepository: Repository<E> | undefined = this.getPendingRepository(service);
+
+		// A data source the application starts later has no metadata to check yet, so a create checks its key on each request instead.
+		if (pendingRepository) {
+			this.assertCreateRoute(pendingRepository, isSecurable);
+
+			return;
+		}
+
+		const repository: Repository<E> = DatabaseTypeOrmAssertServiceRepository<E>(service, `Controller "${this.target.name}" of entity "${this.properties.entity.name}"`, `. In tests, use a repository of an in-memory DataSource and stub its methods: ${API_CONTROLLER_TESTING_GUIDE_URL}`);
 
 		ApiControllerAssertRepositoryEntity(this.properties.entity, repository, this.target.name);
 
@@ -335,7 +347,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			ApiControllerAssertRouteRelationLoads(repository, this.properties.routes[routeType], `Controller "${this.target.name}" route "${routeType}"`);
 		}
 
-		this.assertCreateRoute(repository, Boolean(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, controller.constructor)));
+		this.assertCreateRoute(repository, isSecurable);
 		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
 		ApiControllerAssertRouteFunctions(this.properties, Reflect.get(controller, "service") as object, this.target.name);
 	}
@@ -368,6 +380,20 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			"name",
 			{ value: methodName },
 		);
+	}
+
+	/**
+	 * Reads the service repository of a data source the application starts itself later, through the `manualInitialization` option of `TypeOrmModule`, without touching the entity metadata it does not have yet.
+	 * Any other data source that has not started fails the repository check, because nothing will start it.
+	 * @param {unknown} service - Service the controller instance received.
+	 * @returns {Repository<E> | undefined} The repository while its data source waits for manual initialization, otherwise undefined.
+	 */
+	private getPendingRepository(service: unknown): Repository<E> | undefined {
+		const repository: unknown = service && (typeof service === "object" || typeof service === "function") ? Reflect.get(service, "repository") : undefined;
+		const manager: unknown = repository && typeof repository === "object" ? Reflect.get(repository, "manager") : undefined;
+		const dataSource: unknown = manager && typeof manager === "object" ? Reflect.get(manager, "dataSource") : undefined;
+
+		return InstanceChecker.isDataSource(dataSource) && !dataSource.isInitialized && Reflect.get(dataSource.options, "manualInitialization") === true ? (repository as Repository<E>) : undefined;
 	}
 
 	/**

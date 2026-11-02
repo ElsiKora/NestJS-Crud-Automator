@@ -48,7 +48,8 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 	 * @throws {Error} When a date and time primary column cannot identify the created row.
 	 */
 	public static assertIdentifiable<E extends IApiBaseEntity>(repository: Repository<E> | undefined, source: string, isSecurable: boolean): void {
-		if (!repository) {
+		// A data source that starts after the application has no metadata yet, and the request path checks again once it does.
+		if (!repository?.manager.dataSource.isInitialized) {
 			return;
 		}
 

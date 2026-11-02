@@ -205,7 +205,7 @@ describe("ApiController", () => {
 
 	describe("generated create at startup", () => {
 		const REFUSED_REPOSITORY: Repository<IApiBaseEntity> = Object.create(Repository.prototype, {
-			manager: { value: { dataSource: { driver: { normalizeType: (column: { type: string }): string => column.type }, options: { type: "mysql" } } } },
+			manager: { value: { dataSource: { driver: { normalizeType: (column: { type: string }): string => column.type }, isInitialized: true, options: { type: "mysql" } } } },
 			metadata: { value: { name: "FactoryEntity", primaryColumns: [{ isCreateDate: true, propertyName: "at", type: "datetime" }] } },
 		}) as Repository<IApiBaseEntity>;
 		const CREATE_DISABLED: object = { [EApiRouteType.CREATE]: { generation: { isEnabled: false } } };
@@ -294,6 +294,7 @@ describe("ApiController", () => {
 
 		// Metadata is enough for the startup check; the test never connects.
 		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+		Object.assign(dataSource, { isInitialized: true });
 
 		const hook = vi.fn();
 		const disabled = { generation: { isEnabled: false } };
@@ -337,6 +338,7 @@ describe("ApiController", () => {
 
 		// Metadata is enough for the startup check; the test never connects.
 		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+		Object.assign(dataSource, { isInitialized: true });
 
 		const disabled = { generation: { isEnabled: false } };
 		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
