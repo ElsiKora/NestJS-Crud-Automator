@@ -288,17 +288,6 @@ class ScopedGetNoneItemService extends ApiServiceBase<ScopedItemEntity> {
 }
 
 @Injectable()
-@ApiService({ entity: ScopedItemEntity })
-class ScopedUndecoratedCreateService extends ApiServiceBase<ScopedItemEntity> {
-	@InjectRepository(ScopedItemEntity)
-	public readonly repository!: Repository<ScopedItemEntity>;
-
-	public override async create(properties: never): Promise<ScopedItemEntity> {
-		return await this.repository.save(properties as ScopedItemEntity);
-	}
-}
-
-@Injectable()
 @ApiServiceObservable()
 @ApiService({ entity: ScopedItemEntity })
 class ScopedDecoratedCreateService extends ApiServiceBase<ScopedItemEntity> {
@@ -416,7 +405,7 @@ const disabledRoutes = {
 
 const createRoute = { [EApiRouteType.CREATE]: { security: { authentication: { guard: ScopedAuthGuard, type: EApiAuthenticationType.USER } } } };
 
-type TScopedItemService = ScopedDecoratedCreateService | ScopedGetNoneItemService | ScopedItemService | ScopedUndecoratedCreateService;
+type TScopedItemService = ScopedDecoratedCreateService | ScopedGetNoneItemService | ScopedItemService;
 
 function createItemController(path: string, service: Type<TScopedItemService>): Type<unknown> {
 	@ApiControllerObservable()
@@ -509,17 +498,7 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 		container = await new PostgreSqlContainer("postgres:17-alpine").start();
 
 		@Module({
-			controllers: [
-				createItemController("create-scope-pg", ScopedItemService),
-				createItemController("create-scope-pg-get-none", ScopedGetNoneItemService),
-				createItemController("create-scope-pg-undecorated", ScopedUndecoratedCreateService),
-				createItemController("create-scope-pg-decorated", ScopedDecoratedCreateService),
-				ScopedCompositeController,
-				ScopedEventController,
-				OpenEventController,
-				TriggerRegionController,
-				...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.controllers),
-			],
+			controllers: [createItemController("create-scope-pg", ScopedItemService), createItemController("create-scope-pg-get-none", ScopedGetNoneItemService), createItemController("create-scope-pg-decorated", ScopedDecoratedCreateService), ScopedCompositeController, ScopedEventController, OpenEventController, TriggerRegionController, ...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.controllers)],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: container.getDatabase(),
@@ -539,7 +518,7 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 				ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user) } }),
 				ApiSubscriberModule,
 			],
-			providers: [ScopedAuthGuard, ScopedCompositePolicy, ScopedCompositeService, ScopedCompositeSubscriber, ScopedDecoratedCreateService, ScopedEventPolicy, ScopedEventService, TriggerRegionService, ...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.providers), ScopedGetNoneItemService, ScopedItemPolicy, ScopedItemRouteSubscriber, ScopedItemService, ScopedItemSubscriber, ScopedUndecoratedCreateService],
+			providers: [ScopedAuthGuard, ScopedCompositePolicy, ScopedCompositeService, ScopedCompositeSubscriber, ScopedDecoratedCreateService, ScopedEventPolicy, ScopedEventService, TriggerRegionService, ...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.providers), ScopedGetNoneItemService, ScopedItemPolicy, ScopedItemRouteSubscriber, ScopedItemService, ScopedItemSubscriber],
 		})
 		class ScopedModule {}
 
@@ -697,29 +676,6 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 	});
 
 	describe("create function capability", () => {
-		it("rejects an undecorated create on a scoped route before the write", async () => {
-			const response = await postItem("create-scope-pg-undecorated", "raw-out", OUT_OF_SCOPE);
-
-			expect(response.statusCode).toBe(500);
-			expect(await items.countBy({ id: "raw-out" })).toBe(0);
-		});
-
-		it("rejects an undecorated create on a scoped route even for an in-scope row", async () => {
-			const response = await postItem("create-scope-pg-undecorated", "raw-in", IN_SCOPE);
-
-			expect(response.statusCode).toBe(500);
-			expect(await items.countBy({ id: "raw-in" })).toBe(0);
-		});
-
-		it("rejects an undecorated create on a non-scoped route before the write", async () => {
-			ScopedItemPolicy.where = {};
-
-			const response = await postItem("create-scope-pg-undecorated", "raw-plain", OUT_OF_SCOPE);
-
-			expect(response.statusCode).toBe(500);
-			expect(await items.countBy({ id: "raw-plain" })).toBe(0);
-		});
-
 		it("rolls back a decorated create override", async () => {
 			const response = await postItem("create-scope-pg-decorated", "decorated-out", OUT_OF_SCOPE);
 

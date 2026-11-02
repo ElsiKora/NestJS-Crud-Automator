@@ -228,7 +228,6 @@ const HOOKS_SUPPORTS_PATH: string = "create-scope-hooks-supports";
 const IAM_SUPPORTS_PATH: string = "create-scope-iam-supports";
 const REQUIRED_FUNCTION_PATH: string = "create-scope-required-function";
 const NONE_FUNCTION_PATH: string = "create-scope-none-function";
-const NONE_ROUTE_PATH: string = "create-scope-none-route";
 
 const scopedRoutes: Array<{ mode: EApiAuthorizationMode; path: string; transactionMode: EApiFunctionTransactionMode }> = [
 	{ mode: EApiAuthorizationMode.HOOKS, path: HOOKS_SUPPORTS_PATH, transactionMode: EApiFunctionTransactionMode.SUPPORTS },
@@ -274,12 +273,7 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 
 	beforeAll(async () => {
 		@Module({
-			controllers: [
-				...scopedRoutes.map(({ mode, path, transactionMode }) => createScopeController(path, mode, transactionMode, CreateScopeItemService)),
-				createScopeController(REQUIRED_FUNCTION_PATH, EApiAuthorizationMode.HOOKS, EApiFunctionTransactionMode.SUPPORTS, CreateScopeRequiredFunctionItemService),
-				createScopeController(NONE_FUNCTION_PATH, EApiAuthorizationMode.HOOKS, EApiFunctionTransactionMode.SUPPORTS, CreateScopeNoneFunctionItemService),
-				createScopeController(NONE_ROUTE_PATH, EApiAuthorizationMode.HOOKS, EApiFunctionTransactionMode.NONE, CreateScopeItemService),
-			],
+			controllers: [...scopedRoutes.map(({ mode, path, transactionMode }) => createScopeController(path, mode, transactionMode, CreateScopeItemService)), createScopeController(REQUIRED_FUNCTION_PATH, EApiAuthorizationMode.HOOKS, EApiFunctionTransactionMode.SUPPORTS, CreateScopeRequiredFunctionItemService), createScopeController(NONE_FUNCTION_PATH, EApiAuthorizationMode.HOOKS, EApiFunctionTransactionMode.SUPPORTS, CreateScopeNoneFunctionItemService)],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: ":memory:",
@@ -348,18 +342,6 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 			expect(CreateScopeFunctionSubscriber.lifecycle).toEqual(["rollback:ROUTE"]);
 		});
 
-		it("fails closed on a NONE route before writing a scoped row", async () => {
-			expect(await createItem(NONE_ROUTE_PATH, "item-none-route", IN_SCOPE_TENANT_ID)).toBe(500);
-			expect(await repository.findOneBy({ id: "item-none-route" })).toBeNull();
-		});
-
-		it("fails closed on a NONE route before writing a non-scoped row", async () => {
-			CreateScopePolicy.whereOverride = {};
-
-			expect(await createItem(NONE_ROUTE_PATH, "item-none-route-open", OUT_OF_SCOPE_TENANT_ID)).toBe(500);
-			expect(await repository.findOneBy({ id: "item-none-route-open" })).toBeNull();
-		});
-
 		it("fails closed on a NONE CREATE function before writing a scoped row", async () => {
 			expect(await createItem(NONE_FUNCTION_PATH, "item-none-function", IN_SCOPE_TENANT_ID)).toBe(500);
 			expect(await repository.findOneBy({ id: "item-none-function" })).toBeNull();
@@ -388,6 +370,16 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 
 			expect(await createItem(HOOKS_SUPPORTS_PATH, "item-match-nothing", IN_SCOPE_TENANT_ID)).toBe(403);
 			expect(await repository.findOneBy({ id: "item-match-nothing" })).toBeNull();
+		});
+
+		it.each([
+			["a null value", { tenantId: null }],
+			["an empty branch", [{}]],
+		])("fails on a policy scope with %s before writing", async (_name: string, where: unknown) => {
+			CreateScopePolicy.whereOverride = where;
+
+			expect(await createItem(HOOKS_SUPPORTS_PATH, "item-broken-scope", IN_SCOPE_TENANT_ID)).toBe(500);
+			expect(await repository.findOneBy({ id: "item-broken-scope" })).toBeNull();
 		});
 
 		it("rejects an empty WHERE array before writing", async () => {

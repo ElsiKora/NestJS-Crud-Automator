@@ -268,6 +268,13 @@ describe("Generated CREATE temporal key from the body on PostgreSQL (E2E)", () =
 				}
 			});
 
+			it.runIf(zone === "America/New_York")("refuses the second occurrence of a repeated hour on timestamp, which stores the wall clock of the first", async () => {
+				const response = await fastify.inject({ method: "POST", payload: { at: "2024-11-03T06:30:00.000Z", name: "second" }, url: `/${WallClockKeyEntity.name}` });
+
+				expect(response.statusCode).toBe(400);
+				expect(await readStored(WallClockKeyEntity)).toEqual([]);
+			});
+
 			it.each([
 				["timestamptz", InstantKeyEntity],
 				["the long timestamptz alias", InstantAliasKeyEntity],

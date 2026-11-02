@@ -2,19 +2,20 @@ import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { CanActivate } from "@nestjs/common";
-import type { Repository } from "typeorm";
 
 import { ApiServiceBase } from "@class/api";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGeneratedInsertedKeyStorage } from "@class/api/controller/generated/inserted-key-storage.class";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
+import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiControllerObservable } from "@decorator/api/controller/observable.decorator";
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiDtoType, EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { ApiService } from "@decorator/api/service/decorator";
+import { EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiDtoType, EApiFunctionTransactionMode, EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOrderDirection } from "@enum/filter/order-direction.enum";
 import { ApiProperty } from "@nestjs/swagger";
 import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
@@ -26,8 +27,8 @@ import { KeyPageJournalEntity } from "@test/unit/class/api/function/fixture/key-
 import { KeyPageReceiptEntity } from "@test/unit/class/api/function/fixture/key-page-receipt.entity";
 import { ApiControllerAssertSchemaNames } from "@utility/api/controller/assert-schema-names.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-import { Column, DataSource, Entity, getMetadataArgsStorage, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
-import { describe, expect, it, vi } from "vitest";
+import { Column, DataSource, Entity, getMetadataArgsStorage, ManyToOne, OneToMany, PrimaryGeneratedColumn, Repository } from "typeorm";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createGeneratedServiceDouble, createTransactionFixture } from "@test/unit/fixture";
 
@@ -202,37 +203,68 @@ describe("ApiController", () => {
 		expect(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, SecurableController)).toBe(true);
 	});
 
-	describe("create temporal key driver", () => {
-		const UNSUPPORTED_REPOSITORY = { manager: { dataSource: { driver: { normalizeType: (column: { type: string }): string => column.type }, options: { type: "mssql" } } }, metadata: { name: "FactoryEntity", primaryColumns: [{ propertyName: "at", type: "datetime2" }] } };
+	describe("generated create at startup", () => {
+		const REFUSED_REPOSITORY: Repository<IApiBaseEntity> = Object.create(Repository.prototype, {
+			manager: { value: { dataSource: { driver: { normalizeType: (column: { type: string }): string => column.type }, options: { type: "mysql" } } } },
+			metadata: { value: { name: "FactoryEntity", primaryColumns: [{ isCreateDate: true, propertyName: "at", type: "datetime" }] } },
+		}) as Repository<IApiBaseEntity>;
+		const CREATE_DISABLED: object = { [EApiRouteType.CREATE]: { generation: { isEnabled: false } } };
 
-		function createController(routes: object, onModuleInit?: () => void): { onModuleInit: () => unknown } {
-			class TemporalKeyController {
-				public service = { repository: UNSUPPORTED_REPOSITORY } as unknown as ApiServiceBase<any>;
+		beforeEach(() => {
+			vi.spyOn(ApiFunctionKeyPageLoader, "assertRelationLoad").mockReturnValue(undefined);
+		});
+
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		function createController(routes: object, service: unknown, onApplicationBootstrap?: () => void): { onApplicationBootstrap: () => Promise<void> } {
+			@ApiService<IApiBaseEntity>({ entity: FactoryEntity })
+			class ProtectedService extends ApiServiceBase<IApiBaseEntity> {}
+
+			class StartupController {
+				public service = (service === "protected" ? Object.assign(new ProtectedService(), { repository: REFUSED_REPOSITORY }) : service) as ApiServiceBase<any>;
 			}
 
-			if (onModuleInit) {
-				Object.assign(TemporalKeyController.prototype, { onModuleInit });
+			if (onApplicationBootstrap) {
+				Object.assign(StartupController.prototype, { onApplicationBootstrap });
 			}
 
-			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes })(TemporalKeyController);
+			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes })(StartupController);
 
-			return new Decorated() as unknown as { onModuleInit: () => unknown };
+			return new Decorated() as unknown as { onApplicationBootstrap: () => Promise<void> };
 		}
 
-		it("fails startup for a generated create on an unsupported driver", () => {
-			expect(() => createController({}).onModuleInit()).toThrow("cannot identify its date and time primary column at on the mssql driver");
+		it("names the controller and the reason of a key the database cannot hand back", async () => {
+			await expect(createController({}, "protected").onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create" cannot identify the row it creates: the database fills date and time primary column at of FactoryEntity, and the mysql driver cannot read that value back');
 		});
 
-		it("does not check a controller whose create is not generated", () => {
-			expect(() => createController({ [EApiRouteType.CREATE]: { generation: { isEnabled: false } } }).onModuleInit()).not.toThrow();
+		it("names the controller and the reason of a NONE route", async () => {
+			await expect(createController({ [EApiRouteType.CREATE]: { transaction: { mode: EApiFunctionTransactionMode.NONE } } }, "protected").onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create" cannot use transaction mode NONE, because a generated create checks the stored row before it commits');
 		});
 
-		it("still runs the module init hook of the controller", () => {
-			const onModuleInit = vi.fn();
+		it("names the controller and the reason of an undecorated create", async () => {
+			await expect(createController({}, { repository: REFUSED_REPOSITORY }).onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create": Generated create service function is not available');
+		});
 
-			createController({ [EApiRouteType.CREATE]: { generation: { isEnabled: false } } }, onModuleInit).onModuleInit();
+		it("does not check a controller whose create is not generated", async () => {
+			await expect(createController(CREATE_DISABLED, { repository: REFUSED_REPOSITORY }).onApplicationBootstrap()).resolves.toBeUndefined();
+		});
 
-			expect(onModuleInit).toHaveBeenCalledTimes(1);
+		it.each([
+			["a mocked repository", { create: vi.fn(), get: vi.fn(), repository: { find: vi.fn() } }],
+			["a service without a repository", {}],
+			["no service", undefined],
+		])("skips the checks for %s", async (_name: string, service: unknown) => {
+			await expect(createController({}, service).onApplicationBootstrap()).resolves.toBeUndefined();
+		});
+
+		it("still runs the bootstrap hook of the controller", async () => {
+			const onApplicationBootstrap = vi.fn();
+
+			await createController(CREATE_DISABLED, undefined, onApplicationBootstrap).onApplicationBootstrap();
+
+			expect(onApplicationBootstrap).toHaveBeenCalledTimes(1);
 		});
 	});
 

@@ -117,10 +117,25 @@ const DRIVERS: Array<IDriverSpec> = [
 	},
 ];
 
-// These drivers have no INSERT RETURNING, so a primary key the column default fills cannot be read back.
-const REFUSED_DRIVERS: Array<{ column: IColumnOptions; name: string; start: IDriverSpec["start"] }> = [
-	{ column: { precision: 3, type: "datetime" }, name: "mysql", start: startMysqlFamily("mysql:8", "mysql", { MYSQL_DATABASE, MYSQL_ROOT_PASSWORD: MYSQL_PASSWORD }) },
-	{ column: { type: "datetime" }, name: "better-sqlite3", start: async () => ({ options: { database: ":memory:", type: "better-sqlite3" } }) },
+// These drivers have no INSERT RETURNING, so only a key the body supplies can identify the created row.
+const BODY_KEY_DRIVERS: Array<{ columns: Array<IColumnOptions>; filled: IColumnOptions; name: string; readAt: (table: string) => string; start: IDriverSpec["start"] }> = [
+	{
+		columns: [
+			{ precision: 3, type: "datetime" },
+			{ precision: 3, type: "timestamp" },
+		],
+		filled: { default: () => "CURRENT_TIMESTAMP(3)", precision: 3, type: "datetime" },
+		name: "mysql",
+		readAt: (table: string): string => `select cast(at as char) as at, name from ${table} order by at`,
+		start: startMysqlFamily("mysql:8", "mysql", { MYSQL_DATABASE, MYSQL_ROOT_PASSWORD: MYSQL_PASSWORD }),
+	},
+	{
+		columns: [{ type: "datetime" }],
+		filled: { default: () => "CURRENT_TIMESTAMP", type: "datetime" },
+		name: "better-sqlite3",
+		readAt: (table: string): string => `select at, name from ${table} order by at`,
+		start: async () => ({ options: { database: ":memory:", type: "better-sqlite3" } }),
+	},
 ];
 
 function normalizeStored(value: string): string {
@@ -162,17 +177,26 @@ const disabledRoutes = {
 	[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
 };
 
-function createFixture(driver: string, key: string, options: IColumnOptions): { controllers: Array<Type<unknown>>; entity: Type<object>; path: string; providers: Array<Type<unknown>>; table: string } {
+function createFixture(driver: string, key: string, options: IColumnOptions, isComposite: boolean = false): { controllers: Array<Type<unknown>>; entity: Type<object>; path: string; providers: Array<Type<unknown>>; table: string } {
 	const path: string = `${driver}-${key}`.toLowerCase();
 	const table: string = `temporal_${path.replaceAll("-", "_")}`;
 
 	class DriverKeyEntity {
 		public at!: Date;
 
+		public id?: string;
+
 		public name!: string;
 	}
 
 	Object.defineProperty(DriverKeyEntity, "name", { value: `DriverKey_${table}` });
+
+	if (isComposite) {
+		Reflect.defineMetadata("design:type", String, DriverKeyEntity.prototype, "id");
+		PrimaryColumn({ length: 64, type: "varchar" })(DriverKeyEntity.prototype, "id");
+		describeName(DriverKeyEntity.prototype, "id");
+	}
+
 	Reflect.defineMetadata("design:type", Date, DriverKeyEntity.prototype, "at");
 	Reflect.defineMetadata("design:type", String, DriverKeyEntity.prototype, "name");
 	PrimaryColumn(options as never)(DriverKeyEntity.prototype, "at");
@@ -343,6 +367,13 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 				expect(await readStored(fixture)).toEqual(["2024-01-02 03:04:05.678000"]);
 			});
 
+			it.runIf(zone === "America/New_York").each(wallClocks)("refuses the second occurrence of a repeated hour on %s", async (_name: TKeyName, fixture: ReturnType<typeof createFixture>) => {
+				const response = await fastify.inject({ method: "POST", payload: { at: "2024-11-03T06:30:00.000Z", name: IN_SCOPE }, url: `/${fixture.path}` });
+
+				expect(response.statusCode).toBe(400);
+				expect(await readStored(fixture)).toEqual([]);
+			});
+
 			it.each(finer)("refuses microseconds on %s before the insert", async (name: TKeyName, fixture: ReturnType<typeof createFixture>) => {
 				const response = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:05.678912Z", name: IN_SCOPE }, url: `/${fixture.path}` });
 
@@ -382,8 +413,11 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 	});
 });
 
-describe.each(REFUSED_DRIVERS)("Generated CREATE temporal key on $name (E2E)", ({ column, name, start }) => {
-	const fixture: ReturnType<typeof createFixture> = createFixture(name, "refused", column);
+describe.each(BODY_KEY_DRIVERS)("Generated CREATE temporal key on $name (E2E)", ({ columns, filled, name, readAt, start }) => {
+	const refused: ReturnType<typeof createFixture> = createFixture(name, "filled", filled);
+	const fixtures: Array<ReturnType<typeof createFixture>> = columns.map((column: IColumnOptions) => createFixture(name, String(column.type), column));
+	const composite: ReturnType<typeof createFixture> = createFixture(name, "composite", columns[0] as IColumnOptions, true);
+	const all: Array<ReturnType<typeof createFixture>> = [...fixtures, composite];
 	let container: StartedTestContainer | undefined;
 	let options: DataSourceOptions;
 
@@ -398,18 +432,133 @@ describe.each(REFUSED_DRIVERS)("Generated CREATE temporal key on $name (E2E)", (
 		await container?.stop();
 	}, 60_000);
 
-	it("fails at startup and names the supported drivers", async () => {
+	it("fails at startup when the database fills the key, naming the controller and the reason", async () => {
 		@Module({
-			controllers: fixture.controllers,
-			imports: [TypeOrmModule.forRoot({ ...options, dropSchema: true, entities: [fixture.entity], logging: false, synchronize: true } as never), TypeOrmModule.forFeature([fixture.entity]), ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user) } }), ApiSubscriberModule],
-			providers: [DriverAuthGuard, ...fixture.providers],
+			controllers: refused.controllers,
+			imports: [TypeOrmModule.forRoot({ ...options, dropSchema: true, entities: [refused.entity], logging: false, synchronize: true } as never), TypeOrmModule.forFeature([refused.entity]), ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) } } as never), ApiSubscriberModule],
+			providers: [DriverAuthGuard, ...refused.providers],
 		})
 		class RefusedDriverModule {}
 
 		const moduleRef = await Test.createTestingModule({ imports: [RefusedDriverModule] }).compile();
 		const app: INestApplication = moduleRef.createNestApplication(new FastifyAdapter());
 
-		await expect(app.init()).rejects.toThrow(`cannot identify its date and time primary column at on the ${name} driver; supported drivers are cockroachdb, mariadb, postgres`);
+		await expect(app.init()).rejects.toThrow(`Controller "OpenDriverKeyController" route "create" cannot identify the row it creates: the database fills date and time primary column at of ${String(refused.entity.name)}, and the ${name} driver cannot read that value back`);
 		await moduleRef.get(DataSource).destroy();
+	});
+
+	describe("with a key from the body", () => {
+		let app: INestApplication;
+		let dataSource: DataSource;
+		let fastify: { inject: (options: { method: string; payload?: unknown; url: string }) => Promise<{ json: () => unknown; statusCode: number }> };
+
+		beforeAll(async () => {
+			@Module({
+				controllers: all.flatMap((fixture) => fixture.controllers),
+				imports: [TypeOrmModule.forRoot({ ...options, dropSchema: true, entities: all.map((fixture) => fixture.entity), logging: false, synchronize: true } as never), TypeOrmModule.forFeature(all.map((fixture) => fixture.entity)), ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) } } as never), ApiSubscriberModule],
+				providers: [DriverAuthGuard, ...all.flatMap((fixture) => fixture.providers)],
+			})
+			class BodyKeyModule {}
+
+			const moduleRef = await Test.createTestingModule({ imports: [BodyKeyModule] }).compile();
+
+			app = moduleRef.createNestApplication(new FastifyAdapter());
+			await app.init();
+			fastify = app.getHttpAdapter().getInstance() as typeof fastify;
+			dataSource = app.get(DataSource);
+		}, CONTAINER_START_TIMEOUT);
+
+		afterAll(async () => {
+			await app?.close();
+		}, 60_000);
+
+		beforeEach(async () => {
+			for (const fixture of all) {
+				await dataSource.query(`delete from ${fixture.table}`);
+			}
+		});
+
+		async function readRows(fixture: ReturnType<typeof createFixture>): Promise<Array<string>> {
+			const rows: Array<{ at: Date | string; name: string }> = await dataSource.query(readAt(fixture.table));
+
+			return rows.map((row: { at: Date | string; name: string }): string => `${normalizeStored(String(row.at))} ${row.name}`);
+		}
+
+		describe.each(["UTC", "America/New_York", "Asia/Kolkata"])("in the %s time zone", (zone: string) => {
+			let timeZone: string | undefined;
+
+			beforeAll(() => {
+				timeZone = process.env.TZ;
+				process.env.TZ = zone;
+			});
+
+			afterAll(() => {
+				if (timeZone === undefined) {
+					delete process.env.TZ;
+				} else {
+					process.env.TZ = timeZone;
+				}
+			});
+
+			it.each(fixtures.map((fixture) => [fixture.table, fixture] as const))("creates a row on %s without a scope", async (_table: string, fixture: ReturnType<typeof createFixture>) => {
+				const response = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:05.678", name: OUT_OF_SCOPE }, url: `/${fixture.path}` });
+
+				expect(response.statusCode).toBe(201);
+				expect(await readRows(fixture)).toHaveLength(1);
+			});
+
+			it.each(fixtures.map((fixture) => [fixture.table, fixture] as const))("stores a row inside the scope and rolls back a row outside it on %s", async (_table: string, fixture: ReturnType<typeof createFixture>) => {
+				const stored = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:05.678", name: IN_SCOPE }, url: `/${fixture.path}-scoped` });
+				const refused_ = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:06.678", name: OUT_OF_SCOPE }, url: `/${fixture.path}-scoped` });
+
+				expect([stored.statusCode, refused_.statusCode]).toEqual([201, 403]);
+				expect(await readRows(fixture)).toHaveLength(1);
+				expect((await readRows(fixture))[0]).toContain(IN_SCOPE);
+			});
+
+			it("identifies a composite key that holds a date and a time", async () => {
+				const first = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:05.678", id: "first", name: IN_SCOPE }, url: `/${composite.path}-scoped` });
+				const second = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:05.678", id: "second", name: IN_SCOPE }, url: `/${composite.path}-scoped` });
+				const refused_ = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:05.678", id: "third", name: OUT_OF_SCOPE }, url: `/${composite.path}-scoped` });
+
+				expect([first.statusCode, second.statusCode, refused_.statusCode]).toEqual([201, 201, 403]);
+				expect(await readRows(composite)).toHaveLength(2);
+			});
+		});
+
+		describe("in a daylight saving fold", () => {
+			let timeZone: string | undefined;
+
+			beforeAll(() => {
+				timeZone = process.env.TZ;
+				process.env.TZ = "America/New_York";
+			});
+
+			afterAll(() => {
+				if (timeZone === undefined) {
+					delete process.env.TZ;
+				} else {
+					process.env.TZ = timeZone;
+				}
+			});
+
+			it.each(fixtures.map((fixture) => [fixture.table, fixture] as const))("never binds one occurrence of a repeated hour to the row of the other on %s", async (_table: string, fixture: ReturnType<typeof createFixture>) => {
+				const second = await fastify.inject({ method: "POST", payload: { at: "2024-11-03T06:30:00.000Z", name: "second" }, url: `/${fixture.path}` });
+				const first = await fastify.inject({ method: "POST", payload: { at: "2024-11-03T05:30:00.000Z", name: "first" }, url: `/${fixture.path}` });
+				const rows: Array<string> = await readRows(fixture);
+
+				expect(first.statusCode).toBe(201);
+
+				// This driver stores the instant, so the two values are two rows.
+				if (name === "better-sqlite3") {
+					expect(second.statusCode).toBe(201);
+					expect(rows).toEqual(["2024-11-03 05:30:00.000000 first", "2024-11-03 06:30:00.000000 second"]);
+				} else {
+					// This driver stores the local wall clock, which the two values share, so the second occurrence is refused.
+					expect(second.statusCode).toBe(400);
+					expect(rows).toEqual(["2024-11-03 01:30:00.000000 first"]);
+				}
+			});
+		});
 	});
 });
