@@ -11,12 +11,13 @@ import { FILTER_API_INTERFACE_CONSTANT } from "@constant/interface/api";
 import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed-in-list-response.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 import "reflect-metadata";
 
 /**
- * Extracts the client-orderable fields of an entity, the single source of the orderBy enum and its validation.
+ * Extracts the client-orderable fields of an entity, including columns its parent classes declare, the single source of the orderBy enum and its validation.
  * A column is orderable only when the generated list response exposes its value (`DtoIsPropertyExposedInListResponse`), it is enabled as a query field, and it is not opted out with `useAsOrderByFilter: false`, all for the route guard;
  * a route with a manual response DTO also limits it to the item properties that DTO publishes. Ordering by any other column would reveal its values through row order.
  * Property names become snake_case enum keys.
@@ -33,7 +34,8 @@ import "reflect-metadata";
  */
 export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, fieldSelector?: TFilterFieldSelector<typeof entity>, currentGuard?: Type<CanActivate>, publishedFields?: ReadonlySet<string>): TApiFilterOrderBy<typeof entity> {
 	const metadata: TTypeOrmMetadataArgumentsStorage = getMetadataArgsStorage();
-	const columns: Array<TTypeOrmColumnMetadataArguments> = metadata.columns.filter((column: TTypeOrmColumnMetadataArguments) => column.target == entity);
+	// Columns a parent class or a table inheritance root declares belong to the entity too.
+	const columns: Array<TTypeOrmColumnMetadataArguments> = metadata.filterColumns(GetClassHierarchy(entity));
 
 	if (fieldSelector) {
 		const entityFields: Set<string> = new Set<string>(columns.map((col: TTypeOrmColumnMetadataArguments) => col.propertyName));
