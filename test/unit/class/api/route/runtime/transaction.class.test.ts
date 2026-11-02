@@ -1089,16 +1089,18 @@ describe("ApiRouteRuntime generated transactions", () => {
 			expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
 		});
 
-		it("rolls back when the entity metadata has no primary column", async () => {
+		it("fails before the transaction when the entity metadata has no primary column", async () => {
 			const transaction = createRouteTransactionFixture();
 			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 			const options = createScopedCreateOptions(service, { source: "response" });
 
 			options.entityMetadata.columns = [{ isPrimary: false, name: "id", type: "varchar" }];
 
+			// The route resolves its path plan before it validates the body, so nothing opens a transaction.
 			await expect(ApiRouteRuntime.executeGenerated(options)).rejects.toThrow("Primary key not found in entity columns");
 			expect(service.create).not.toHaveBeenCalled();
-			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+			expect(transaction.queryRunner.startTransaction).not.toHaveBeenCalled();
+			expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
 		});
 
 		it.each([
