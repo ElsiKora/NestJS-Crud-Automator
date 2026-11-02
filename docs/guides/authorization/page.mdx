@@ -258,8 +258,22 @@ Bootstrap validation fails fast when:
 - the selected mode is not `hooks` or `iam`
 - a custom `@ApiMethod(...)` or `@ApiRouteCustom(...)` route of the controller, declared on the class or inherited from a base class, has no `resource.action` or has a `resource.entity` other than the controller entity
 - a custom route resolves to `hooks` and no `@ApiAuthorizationPolicy(...)` is registered for the entity, or resolves to `iam` and the controller does not meet the IAM prerequisites, also when the controller default is the other mode
+- the controller serves a route that skips authorization
 
-The closest definition of a method name is the one checked. An override with `@ApiMethod(...)` or `@ApiRouteCustom(...)` is checked in place of the route of the base class, and an override with no route decorator at all is not a route. A plain `@Post` override is served, but it has no route metadata, so neither this check nor `ApiAuthorizationGuard` applies to it. A custom route without a mode resolves to `defaultMode`, and the prerequisites of that mode apply.
+The closest definition of a method name is the one checked. An override with `@ApiMethod(...)` or `@ApiRouteCustom(...)` is checked in place of the route of the base class, and an override with no route decorator at all is not a route. A plain `@Post` override is served without authorization, so it fails startup, as described below. A custom route without a mode resolves to `defaultMode`, and the prerequisites of that mode apply.
+
+### Every Served Route Goes Through Authorization
+
+On a controller decorated with `@ApiControllerSecurable()`, every route Nest serves goes through authorization, or the application does not start. Generated routes, `@ApiMethod` and `@ApiRouteCustom` qualify. A route declared only with Nest decorators, such as `@Get`, `@Post`, `@All`, `@Sse`, or `@Redirect` next to a route decorator, does not. The rule also covers a plain route inherited from a base class and a plain override of a generated or custom route.
+
+```text
+Controller "UserController" method "report" serves GET /users/report without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable
+```
+
+- There is no public or skip option. A health check or another open route moves to a controller without `@ApiControllerSecurable()`, where plain routes keep working.
+- An override with no route decorator is not a route: Nest does not serve it, and the application starts. Helper methods and accessors are ignored.
+- Route metadata written by hand counts only with `ApiAuthorizationGuard` in `@UseGuards` on the method or the controller. Metadata alone never runs the guard, and the guard alone answers every request with an error.
+- The check runs with the rest of bootstrap validation, so it needs `ApiAuthorizationModule` in the application. Without the module no authorization configuration is validated.
 
 ## Runtime authorization actions
 
@@ -739,6 +753,7 @@ The authorization module validates configuration during bootstrap. Common failur
 - securable controllers without an `authorization` block
 - controllers with an `authorization` block but no `@ApiControllerSecurable()`
 - a custom route, declared or inherited, without `resource.action` or with a `resource.entity` other than the controller entity
+- a securable controller that serves a route that skips authorization; see [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization)
 - hooks mode enabled for an entity with no discovered `@ApiAuthorizationPolicy(...)`, for routes that resolve to that mode
 - IAM mode without `policyNamespace`, `resourceDefinition`, or registered `documentSources`, for routes that resolve to that mode
 - an unknown authorization cache mode or `MEMORY` without positive safe-integer `ttlMs` and `maxEntries`
@@ -770,5 +785,7 @@ IAM Deny statements are compiled into row exclusions instead of being applied to
 - Condition operators outside `EApiPolicyConditionOperator` and non-scalar condition operands now throw when a document source returns the document, instead of evaluating to false. `null` operands are rejected too; to check that a `principal.*` or `request.*` value is absent, compare it with `""`, which the evaluator treats the same as a missing value.
 - An Allow statement whose `resource.*` value is `""` or resolves to `null` or `""` is no longer compiled into an equality scope; the statement is unmatched, so without another matching Allow the request is an implicit deny.
 - Row-scoped list Deny patterns that cannot be mapped, such as a prefix pattern that crosses a placeholder or runs over several of them, deny the list with `403`.
+
+From 5.0.0 a securable controller with a plain Nest route does not start. Before 5.0.0 such a route was served with no authorization and startup said nothing. Declare the route with `@ApiRouteCustom` or `@ApiMethod`, or move it to a controller that is not securable. See [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization).
 
 See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

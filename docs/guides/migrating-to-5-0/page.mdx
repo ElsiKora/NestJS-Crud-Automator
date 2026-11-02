@@ -165,6 +165,23 @@ See [Authorization: Migration Notes](/docs/nestjs-crud-automator/guides/authoriz
 
 `isUniqueItems: true` on a request array now answers `400` for equal items, on every `@ApiProperty*` decorator and, when the application installs a `ValidationPipe`, on generated routes. An array whose items nest more than 64 levels answers `400` as well. Before 5.0.0 it only set `uniqueItems` in the OpenAPI schema. Set `isUniqueItems: false` on an array that accepts repeated values. See [Validation: Migration Notes](/docs/nestjs-crud-automator/guides/validation#migration-notes).
 
+## Served Routes On Securable Controllers
+
+On a controller decorated with `@ApiControllerSecurable()`, every route Nest serves goes through authorization, or the application does not start. Before 5.0.0 a plain `@Get` on such a controller, or a plain `@Post` override of a secured route, was served with no authorization: the policy was never asked and startup said nothing.
+
+- A route with Nest decorators and without `@ApiMethod`, `@ApiRouteCustom` or generation now fails startup. The error names the controller, the method and the path. This includes `@All`, `@Sse`, a plain route inherited from a base class, a plain override of a generated or custom route, and a method of `generation.shouldWriteToController: false` exposed with a Nest decorator.
+- Declare the route with `@ApiRouteCustom` or `@ApiMethod`, or move it to a controller that is not securable. There is no public or skip option, so a health check moves too.
+- Route metadata written by hand counts only with `ApiAuthorizationGuard` in `@UseGuards` on the method or the controller.
+- An override with no route decorator, a helper method and a controller that is not securable are unaffected.
+
+See [Authorization: Every Served Route Goes Through Authorization](/docs/nestjs-crud-automator/guides/authorization#every-served-route-goes-through-authorization).
+
+## Routes Disabled On A Child Controller
+
+`generation.isEnabled: false` on a child controller now stops the route the parent controller generates. Before 5.0.0 the child kept serving it over HTTP and in the OpenAPI document. The generated handler stays callable from the child's own methods, and a route the parent declares with `@ApiMethod` or `@ApiRouteCustom` under the same method name stays served.
+
+If a child relied on the old behavior, remove `@ApiController` from the child so that it inherits the parent's routes and path as they are, or declare the route on the child with `@ApiRouteCustom`. See [`@ApiController`](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller).
+
 ## Base Entity Type
 
 `IApiBaseEntity` is now `object`. Its string index signature made every key of an `interface X extends IApiBaseEntity` a column: `getList({ limit: 10, page: 1 })` and `repository.update({ id }, { description })` did not compile, and `create({ notAColumn: 1 })` did.
