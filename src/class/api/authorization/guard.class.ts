@@ -17,7 +17,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
-import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest } from "@utility/api/controller/parameters";
+import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest, ApiControllerParametersRouteDtoSelectStableText } from "@utility/api/controller/parameters";
 import { AuthorizationSerializeParameters } from "@utility/authorization/serialize-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -64,7 +64,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		// A custom route rule belongs to the controller class, because a handler inherited by several controllers is one shared function.
 		const parametersRule: IApiControllerParametersRule | undefined = this.parametersRuleRegistry.get(context.getClass(), context.getHandler()) ?? ApiControllerParametersDtoGet(context.getHandler());
 		const parameters: Partial<IApiBaseEntity> | undefined = await ApiControllerParametersResolveRequest<IApiBaseEntity>(request, parametersRule, request.params as Partial<IApiBaseEntity> | undefined);
-		this.rewriteRequestParameters(request, parameters);
+		this.rewriteRequestParameters(request, parameters, parametersRule);
 		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode> = this.resolveRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(request, parameters, identityPlan);
 
 		const decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> = await this.runtime.evaluate({
@@ -197,16 +197,19 @@ export class ApiAuthorizationGuard implements CanActivate {
 	 * Writes the canonical text of each validated path value back to the request, so a handler `@Param()` reads the value authorization saw.
 	 * @param {TApiAuthorizationGuardRequest} request - HTTP request.
 	 * @param {Partial<IApiBaseEntity> | undefined} parameters - Validated path values.
+	 * @param {IApiControllerParametersRule | undefined} parametersRule - Path value rule of the route.
 	 * @returns {void}
 	 */
-	private rewriteRequestParameters(request: TApiAuthorizationGuardRequest, parameters: Partial<IApiBaseEntity> | undefined): void {
+	private rewriteRequestParameters(request: TApiAuthorizationGuardRequest, parameters: Partial<IApiBaseEntity> | undefined, parametersRule: IApiControllerParametersRule | undefined): void {
 		const requestParameters: unknown = request.params;
 
 		if (!requestParameters || typeof requestParameters !== "object") {
 			return;
 		}
 
-		for (const [key, text] of Object.entries(AuthorizationSerializeParameters(parameters) ?? {})) {
+		const texts: Record<string, string> = AuthorizationSerializeParameters(parameters) ?? {};
+
+		for (const [key, text] of Object.entries(parametersRule?.isRouteDto ? ApiControllerParametersRouteDtoSelectStableText(parametersRule.dto, requestParameters as Record<string, unknown>, texts) : texts)) {
 			if (Object.hasOwn(requestParameters, key)) {
 				Reflect.set(requestParameters, key, text);
 			}

@@ -68,13 +68,13 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Registers the path value rule of each IAM custom route that has a path parameter its PARAMETERS DTO describes or its resource path names, so the guard validates that value and renders its canonical text for the resource string and policy conditions.
+	 * Registers the path value rule of each IAM custom route with a path parameter and a PARAMETERS DTO, so the guard runs that DTO and authorization sees the canonical text of the values it produces.
 	 * The rule is built and kept for this controller class: a handler inherited from a base class is shared with its other subclasses, whose resource paths may differ.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
 	 * @param {string} resourcePath - IAM resource path of the controller.
 	 * @returns {void}
-	 * @throws {Error} When a placeholder that is a path parameter is not described by the route's PARAMETERS DTO.
+	 * @throws {Error} When the PARAMETERS DTO of a route cannot give authorization the text of a path value, or a placeholder that is a path parameter is not copied from an entity column.
 	 */
 	private applyCustomRouteParameterRules(metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string): void {
 		const controllerPathParameters: Array<string> = this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, metatype));

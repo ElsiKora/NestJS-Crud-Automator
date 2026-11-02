@@ -9,10 +9,13 @@ import { ApiRouteValidationFlattenErrors } from "@utility/api/route/validation-f
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 
+import { ApiControllerParametersRouteDtoValidate } from "./route-dto.utility";
+
 /**
  * Validates route path values against the path value rule of the route before any query runs.
  * The rule DTO carries the validators of each column's described type, so a value that the column cannot hold is rejected here instead of reaching the database.
  * A configured PARAMETERS DTO then validates the converted values: it can reject more values, but it cannot accept a value the column rule rejects or change how a value is converted.
+ * The rule of a custom route is the route's own PARAMETERS DTO instead, and that DTO decides how a value is converted.
  * @template E - Entity type owned by the route.
  * @param {IApiControllerParametersRule | Type<unknown>} rule - Path value rule of the route, or a single DTO built from the described column types.
  * @param {Partial<E> | undefined} parameters - Path values after route-before subscribers and PARAMETERS transformers.
@@ -20,8 +23,13 @@ import { validate } from "class-validator";
  * @throws {BadRequestException} With the flattened class-validator messages, the same body a Nest `ValidationPipe` returns, when any path value fails its described type or the configured DTO.
  */
 export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(rule: IApiControllerParametersRule | Type<unknown>, parameters: Partial<E> | undefined): Promise<Partial<E>> {
-	const { configuredDto, dto }: IApiControllerParametersRule = typeof rule === "function" ? { dto: rule } : rule;
+	const { configuredDto, dto, isRouteDto }: IApiControllerParametersRule = typeof rule === "function" ? { dto: rule } : rule;
 	const parameterRecord: Record<string, unknown> = parameters ?? {};
+
+	if (isRouteDto) {
+		return (await ApiControllerParametersRouteDtoValidate(dto, parameterRecord)) as Partial<E>;
+	}
+
 	const instance: Record<string, unknown> = plainToInstance(dto as ClassConstructor<Record<string, unknown>>, parameterRecord);
 	const errors: Array<ValidationError> = await validate(instance);
 

@@ -21,7 +21,7 @@ Formats, validates, and serializes date/time fields. Supports ISO date-time stri
 
 - Emits `@ApiProperty` with the correct ISO example, pattern, and min/max lengths.
 - Holds request values to the published form of `format` and adds `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` for request arrays. See [Request values](#request-values).
-- Preserves missing optional array values as `undefined`/`null` instead of converting them to an empty array.
+- Preserves missing optional array values as `undefined`/`null` instead of converting them to an empty array. An empty string is a value, so `""` and `?days=` fail the date rule.
 - Adds `ApiResponseProperty` and exposure decorators on response DTOs.
 - Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies omit properties identified as `CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`, regardless of property name. Responses retain them; `DATE` and other business/range identifiers remain writable.
 
