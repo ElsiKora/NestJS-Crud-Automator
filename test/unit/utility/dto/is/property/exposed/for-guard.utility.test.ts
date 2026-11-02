@@ -2,7 +2,7 @@ import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-for-guard.utility";
+import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed/for-guard.utility";
 import { EApiDtoType, EApiRouteType, EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { describe, expect, it } from "vitest";
 

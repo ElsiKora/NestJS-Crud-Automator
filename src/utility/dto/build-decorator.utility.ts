@@ -8,7 +8,7 @@ import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/deco
 import { DtoGenerateDecorator } from "@utility/dto/generate/decorator.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoHandleDateProperty } from "@utility/dto/handle-date-property.utility";
-import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-for-guard.utility";
+import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed/for-guard.utility";
 import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/infrastructure-timestamp.utility";
 
 /**

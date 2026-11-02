@@ -11,7 +11,7 @@ import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyNumb
 import { EFilterOrderDirection } from "@enum/filter";
 import { IApiEntity } from "@interface/entity";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
-import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response/published-fields.utility";
+import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { CapitalizeString } from "@utility/capitalize-string.utility";
 import { AllOrNoneOfListedPropertiesValidator } from "@validator/all-or-none-of-listed-properties.validator";

@@ -2,7 +2,7 @@ import type { CanActivate } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
-import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed-in-list-response.utility";
+import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed/in-list-response.utility";
 import { describe, expect, it } from "vitest";
 
 class AdminGuard implements CanActivate {

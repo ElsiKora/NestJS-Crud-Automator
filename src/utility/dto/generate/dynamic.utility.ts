@@ -9,7 +9,7 @@ import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
-import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-for-guard.utility";
+import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed/for-guard.utility";
 import { DtoSchemaNameGetSegment } from "@utility/dto/schema-name/get-segment.utility";
 import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 

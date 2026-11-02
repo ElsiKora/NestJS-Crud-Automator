@@ -8,7 +8,7 @@ import type { ObjectLiteral } from "typeorm";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { FILTER_API_INTERFACE_CONSTANT } from "@constant/interface/api";
-import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed-in-list-response.utility";
+import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed/in-list-response.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";

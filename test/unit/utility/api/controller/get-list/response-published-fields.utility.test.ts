@@ -6,7 +6,7 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiExtraModels, ApiProperty, getSchemaPath } from "@nestjs/swagger";
-import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response/published-fields.utility";
+import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
