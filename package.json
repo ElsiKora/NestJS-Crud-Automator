@@ -99,6 +99,7 @@
 		"@types/pg": "^8.23.1",
 		"@vitest/coverage-v8": "^5.0.5",
 		"@vitest/ui": "^5.0.5",
+		"ajv": "^8.20.0",
 		"better-sqlite3": "^12.11.1",
 		"class-transformer": "^0.5.1",
 		"class-validator": "^0.15.1",
