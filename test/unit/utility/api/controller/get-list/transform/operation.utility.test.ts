@@ -1,8 +1,19 @@
 import { EFilterOperation } from "@enum/filter";
 import { ApiControllerGetListTransformOperation } from "@utility/api/controller/get-list/transform/operation.utility";
+import { Equal, LessThan, MoreThan, Not } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 describe("ApiControllerGetListTransformOperation", () => {
+	it("keeps a boolean comparison operand a boolean and compares other scalars as text", () => {
+		const instant: Date = new Date("2024-03-01T09:30:00.000Z");
+
+		expect(ApiControllerGetListTransformOperation(EFilterOperation.EQ, true)).toEqual(Equal(true));
+		expect(ApiControllerGetListTransformOperation(EFilterOperation.NE, false)).toEqual(Not(false));
+		expect(ApiControllerGetListTransformOperation(EFilterOperation.EQ, 5)).toEqual(Equal("5"));
+		expect(ApiControllerGetListTransformOperation(EFilterOperation.GT, instant)).toEqual(MoreThan(instant));
+		expect(ApiControllerGetListTransformOperation(EFilterOperation.LT, 5)).toEqual(LessThan("5"));
+	});
+
 	it("builds filter operators for common operations", () => {
 		const between = ApiControllerGetListTransformOperation(EFilterOperation.BETWEEN, [1, 10]) as { type?: string; value?: unknown };
 		const equal = ApiControllerGetListTransformOperation(EFilterOperation.EQ, "value") as { type?: string; value?: unknown };

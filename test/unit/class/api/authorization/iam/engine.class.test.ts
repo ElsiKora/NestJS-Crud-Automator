@@ -7,7 +7,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiAuthorizationDecisionType, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { describe, expect, it } from "vitest";
-import { Equal, IsNull, Not } from "typeorm";
+import { Column, Entity, Equal, IsNull, Not, PrimaryColumn } from "typeorm";
 
 const describeEngineStringProperty = (description: string): PropertyDecorator =>
 	ApiPropertyDescribe({
@@ -20,13 +20,22 @@ const describeEngineStringProperty = (description: string): PropertyDecorator =>
 		type: EApiPropertyDescribeType.STRING,
 	});
 
+@Entity("engine_items")
 class EngineItemEntity {
+	@PrimaryColumn({ type: "varchar" })
 	@describeEngineStringProperty("id")
 	public id!: string;
+
+	@Column({ type: "varchar" })
 	public operatorId!: string;
+
+	@Column({ type: "varchar" })
 	public secret!: string;
+
+	@Column({ type: "varchar" })
 	public status!: string;
 
+	@Column({ type: "varchar" })
 	@describeEngineStringProperty("tenantId")
 	public tenantId!: string;
 }
@@ -216,6 +225,19 @@ describe("ApiAuthorizationIamEngine", () => {
 			});
 
 			expect(decision.effect).toBe(isDenied ? EApiPolicyEffect.DENY : EApiPolicyEffect.ALLOW);
+		});
+
+		it.each([
+			["a list", ["archived"]],
+			["an object", { value: "archived" }],
+			["null", null],
+		])("fails closed on %s operand in memory", async (_name: string, operand: unknown) => {
+			const options = { action: "admin:item:read", resource: { id: "item-1", operatorId: "operator-1", secret: "s", status: "archived", tenantId: "t" }, routeType: EApiRouteType.GET };
+			const denyDecision = await evaluate({ ...options, statements: [allowAll, deny({ Condition: { StringNotEquals: { "resource.status": operand } } })] });
+			const allowDecision = await evaluate({ ...options, statements: [{ ...allowAll, Condition: { StringEquals: { "resource.status": operand } } }] });
+
+			expect(denyDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(allowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 		});
 	});
 

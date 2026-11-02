@@ -6,10 +6,18 @@ import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization"
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
-import { describe, expect, it } from "vitest";
-import { Equal, IsNull, Not } from "typeorm";
+import { describe, expect, it, vi } from "vitest";
+import { ChildEntity, Column, Entity, Equal, IsNull, ManyToOne, Not, PrimaryColumn, TableInheritance } from "typeorm";
 
+@Entity("planner_operators")
+class PlannerOperatorEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+}
+
+@Entity("planner_items")
 class PlannerItemEntity {
+	@PrimaryColumn({ type: "varchar" })
 	@ApiPropertyDescribe({
 		description: "id",
 		exampleValue: "item-1",
@@ -21,6 +29,7 @@ class PlannerItemEntity {
 	})
 	public id!: string;
 
+	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({
 		description: "external id",
 		exampleValue: "9007199254740993",
@@ -32,9 +41,15 @@ class PlannerItemEntity {
 	})
 	public externalId!: string;
 
+	@ManyToOne(() => PlannerOperatorEntity)
+	public operator!: PlannerOperatorEntity;
+
 	public operatorId!: string;
+
+	@Column({ type: "varchar" })
 	public secret!: string;
 
+	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({
 		description: "token",
 		exampleValue: "6f1c0d4e-8d3f-4c55-9d7b-1b9a5d2f4e10",
@@ -45,6 +60,16 @@ class PlannerItemEntity {
 		type: EApiPropertyDescribeType.STRING,
 	})
 	public token!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "status", type: EApiPropertyDescribeType.UUID })
+	public status!: string;
+}
+
+// The same fields with no TypeORM decorator, as for an entity registered only through an EntitySchema.
+class PlannerUnmappedItemEntity {
+	@ApiPropertyDescribe({ description: "featured", type: EApiPropertyDescribeType.BOOLEAN })
+	public isFeatured!: boolean;
 
 	@ApiPropertyDescribe({ description: "status", type: EApiPropertyDescribeType.UUID })
 	public status!: string;
@@ -321,5 +346,286 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 
 			expect(plan.isFullyCompilable).toBe(true);
 		});
+	});
+});
+
+@Entity("planner_boolean_owners")
+class PlannerBooleanOwnerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ type: "boolean" })
+	@ApiPropertyDescribe({ description: "active", type: EApiPropertyDescribeType.BOOLEAN })
+	public isActive!: boolean;
+}
+
+@Entity("planner_boolean_items")
+class PlannerBooleanItemEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ type: "boolean" })
+	@ApiPropertyDescribe({ description: "featured", type: EApiPropertyDescribeType.BOOLEAN })
+	public isFeatured!: boolean;
+
+	@ManyToOne(() => PlannerBooleanOwnerEntity)
+	@ApiPropertyDescribe({ description: "owner", type: EApiPropertyDescribeType.RELATION })
+	public owner!: PlannerBooleanOwnerEntity;
+}
+
+const booleanResourceDefinition: IApiAuthorizationResourceDefinition<PlannerBooleanItemEntity> = {
+	entity: PlannerBooleanItemEntity,
+	fields: [
+		{ isFilterable: true, path: "resource.isFeatured", queryPath: "isFeatured" },
+		{ isFilterable: true, path: "resource.ownerActive", queryPath: "owner.isActive" },
+	],
+	namespace: "bool:item",
+	resourcePath: "bool:item/{id}",
+	resourceType: "bool:item",
+};
+
+const booleanPrincipal: IApiAuthorizationPrincipal = {
+	attributes: { featured: true, featuredText: "true", notFeatured: false, numericFeatured: 1 },
+	id: "user-1",
+	roles: [],
+	type: EApiAuthorizationPrincipalType.USER,
+};
+
+const planBooleanAllow = (condition: Record<string, Record<string, unknown>>) =>
+	new ApiAuthorizationIamQueryPlanner().plan({
+		principal: booleanPrincipal,
+		requestMetadata: {},
+		resourceDefinition: booleanResourceDefinition,
+		statements: [createStatement(EApiPolicyEffect.ALLOW, condition)],
+	});
+
+const planBooleanDeny = (condition: Record<string, Record<string, unknown>>) =>
+	new ApiAuthorizationIamQueryPlanner().planExclusion({
+		exclusions: [{ resourceConstraints: [], statement: createStatement(EApiPolicyEffect.DENY, condition) }],
+		principal: booleanPrincipal,
+		requestMetadata: {},
+		resourceDefinition: booleanResourceDefinition,
+	});
+
+// A boolean bound as text compares 'true' with the stored 1 on SQLite and matches no row.
+const CANONICAL_BOOLEAN_VALUES: Array<[unknown, boolean]> = [
+	["true", true],
+	["false", false],
+	[true, true],
+	[false, false],
+	["${principal.attributes.featured}", true],
+	["${principal.attributes.notFeatured}", false],
+	["${principal.attributes.featuredText}", true],
+];
+
+// The in-memory evaluator compares text, so these equal no stored boolean.
+const NON_CANONICAL_BOOLEAN_VALUES: Array<unknown> = ["1", "0", "yes", "TRUE", " true", "banana", 1, "${principal.attributes.numericFeatured}"];
+
+describe("ApiAuthorizationIamQueryPlanner on boolean columns", () => {
+	it.each(CANONICAL_BOOLEAN_VALUES)("binds an Allow StringEquals %j as the boolean %j", (value: unknown, expected: boolean) => {
+		expect(planBooleanAllow({ StringEquals: { "resource.isFeatured": value } })).toEqual({ isFullyCompilable: true, scope: { where: { isFeatured: expected } } });
+	});
+
+	it.each(CANONICAL_BOOLEAN_VALUES)("binds a one-hop Allow StringEquals %j as the boolean %j", (value: unknown, expected: boolean) => {
+		expect(planBooleanAllow({ StringEquals: { "resource.ownerActive": value } })).toEqual({ isFullyCompilable: true, scope: { where: { owner: { isActive: expected } } } });
+	});
+
+	it.each(CANONICAL_BOOLEAN_VALUES)("binds a Deny StringEquals %j as the boolean %j", (value: unknown, expected: boolean) => {
+		expect(planBooleanDeny({ StringEquals: { "resource.isFeatured": value } })).toEqual({ isFullyCompilable: true, scope: { where: [{ isFeatured: Not(Equal(expected)) }, { isFeatured: IsNull() }] } });
+	});
+
+	it.each(CANONICAL_BOOLEAN_VALUES)("binds a one-hop Deny StringNotEquals %j as the boolean %j", (value: unknown, expected: boolean) => {
+		expect(planBooleanDeny({ StringNotEquals: { "resource.ownerActive": value } })).toEqual({ isFullyCompilable: true, scope: { where: { owner: { isActive: Equal(expected) } } } });
+	});
+
+	it.each(NON_CANONICAL_BOOLEAN_VALUES)("does not compile an Allow StringEquals %j", (value: unknown) => {
+		expect(planBooleanAllow({ StringEquals: { "resource.isFeatured": value } })).toEqual({ isFullyCompilable: false });
+		expect(planBooleanAllow({ StringEquals: { "resource.ownerActive": value } })).toEqual({ isFullyCompilable: false });
+	});
+
+	it.each(NON_CANONICAL_BOOLEAN_VALUES)("does not compile a Deny %j", (value: unknown) => {
+		expect(planBooleanDeny({ StringEquals: { "resource.isFeatured": value } })).toEqual({ isFullyCompilable: false });
+		expect(planBooleanDeny({ StringNotEqualsIfExists: { "resource.ownerActive": value } })).toEqual({ isFullyCompilable: false });
+	});
+});
+
+@Entity("planner_boolean_companies")
+class PlannerBooleanCompanyEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	// No describe metadata: the TypeORM column type alone marks it as a boolean.
+	@Column({ type: "bool" })
+	public isVerified!: boolean;
+}
+
+@Entity("planner_boolean_deep_owners")
+class PlannerBooleanDeepOwnerEntity {
+	@ManyToOne(() => PlannerBooleanCompanyEntity, { nullable: true })
+	public company!: null | PlannerBooleanCompanyEntity;
+
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+}
+
+class PlannerBooleanMeta {
+	@Column({ default: false, type: "boolean" })
+	public isLocked!: boolean;
+
+	@Column({ type: "varchar" })
+	public note!: string;
+}
+
+abstract class PlannerBooleanArchivableEntity {
+	@Column({ default: false, type: "boolean" })
+	public isArchived!: boolean;
+}
+
+@Entity("planner_boolean_parts")
+@TableInheritance({ column: { name: "kind", type: "varchar" } })
+class PlannerBooleanPartEntity extends PlannerBooleanArchivableEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	// `design:type` gives the column type `Boolean` when the decorator names none.
+	@Column()
+	public isInternal!: boolean;
+
+	// SQL Server stores a boolean as `bit`.
+	@Column({ type: "bit" })
+	public isLegacy!: boolean;
+
+	@Column(() => PlannerBooleanMeta)
+	public meta!: PlannerBooleanMeta;
+
+	@ManyToOne(() => PlannerBooleanDeepOwnerEntity, { nullable: true })
+	public owner!: null | PlannerBooleanDeepOwnerEntity;
+
+	@Column({ type: "varchar" })
+	public status!: string;
+}
+
+@ChildEntity("special")
+class PlannerBooleanSpecialPartEntity extends PlannerBooleanPartEntity {
+	@Column({ nullable: true, type: "boolean" })
+	public isSpecial!: boolean | null;
+}
+
+@Entity("planner_boolean_cached")
+class PlannerBooleanCachedEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@Column({ type: "boolean" })
+	public isCached!: boolean;
+}
+
+const PART_FIELDS: Array<[string, string]> = [
+	["archived", "isArchived"],
+	["internal", "isInternal"],
+	["legacy", "isLegacy"],
+	["locked", "meta.isLocked"],
+	["special", "isSpecial"],
+	["verified", "owner.company.isVerified"],
+];
+
+const UNRESOLVABLE_PART_FIELDS: Array<[string, string]> = [
+	["missing", "missing"],
+	["ownerMissing", "owner.missing"],
+	["companyMissing", "owner.company.missing"],
+	["metaMissing", "meta.missing"],
+	["owner", "owner"],
+	["meta", "meta"],
+	["statusChild", "status.length"],
+];
+
+const partResourceDefinition: IApiAuthorizationResourceDefinition<PlannerBooleanSpecialPartEntity> = {
+	entity: PlannerBooleanSpecialPartEntity,
+	fields: [...PART_FIELDS, ...UNRESOLVABLE_PART_FIELDS, ["note", "meta.note"] as [string, string]].map(([name, queryPath]: [string, string]) => ({ isFilterable: true, path: `resource.${name}`, queryPath })),
+	namespace: "bool:part",
+	resourcePath: "bool:part/{special}",
+	resourceType: "bool:part",
+};
+
+const planPartAllow = (condition: Record<string, Record<string, unknown>>) => new ApiAuthorizationIamQueryPlanner().plan({ principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, condition)] });
+
+const planPartDeny = (condition: Record<string, Record<string, unknown>>, resourceConstraints: ReadonlyArray<{ isPrefix: boolean; placeholder: string; value: string }> = []) => new ApiAuthorizationIamQueryPlanner().planExclusion({ exclusions: [{ resourceConstraints, statement: createStatement(EApiPolicyEffect.DENY, condition) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition });
+
+// Builds the nested where a query path compiles to.
+const nestWhere = (queryPath: string, value: unknown): Record<string, unknown> => queryPath.split(".").reduceRight<unknown>((inner: unknown, segment: string): Record<string, unknown> => ({ [segment]: inner }), value) as Record<string, unknown>;
+
+describe("ApiAuthorizationIamQueryPlanner on boolean columns TypeORM maps", () => {
+	describe.each(PART_FIELDS)("on resource.%s (%s)", (name: string, queryPath: string) => {
+		it.each(CANONICAL_BOOLEAN_VALUES)("binds an Allow StringEquals %j as the boolean %j", (value: unknown, expected: boolean) => {
+			expect(planPartAllow({ StringEquals: { [`resource.${name}`]: value } })).toEqual({ isFullyCompilable: true, scope: { where: nestWhere(queryPath, expected) } });
+		});
+
+		it.each(CANONICAL_BOOLEAN_VALUES)("binds a Deny StringEquals %j as the boolean %j", (value: unknown, expected: boolean) => {
+			expect(planPartDeny({ StringEquals: { [`resource.${name}`]: value } })).toEqual({ isFullyCompilable: true, scope: { where: [nestWhere(queryPath, Not(Equal(expected))), nestWhere(queryPath, IsNull())] } });
+		});
+
+		it.each(NON_CANONICAL_BOOLEAN_VALUES)("does not compile an Allow or a Deny %j", (value: unknown) => {
+			expect(planPartAllow({ StringEquals: { [`resource.${name}`]: value } })).toEqual({ isFullyCompilable: false });
+			expect(planPartDeny({ StringEquals: { [`resource.${name}`]: value } })).toEqual({ isFullyCompilable: false });
+			expect(planPartDeny({ StringNotEquals: { [`resource.${name}`]: value } })).toEqual({ isFullyCompilable: false });
+		});
+	});
+
+	it("keeps text values on a text column inside an embedded entity", () => {
+		expect(planPartAllow({ StringEquals: { "resource.note": "1" } })).toEqual({ isFullyCompilable: true, scope: { where: { meta: { note: "1" } } } });
+	});
+
+	it.each(UNRESOLVABLE_PART_FIELDS)("does not compile resource.%s (%s), which TypeORM cannot resolve to a column", (name: string) => {
+		expect(planPartAllow({ StringEquals: { [`resource.${name}`]: "true" } })).toEqual({ isFullyCompilable: false });
+		expect(planPartDeny({ StringEquals: { [`resource.${name}`]: "true" } })).toEqual({ isFullyCompilable: false });
+	});
+
+	it.each([
+		["true", true],
+		["false", false],
+	])("binds an exact resource-pattern constraint %s on a boolean placeholder as the boolean %j", (value: string, expected: boolean) => {
+		expect(planPartDeny({}, [{ isPrefix: false, placeholder: "special", value }])).toEqual({ isFullyCompilable: true, scope: { where: [{ isSpecial: Not(Equal(expected)) }, { isSpecial: IsNull() }] } });
+	});
+
+	it.each(["1", "0", "TRUE", "yes", " true"])("does not compile an exact resource-pattern constraint %j on a boolean placeholder", (value: string) => {
+		expect(planPartDeny({}, [{ isPrefix: false, placeholder: "special", value }])).toEqual({ isFullyCompilable: false });
+	});
+
+	it.each([
+		["a boolean", "resource.featured", "true"],
+		["a text", "resource.status", "active"],
+	])("does not compile %s condition on an entity no TypeORM decorator maps", (_name: string, path: string, value: string) => {
+		const unmappedDefinition: IApiAuthorizationResourceDefinition<PlannerUnmappedItemEntity> = {
+			entity: PlannerUnmappedItemEntity,
+			fields: [
+				{ isFilterable: true, path: "resource.featured", queryPath: "isFeatured" },
+				{ isFilterable: true, path: "resource.status", queryPath: "status" },
+			],
+			namespace: "bool:unmapped",
+			resourcePath: "bool:unmapped/{status}",
+			resourceType: "bool:unmapped",
+		};
+		const planner = new ApiAuthorizationIamQueryPlanner();
+
+		expect(planner.plan({ principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { [path]: value } })] })).toEqual({ isFullyCompilable: false });
+		expect(planner.planExclusion({ exclusions: [{ resourceConstraints: [], statement: createStatement(EApiPolicyEffect.DENY, { StringEquals: { [path]: value } }) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
+		expect(planner.planExclusion({ exclusions: [{ resourceConstraints: [{ isPrefix: false, placeholder: "status", value: "active" }], statement: createStatement(EApiPolicyEffect.DENY, {}) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
+	});
+
+	it("reads the TypeORM metadata of one entity and path once", () => {
+		const readField = vi.spyOn(ApiAuthorizationIamQueryPlanner.prototype as unknown as { readField: (entity: object, queryPath: string) => unknown }, "readField");
+		const resourceDefinition: IApiAuthorizationResourceDefinition<PlannerBooleanCachedEntity> = { entity: PlannerBooleanCachedEntity, fields: [{ isFilterable: true, path: "resource.cached", queryPath: "isCached" }], namespace: "bool:cached", resourcePath: "bool:cached/{id}", resourceType: "bool:cached" };
+
+		try {
+			for (const value of ["true", "false", true]) {
+				expect(new ApiAuthorizationIamQueryPlanner().plan({ principal: booleanPrincipal, requestMetadata: {}, resourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.cached": value } })] }).isFullyCompilable).toBe(true);
+			}
+
+			expect(readField).toHaveBeenCalledTimes(1);
+		} finally {
+			readField.mockRestore();
+		}
 	});
 });

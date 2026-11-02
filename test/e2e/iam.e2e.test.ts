@@ -6,7 +6,7 @@ import type { IApiAuthorizationPrincipal, IApiControllerAuthorizationProperties,
 import { Controller, Get, Module, RequestMethod, UseGuards } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
-import { Column, Entity, PrimaryColumn } from "typeorm";
+import { Column, Entity, ManyToOne, PrimaryColumn } from "typeorm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationGuard, ApiAuthorizationIamEngine, ApiAuthorizationIamQueryPlanner, ApiAuthorizationModule, ApiAuthorizationSimulator, ApiControllerSecurable, CONTROLLER_API_DECORATOR_CONSTANT, EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiRouteType, METHOD_API_DECORATOR_CONSTANT } from "../../src/index";
@@ -21,6 +21,22 @@ class IamEntity {
 
 	@Column({ type: "varchar" })
 	public status!: string;
+}
+
+@Entity("iam_operators")
+class IamOperatorEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+}
+
+// The planner resolves a nested query path through TypeORM relation metadata.
+@Entity("iam_operated_entities")
+class IamOperatedEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@ManyToOne(() => IamOperatorEntity)
+	public operator!: IamOperatorEntity;
 }
 
 const iamAuthorization: IApiControllerAuthorizationProperties<IamEntity> = {
@@ -470,47 +486,48 @@ describe("IAM authorization (E2E)", () => {
 
 	it("plans resource.id and nested query paths for IAM read scopes", () => {
 		const planner = new ApiAuthorizationIamQueryPlanner();
-		const plan = planner.plan({
-			principal: basePrincipal,
-			requestMetadata: {
-				parameters: {
-					id: "entity-1",
-				},
-			},
-			resourceDefinition: {
-				entity: IamEntity,
-				fields: [
-					{
-						isFilterable: true,
-						path: "resource.id",
-						queryPath: "id",
+		const planFor = (entity: typeof IamEntity | typeof IamOperatedEntity) =>
+			planner.plan({
+				principal: basePrincipal,
+				requestMetadata: {
+					parameters: {
+						id: "entity-1",
 					},
+				},
+				resourceDefinition: {
+					entity: entity as typeof IamEntity,
+					fields: [
+						{
+							isFilterable: true,
+							path: "resource.id",
+							queryPath: "id",
+						},
+						{
+							isFilterable: true,
+							path: "resource.operatorId",
+							queryPath: "operator.id",
+						},
+					],
+					namespace: "admin:item",
+					resourcePath: "gameport:admin:item/{id}",
+					resourceType: "gameport:admin:item",
+				},
+				statements: [
 					{
-						isFilterable: true,
-						path: "resource.operatorId",
-						queryPath: "operator.id",
+						Action: ["admin:item:read"],
+						Condition: {
+							StringEquals: {
+								"resource.id": "${request.parameters.id}",
+								"resource.operatorId": "${principal.attributes.operatorId}",
+							},
+						},
+						Effect: EApiPolicyEffect.ALLOW,
+						Resource: ["gameport:admin:item/*"],
 					},
 				],
-				namespace: "admin:item",
-				resourcePath: "gameport:admin:item/{id}",
-				resourceType: "gameport:admin:item",
-			},
-			statements: [
-				{
-					Action: ["admin:item:read"],
-					Condition: {
-						StringEquals: {
-							"resource.id": "${request.parameters.id}",
-							"resource.operatorId": "${principal.attributes.operatorId}",
-						},
-					},
-					Effect: EApiPolicyEffect.ALLOW,
-					Resource: ["gameport:admin:item/*"],
-				},
-			],
-		});
+			});
 
-		expect(plan).toEqual({
+		expect(planFor(IamOperatedEntity)).toEqual({
 			isFullyCompilable: true,
 			scope: {
 				where: {
@@ -521,6 +538,8 @@ describe("IAM authorization (E2E)", () => {
 				},
 			},
 		});
+		// IamEntity has no operator relation, so operator.id names no column and the statement does not compile.
+		expect(planFor(IamEntity)).toEqual({ isFullyCompilable: false });
 	});
 
 	it("evaluates principal and request metadata IAM paths for create actions", async () => {

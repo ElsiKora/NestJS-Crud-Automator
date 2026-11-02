@@ -12,7 +12,7 @@ import { BadRequestException } from "@nestjs/common";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list/query-properties.utility";
-import { Between, Column, Entity, In, IsNull, JoinColumn, ManyToOne, Not, OneToMany, OneToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Between, Column, Entity, Equal, In, IsNull, JoinColumn, ManyToOne, Not, OneToMany, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 import { OwnerGroupEntity, OwnerMetadata } from "./fixture/owner";
@@ -299,5 +299,67 @@ describe("ApiControllerGetListTransformFilter", () => {
 		};
 
 		expect(() => ApiControllerGetListTransformFilter<FilterAmbiguousHolder>(query, metadata)).toThrowError('Metadata target "FilterAmbiguousOwner" matches 2 entity classes in TypeORM metadata');
+	});
+});
+
+@Entity("filter_boolean_owners")
+class FilterBooleanOwnerEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "owner id", type: EApiPropertyDescribeType.UUID } as TApiPropertyDescribeProperties)
+	public id!: string;
+
+	@Column({ type: "boolean" })
+	@ApiPropertyDescribe({ description: "active", type: EApiPropertyDescribeType.BOOLEAN } as TApiPropertyDescribeProperties)
+	public isActive!: boolean;
+}
+
+@Entity("filter_boolean_items")
+class FilterBooleanItemEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "item id", type: EApiPropertyDescribeType.UUID } as TApiPropertyDescribeProperties)
+	public id!: string;
+
+	@Column({ type: "boolean" })
+	@ApiPropertyDescribe({ description: "featured", type: EApiPropertyDescribeType.BOOLEAN } as TApiPropertyDescribeProperties)
+	public isFeatured!: boolean;
+
+	@ManyToOne(() => FilterBooleanOwnerEntity)
+	@ApiPropertyDescribe({ description: "owner", type: EApiPropertyDescribeType.RELATION } as TApiPropertyDescribeProperties)
+	public owner!: FilterBooleanOwnerEntity;
+}
+
+describe("ApiControllerGetListTransformFilter on boolean columns", () => {
+	const metadata: IApiEntity<FilterBooleanItemEntity> = GenerateEntityInformation<FilterBooleanItemEntity>(FilterBooleanItemEntity as unknown as IApiBaseEntity);
+
+	// The text 'true' compares with the stored 1 on SQLite and matches no row, so the value binds as a boolean.
+	it.each([
+		[EFilterOperation.EQ, "true", Equal(true)],
+		[EFilterOperation.EQ, "false", Equal(false)],
+		[EFilterOperation.EQ, true, Equal(true)],
+		[EFilterOperation.NE, "true", Not(true)],
+		[EFilterOperation.NE, "false", Not(false)],
+	])("binds %s %j as a boolean", (operation: EFilterOperation, value: unknown, condition: unknown) => {
+		expect(ApiControllerGetListTransformFilter<FilterBooleanItemEntity>({ "isFeatured[operator]": operation, "isFeatured[value]": value }, metadata)).toEqual({ isFeatured: condition });
+		expect(ApiControllerGetListTransformFilter<FilterBooleanItemEntity>({ "owner.isActive[operator]": operation, "owner.isActive[value]": value }, metadata)).toEqual({ owner: { isActive: condition } });
+	});
+
+	it.each([
+		[EFilterOperation.IN, ["true", "false"], In([true, false])],
+		[EFilterOperation.IN, "true", In([true])],
+		[EFilterOperation.NOTIN, ["false", false], Not(In([false, false]))],
+		[EFilterOperation.NOTIN, "false", Not(In([false]))],
+	])("binds every %s member of %j as a boolean", (operation: EFilterOperation, values: unknown, condition: unknown) => {
+		expect(ApiControllerGetListTransformFilter<FilterBooleanItemEntity>({ "isFeatured[operator]": operation, "isFeatured[values]": values }, metadata)).toEqual({ isFeatured: condition });
+		expect(ApiControllerGetListTransformFilter<FilterBooleanItemEntity>({ "owner.isActive[operator]": operation, "owner.isActive[values]": values }, metadata)).toEqual({ owner: { isActive: condition } });
+	});
+
+	it.each(["1", "0", "yes", "TRUE", "", " true", "banana", 1])("answers FILTER_NOT_VALID for %j", (value: unknown) => {
+		expectInvalidFilter({ "isFeatured[operator]": EFilterOperation.EQ, "isFeatured[value]": value }, metadata);
+		expectInvalidFilter({ "isFeatured[operator]": EFilterOperation.IN, "isFeatured[values]": ["true", value] }, metadata);
+		expectInvalidFilter({ "owner.isActive[operator]": EFilterOperation.NE, "owner.isActive[value]": value }, metadata);
+	});
+
+	it("keeps isnull and notnull valueless", () => {
+		expect(ApiControllerGetListTransformFilter<FilterBooleanItemEntity>({ "isFeatured[operator]": EFilterOperation.ISNULL }, metadata)).toEqual({ isFeatured: IsNull() });
 	});
 });

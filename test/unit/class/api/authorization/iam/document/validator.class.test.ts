@@ -35,8 +35,8 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 		["an array", ["a", "b"]],
 		["an object", { nested: true }],
 		["null", null],
-	])("rejects %s condition operand", (_name: string, operand: unknown) => {
-		expect(() => new ApiAuthorizationIamDocumentValidator().validate(createRecord({ StringEquals: { "resource.status": operand } }))).toThrow(`Policy document "policy-a" contains a non-scalar Condition operand for "resource.status"`);
+	])("accepts %s condition operand, which fails closed when evaluated", (_name: string, operand: unknown) => {
+		expect(() => new ApiAuthorizationIamDocumentValidator().validate(createRecord({ StringEquals: { "resource.status": operand } }))).not.toThrow();
 	});
 
 	it.each(["archived", 7, true])("accepts the scalar condition operand %s", (operand: unknown) => {
