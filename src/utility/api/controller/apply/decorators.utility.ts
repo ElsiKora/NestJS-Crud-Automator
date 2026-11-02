@@ -10,10 +10,9 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { TApiControllerMethodMap } from "@type/factory/api/controller";
 
-import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiRouteType } from "@enum/decorator/api";
-import { HttpStatus, RequestMethod, SetMetadata } from "@nestjs/common";
+import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiControllerGetErrorFlags, ApiControllerGetErrorResponseDecorators } from "@utility/api/controller/apply/error-responses.utility";
 import { ApiControllerBuildRouteDocumentation } from "@utility/api/controller/build-route-documentation.utility";
 import { ApiControllerGetListQueryOpenApiDecorators } from "@utility/api/controller/get-list/query";
@@ -146,7 +145,7 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 		}
 	}
 
-	customDecorators.push(SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_GENERATED_METADATA_KEY, true), ...ApiControllerGetErrorResponseDecorators(errorStatuses, routeConfig.documentation?.response?.statuses));
+	customDecorators.push(...ApiControllerGetErrorResponseDecorators(errorStatuses, routeConfig.documentation?.response?.statuses));
 
 	if (customDecorators.length > 0) {
 		for (const decorator of customDecorators) {
