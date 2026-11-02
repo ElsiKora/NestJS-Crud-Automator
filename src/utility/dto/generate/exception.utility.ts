@@ -60,7 +60,7 @@ const EXCEPTION_FILTER_FIELD_NOTE: string = "sent when the exception sets it or 
  * Details variants each status can carry on the wire, keyed by the details `type` discriminator.
  * Only the package's own database and relation reference failures attach details.
  */
-const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<HttpStatus, Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>>> = new Map<HttpStatus, Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>>>([
+const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<HttpStatus, Readonly<Record<string, Type<unknown>>>> = new Map<HttpStatus, Readonly<Record<string, Type<unknown>>>>([
 	[
 		HttpStatus.BAD_REQUEST,
 		{
@@ -96,7 +96,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	const errorText: string = STATUS_CODES[httpStatus] ?? "Error";
 	const isPreInterceptorStatus: boolean = PRE_INTERCEPTOR_EXCEPTION_STATUSES.has(httpStatus);
 
-	const detailsMapping: Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>> | undefined = EXCEPTION_DETAILS_BY_STATUS.get(httpStatus);
+	const detailsMapping: Readonly<Record<string, Type<unknown>>> | undefined = EXCEPTION_DETAILS_BY_STATUS.get(httpStatus);
 	const detailsTypes: Array<Type<unknown>> = detailsMapping ? Object.values(detailsMapping) : [];
 
 	// Free text: the status text, or a string the thrown exception sets
@@ -165,10 +165,10 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 /**
  * Builds the decorator of the discriminated `details` property of one status.
  * Statuses without package details leave the property out of the schema.
- * @param {Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>> | undefined} detailsMapping - Details variants of the status, keyed by `details.type`.
+ * @param {Readonly<Record<string, Type<unknown>>> | undefined} detailsMapping - Details variants of the status, keyed by `details.type`.
  * @returns {PropertyDecorator} The details property decorator, or one that declares nothing.
  */
-function buildDetailsDecorator(detailsMapping: Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>> | undefined): PropertyDecorator {
+function buildDetailsDecorator(detailsMapping: Readonly<Record<string, Type<unknown>>> | undefined): PropertyDecorator {
 	if (!detailsMapping) {
 		return (): void => {
 			// No details on this status
@@ -178,7 +178,7 @@ function buildDetailsDecorator(detailsMapping: Readonly<Partial<Record<EApiExcep
 	return ApiPropertyObject({
 		description: "details",
 		discriminator: {
-			mapping: detailsMapping as Record<string, Type<unknown>>,
+			mapping: detailsMapping,
 			propertyName: "type",
 			shouldKeepDiscriminatorProperty: true,
 		},
