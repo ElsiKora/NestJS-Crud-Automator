@@ -243,7 +243,9 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Refuses a body that names another value for a field the path binds, directly or through the relation that field joins. The value is not echoed, because it is the client's and the path already names the right one.
+	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
+	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all.
+	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
 	 * @template E - Entity type owned by the route.
 	 * @template R - Generated route type.
 	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
@@ -253,30 +255,36 @@ export class ApiRouteRuntime {
 	 * @throws {BadRequestException} When the body differs from the path.
 	 */
 	private static assertBodyMatchesPath<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, pathPlan: IApiControllerPathPlan): void {
-		if (pathPlan.scopeParameters.length === 0 || !targets.body) {
+		const bodies: Array<Record<string, unknown>> = [targets.body, (targets.authenticationRequest as { body?: unknown } | undefined)?.body].filter((body: unknown): body is Record<string, unknown> => typeof body === "object" && body !== null && !Array.isArray(body));
+
+		if (bodies.length === 0) {
 			return;
 		}
 
-		const body: Record<string, unknown> = targets.body as Record<string, unknown>;
-		const scope: Record<string, unknown> = this.resolveRouteWhere(options, targets, pathPlan, pathPlan.scopeParameters);
+		const pathValues: Record<string, unknown> = this.resolveRouteWhere(options, targets, pathPlan, ApiControllerPathRouteParameters(pathPlan, options.method));
+		const unaddressedFields: ReadonlyArray<string> = options.method === EApiRouteType.CREATE ? [] : pathPlan.primaryFields.filter((field: string): boolean => !Object.hasOwn(pathValues, field));
 		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
 		const relations: ReadonlyArray<RelationMetadata> = repository instanceof Repository ? repository.metadata.relations : [];
 
-		for (const [field, pathValue] of Object.entries(scope)) {
-			if (body[field] !== undefined && (body[field] === null || !this.isSamePathValue(body[field], pathValue))) {
-				throw new BadRequestException("PARAMETERS_NOT_VALID");
-			}
+		for (const body of bodies) {
+			for (const field of [...Object.keys(pathValues), ...unaddressedFields]) {
+				const isAddressed: boolean = Object.hasOwn(pathValues, field);
 
-			for (const relation of relations) {
-				const joinColumn: TTypeOrmColumnMetadata | undefined = relation.joinColumns.find((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field);
-				const relationValue: unknown = body[relation.propertyName];
+				if (body[field] !== undefined && (!isAddressed || !this.isSamePathValue(body[field], pathValues[field]))) {
+					throw new BadRequestException("PARAMETERS_NOT_VALID");
+				}
 
-				if (joinColumn && relationValue !== undefined) {
-					const referencedName: string | undefined = joinColumn.referencedColumn?.propertyName;
-					const relationKey: unknown = typeof relationValue === "object" && relationValue !== null && referencedName ? (relationValue as Record<string, unknown>)[referencedName] : relationValue;
+				for (const relation of relations) {
+					const joinColumn: TTypeOrmColumnMetadata | undefined = relation.joinColumns.find((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field);
+					const relationValue: unknown = body[relation.propertyName];
 
-					if (relationKey === undefined || relationKey === null || !this.isSamePathValue(relationKey, pathValue)) {
-						throw new BadRequestException("PARAMETERS_NOT_VALID");
+					if (joinColumn && relationValue !== undefined) {
+						const referencedName: string | undefined = joinColumn.referencedColumn?.propertyName;
+						const relationKey: unknown = typeof relationValue === "object" && relationValue !== null && referencedName ? (relationValue as Record<string, unknown>)[referencedName] : relationValue;
+
+						if (!isAddressed || !this.isSamePathValue(relationKey, pathValues[field])) {
+							throw new BadRequestException("PARAMETERS_NOT_VALID");
+						}
 					}
 				}
 			}
@@ -859,13 +867,17 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Compares a body value with the value its path parameter binds.
+	 * Compares a body value with the value its path parameter binds. Only a scalar can name the value, so an array or an object never does.
 	 * @param {unknown} value - Value the request body carries.
 	 * @param {unknown} pathValue - Value the request path binds.
 	 * @returns {boolean} Whether both name the same value.
 	 */
 	private static isSamePathValue(value: unknown, pathValue: unknown): boolean {
-		return pathValue instanceof Date ? new Date(String(value)).getTime() === pathValue.getTime() : String(value) === String(pathValue);
+		if (pathValue instanceof Date) {
+			return (typeof value === "string" || typeof value === "number" || value instanceof Date) && new Date(value).getTime() === pathValue.getTime();
+		}
+
+		return (typeof value === "string" || typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") && String(value) === String(pathValue);
 	}
 
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {

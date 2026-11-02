@@ -379,6 +379,24 @@ describe.each<"postgres" | "sqlite">(["postgres", "sqlite"])("row path matrix on
 			expect((await dataSource.query("SELECT * FROM row_path_matrix_assets")) as Array<unknown>).toEqual([]);
 		});
 
+		it("CREATE refuses a scalar relation key naming another owner without echoing it", async () => {
+			const response: TResponse = await send("POST", `/matrix/customer/${CUSTOMER_FIRST}/asset`, { name: "asset", owner: CUSTOMER_SECOND });
+
+			expect(response.statusCode).toBe(400);
+			expect(response.body).not.toContain(CUSTOMER_SECOND);
+			expect((await dataSource.query("SELECT * FROM row_path_matrix_assets")) as Array<unknown>).toEqual([]);
+		});
+
+		it.each([["PATCH"], ["PUT"]])("%s refuses a scalar relation key naming another owner and leaves the row", async (method: string) => {
+			const created: TResponse = await send("POST", `/matrix/customer/${CUSTOMER_FIRST}/asset`, { name: "asset" });
+			const { id } = created.json() as { id: string };
+			const response: TResponse = await send(method, `/matrix/customer/${CUSTOMER_FIRST}/asset/${id}`, { name: "moved", owner: CUSTOMER_SECOND });
+
+			expect(response.statusCode).toBe(400);
+			expect(response.body).not.toContain(CUSTOMER_SECOND);
+			expect((await dataSource.query('SELECT "name", "ownerId" FROM row_path_matrix_assets')) as Array<unknown>).toEqual([{ name: "asset", ownerId: CUSTOMER_FIRST }]);
+		});
+
 		it("CREATE takes the bound join column from the path", async () => {
 			const response: TResponse = await send("POST", `/matrix/customer/${CUSTOMER_SECOND}/asset`, { name: "asset" });
 
