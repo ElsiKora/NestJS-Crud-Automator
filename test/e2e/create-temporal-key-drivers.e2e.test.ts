@@ -14,7 +14,7 @@ import { GenericContainer, Wait } from "testcontainers";
 import { Column, DataSource, Entity, PrimaryColumn, Repository } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiController, ApiControllerSecurable, ApiPropertyDescribe, ApiService, ApiServiceBase, ApiSubscriberModule, AuthorizationResolveDefaultPrincipal, EApiAuthenticationType, EApiAuthorizationMode, EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiController, ApiControllerSecurable, CamelCaseString, ApiPropertyDescribe, ApiService, ApiServiceBase, ApiSubscriberModule, AuthorizationResolveDefaultPrincipal, EApiAuthenticationType, EApiAuthorizationMode, EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 
 interface IColumnOptions {
 	default?: () => string;
@@ -220,28 +220,36 @@ function createFixture(driver: string, key: string, options: IColumnOptions, isC
 		}
 	}
 
-	@ApiController<never>({ entity: DriverKeyEntity, name: path, path, routes: { [EApiRouteType.CREATE]: {}, ...disabledRoutes } } as never)
 	class OpenDriverKeyController {
 		@Inject(DriverKeyService)
 		public readonly service!: DriverKeyService;
 	}
 
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(OpenDriverKeyController, "name", { value: `${CamelCaseString(path)}Controller` });
+
+	const openController = ApiController<never>({ entity: DriverKeyEntity, name: path, path, routes: { [EApiRouteType.CREATE]: {}, ...disabledRoutes } } as never)(OpenDriverKeyController);
+
 	const namespace: string = `temporal-${path}`;
 
-	@ApiControllerSecurable()
-	@ApiController<never>({
-		authorization: { defaultMode: EApiAuthorizationMode.HOOKS, policyNamespace: namespace, resourceDefinition: { entity: DriverKeyEntity, fields: [{ isFilterable: true, path: "resource.name", queryPath: "name" }], namespace, resourcePath: `${namespace}/{id}`, resourceType: namespace } },
-		entity: DriverKeyEntity,
-		name: `${path}-scoped`,
-		path: `${path}-scoped`,
-		routes: { [EApiRouteType.CREATE]: { security: { authentication: { guard: DriverAuthGuard, type: EApiAuthenticationType.USER } } }, ...disabledRoutes },
-	} as never)
 	class ScopedDriverKeyController {
 		@Inject(DriverKeyService)
 		public readonly service!: DriverKeyService;
 	}
 
-	return { controllers: [OpenDriverKeyController, ScopedDriverKeyController], entity: DriverKeyEntity, path, providers: [DriverKeyPolicy, DriverKeyService], table };
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(ScopedDriverKeyController, "name", { value: `${CamelCaseString(path)}ScopedController` });
+
+	const scopedController = ApiController<never>({
+		authorization: { defaultMode: EApiAuthorizationMode.HOOKS, policyNamespace: namespace, resourceDefinition: { entity: DriverKeyEntity, fields: [{ isFilterable: true, path: "resource.name", queryPath: "name" }], namespace, resourcePath: `${namespace}/{id}`, resourceType: namespace } },
+		entity: DriverKeyEntity,
+		name: `${path}-scoped`,
+		path: `${path}-scoped`,
+		routes: { [EApiRouteType.CREATE]: { security: { authentication: { guard: DriverAuthGuard, type: EApiAuthenticationType.USER } } }, ...disabledRoutes },
+	} as never)(ScopedDriverKeyController);
+	ApiControllerSecurable()(scopedController);
+
+	return { controllers: [openController, scopedController], entity: DriverKeyEntity, path, providers: [DriverKeyPolicy, DriverKeyService], table };
 }
 
 describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: IDriverSpec) => {
@@ -443,7 +451,7 @@ describe.each(BODY_KEY_DRIVERS)("Generated CREATE temporal key on $name (E2E)", 
 		const moduleRef = await Test.createTestingModule({ imports: [RefusedDriverModule] }).compile();
 		const app: INestApplication = moduleRef.createNestApplication(new FastifyAdapter());
 
-		await expect(app.init()).rejects.toThrow(`Controller "OpenDriverKeyController" route "create" cannot identify the row it creates: the database fills date and time primary column at of ${String(refused.entity.name)}, and the ${name} driver cannot read that value back`);
+		await expect(app.init()).rejects.toThrow(`Controller "${CamelCaseString(refused.path)}Controller" route "create" cannot identify the row it creates: the database fills date and time primary column at of ${String(refused.entity.name)}, and the ${name} driver cannot read that value back`);
 		await moduleRef.get(DataSource).destroy();
 	});
 

@@ -18,6 +18,7 @@ import {
 	ApiAuthorizationPolicyBase,
 	ApiController,
 	ApiControllerSecurable,
+	CamelCaseString,
 	ApiFunctionSubscriber,
 	ApiFunctionSubscriberBase,
 	ApiPropertyDescribe,
@@ -198,8 +199,15 @@ const allowCreateInTenant: IApiPolicyStatement = {
 };
 
 function createScopeController(path: string, mode: EApiAuthorizationMode, transactionMode: EApiFunctionTransactionMode, service: Type<TCreateScopeItemService>): Type<unknown> {
-	@ApiControllerSecurable()
-	@ApiController<CreateScopeItemEntity>({
+	class CreateScopeController {
+		@Inject(service)
+		public readonly service!: TCreateScopeItemService;
+	}
+
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(CreateScopeController, "name", { value: `${CamelCaseString(path)}Controller` });
+
+	const controller = ApiController<CreateScopeItemEntity>({
 		authorization: { ...createScopeAuthorization, defaultMode: mode },
 		entity: CreateScopeItemEntity,
 		name: path,
@@ -215,13 +223,10 @@ function createScopeController(path: string, mode: EApiAuthorizationMode, transa
 			[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
 			[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
 		},
-	})
-	class CreateScopeController {
-		@Inject(service)
-		public readonly service!: TCreateScopeItemService;
-	}
+	})(CreateScopeController);
+	ApiControllerSecurable()(controller);
 
-	return CreateScopeController;
+	return controller;
 }
 
 const HOOKS_SUPPORTS_PATH: string = "create-scope-hooks-supports";

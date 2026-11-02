@@ -29,6 +29,7 @@ import {
 	ApiService,
 	ApiServiceBase,
 	ApiServiceObservable,
+	CamelCaseString,
 	ApiSubscriberModule,
 	AuthorizationResolveDefaultPrincipal,
 	EApiAuthenticationType,
@@ -215,8 +216,15 @@ function createTemporalKeyFixture(TemporalKeyEntity: Type<TTemporalKeyEntity>, n
 		}
 	}
 
-	@ApiControllerSecurable()
-	@ApiController<TTemporalKeyEntity>({
+	class ScopedTemporalKeyController {
+		@Inject(TemporalKeyService)
+		public readonly service!: TemporalKeyService;
+	}
+
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(ScopedTemporalKeyController, "name", { value: `${CamelCaseString(name)}Controller` });
+
+	const scopedController = ApiController<TTemporalKeyEntity>({
 		authorization: {
 			defaultMode: EApiAuthorizationMode.HOOKS,
 			policyNamespace: name,
@@ -226,19 +234,20 @@ function createTemporalKeyFixture(TemporalKeyEntity: Type<TTemporalKeyEntity>, n
 		name,
 		path: name,
 		routes: { ...createRoute, ...disabledRoutes },
-	})
-	class ScopedTemporalKeyController {
-		@Inject(TemporalKeyService)
-		public readonly service!: TemporalKeyService;
-	}
+	})(ScopedTemporalKeyController);
+	ApiControllerSecurable()(scopedController);
 
-	@ApiController<TTemporalKeyEntity>({ entity: TemporalKeyEntity, name: `${name}-open`, path: `${name}-open`, routes: { [EApiRouteType.CREATE]: {}, ...disabledRoutes } })
 	class OpenTemporalKeyController {
 		@Inject(TemporalKeyService)
 		public readonly service!: TemporalKeyService;
 	}
 
-	return { controllers: [ScopedTemporalKeyController, OpenTemporalKeyController], entity: TemporalKeyEntity, label: `${name.replace("create-scope-pg-", "").replace("-", " from the ")}`, providers: [TemporalKeyPolicy, TemporalKeyService], scopedPath: name, source };
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(OpenTemporalKeyController, "name", { value: `${CamelCaseString(name)}OpenController` });
+
+	const openController = ApiController<TTemporalKeyEntity>({ entity: TemporalKeyEntity, name: `${name}-open`, path: `${name}-open`, routes: { [EApiRouteType.CREATE]: {}, ...disabledRoutes } })(OpenTemporalKeyController);
+
+	return { controllers: [scopedController, openController], entity: TemporalKeyEntity, label: `${name.replace("create-scope-pg-", "").replace("-", " from the ")}`, providers: [TemporalKeyPolicy, TemporalKeyService], scopedPath: name, source };
 }
 
 // A database trigger owns the second primary column.
@@ -408,9 +417,15 @@ const createRoute = { [EApiRouteType.CREATE]: { security: { authentication: { gu
 type TScopedItemService = ScopedDecoratedCreateService | ScopedGetNoneItemService | ScopedItemService;
 
 function createItemController(path: string, service: Type<TScopedItemService>): Type<unknown> {
-	@ApiControllerObservable()
-	@ApiControllerSecurable()
-	@ApiController<ScopedItemEntity>({
+	class ScopedItemController {
+		@Inject(service)
+		public readonly service!: TScopedItemService;
+	}
+
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(ScopedItemController, "name", { value: `${CamelCaseString(path)}Controller` });
+
+	const controller = ApiController<ScopedItemEntity>({
 		authorization: {
 			defaultMode: EApiAuthorizationMode.HOOKS,
 			policyNamespace: "create-scope-pg:item",
@@ -420,13 +435,11 @@ function createItemController(path: string, service: Type<TScopedItemService>): 
 		name: path,
 		path,
 		routes: { ...createRoute, ...disabledRoutes },
-	})
-	class ScopedItemController {
-		@Inject(service)
-		public readonly service!: TScopedItemService;
-	}
+	})(ScopedItemController);
+	ApiControllerSecurable()(controller);
+	ApiControllerObservable()(controller);
 
-	return ScopedItemController;
+	return controller;
 }
 
 @ApiControllerSecurable()

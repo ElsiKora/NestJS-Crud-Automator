@@ -176,7 +176,15 @@ function createFixture(entity: Type<object>): { controller: Type<unknown>; servi
 		public readonly repository!: Repository<never>;
 	}
 
-	@ApiController<never>({
+	class TemporalKeyController {
+		@Inject(TemporalKeyService)
+		public readonly service!: TemporalKeyService;
+	}
+
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(TemporalKeyController, "name", { value: `${entity.name}Controller` });
+
+	const controller = ApiController<never>({
 		entity,
 		name: entity.name,
 		path: entity.name,
@@ -188,13 +196,9 @@ function createFixture(entity: Type<object>): { controller: Type<unknown>; servi
 			[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
 			[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
 		},
-	} as never)
-	class TemporalKeyController {
-		@Inject(TemporalKeyService)
-		public readonly service!: TemporalKeyService;
-	}
+	} as never)(TemporalKeyController);
 
-	return { controller: TemporalKeyController, service: TemporalKeyService };
+	return { controller, service: TemporalKeyService };
 }
 
 const fixtures: Array<{ controller: Type<unknown>; service: Type<unknown> }> = entities.map((entity: Type<object>) => createFixture(entity));
