@@ -1411,11 +1411,16 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Returns the form two written values are compared in: a valid `Date` as its canonical string, anything else as it is.
+	 * Returns the form two written values are compared in: a valid `Date` as its canonical string, an array or another object by its content, because the body as sent is a copy, and anything else as it is.
 	 * @param {unknown} value - Value the route writes.
 	 * @returns {unknown} The comparable value.
 	 */
 	private static toWriteValue(value: unknown): unknown {
-		return value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString() : value;
+		if (value instanceof Date && !Number.isNaN(value.getTime())) {
+			return value.toISOString();
+		}
+
+		// The marker keeps an object apart from a string that spells the same JSON.
+		return typeof value === "object" && value !== null ? `\u0000${JSON.stringify(value)}` : value;
 	}
 }
