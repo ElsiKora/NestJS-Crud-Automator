@@ -92,6 +92,20 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 		});
 
 		it.each([
+			["2026-02-30T00:00:00.000Z", INSTANT],
+			["2026-04-31T23:30:00-05:00", INSTANT],
+			["2025-02-29 08:00:00Z", INSTANT],
+			["2026-01-01T24:00:00+01:00", INSTANT],
+			["2026-02-30T10:00:00", WALL_CLOCK],
+			["2026-06-31 10:00", WALL_CLOCK],
+		])("refuses %j, which names a day or hour the calendar does not hold, and leaves the body as it was", (value: string, column: ITemporalKeyColumn) => {
+			const body: Record<string, unknown> = { at: value };
+
+			expect(readMessages(() => ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([column]), body))).toEqual(["at must be a valid ISO 8601 date-time"]);
+			expect(body.at).toBe(value);
+		});
+
+		it.each([
 			["a number", 1_704_164_645_678],
 			["an invalid Date", new Date(Number.NaN)],
 			["an object", { at: "2024-01-02T03:04:05.678Z" }],

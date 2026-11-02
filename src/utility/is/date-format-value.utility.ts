@@ -1,5 +1,6 @@
 import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
 import { EApiPropertyDateType } from "@enum/decorator/api/property/date/type.enum";
+import { IsCalendarDateTime } from "@utility/is/calendar-date-time.utility";
 import { IsCalendarDate } from "@utility/is/calendar-date.utility";
 
 const DATE_TIME_PATTERN: RegExp = new RegExp(PROPERTY_DATE_DECORATOR_API_CONSTANT.PATTERN[EApiPropertyDateType.DATE_TIME], "u");
@@ -26,13 +27,8 @@ export function IsDateFormatValue(value: unknown, format: EApiPropertyDateType):
 		}
 
 		case EApiPropertyDateType.DATE_TIME: {
-			if (!DATE_TIME_PATTERN.test(value)) {
-				return false;
-			}
-
-			const date: Date = new Date(value);
-
-			return !Number.isNaN(date.getTime()) && date.toISOString() === value && date.getUTCFullYear() >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && date.getUTCFullYear() <= PROPERTY_DATE_DECORATOR_API_CONSTANT.MAXIMUM_YEAR;
+			// The pattern holds four year digits, so only year 0000 is out of range.
+			return DATE_TIME_PATTERN.test(value) && Number(value.slice(0, "YYYY".length)) >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && IsCalendarDateTime(value);
 		}
 
 		case EApiPropertyDateType.TIME: {

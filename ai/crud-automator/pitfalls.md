@@ -235,6 +235,8 @@ Do not write through `this.repository` in a `create` override: such a write woul
 
 Do not read through an injected `Repository` in a subscriber of a CREATE. The route transaction holds its pool connection for the whole request, so such a read needs a second connection, and with a small pool concurrent requests hang forever, because node-postgres defaults to `connectionTimeoutMillis: 0`. Use `DATA.repository`; otherwise size the pool above the concurrent CREATE count and set `extra.connectionTimeoutMillis`.
 
+Do not expect a JavaScript `Date` rollover from date text sent to the library: `2026-02-30`, `2026-04-31`, `2025-02-29`, month `13`, hour `24` and second `60` answer `400` on every entry point that reads a date (a CREATE date and time primary key, body properties under a host pipe, path values, GET_LIST filters, CURSOR tokens), checked on the fields as written before any offset. Validate dates with the library's own rule instead of `new Date(text)`, which rolls February 30 into March 2. Internal checks call `IsCalendarDateTime`; do not add a second date parser.
+
 Do not declare a date and time primary key finer than a millisecond on a securable CREATE: it fails at startup, because TypeORM reads the column with milliseconds and could check the scope against a sibling row. Declare `precision: 3`.
 
 Do not expect work on another DataSource in a CREATE subscriber to roll back with the CREATE, or a scope on the same DataSource to commit on its own: the first runs on its own connection, and the second joins the CREATE and refuses an `observation`.

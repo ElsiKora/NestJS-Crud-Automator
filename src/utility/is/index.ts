@@ -1,3 +1,4 @@
+export { IsCalendarDateTime } from "./calendar-date-time.utility";
 export { IsCalendarDate } from "./calendar-date.utility";
 export { IsDateFormatValue } from "./date-format-value.utility";
 export * from "./entity";

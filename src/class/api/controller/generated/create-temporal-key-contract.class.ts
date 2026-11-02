@@ -9,6 +9,7 @@ import { DATABASE_DRIVER_TYPE_CONSTANT } from "@constant/database-driver-type.co
 import { DATE_TIME_TEXT_CONSTANT } from "@constant/date-time-text.constant";
 import { BadRequestException } from "@nestjs/common";
 import { ErrorException } from "@utility/error/exception.utility";
+import { IsCalendarDateTime } from "@utility/is/calendar-date-time.utility";
 
 // A JavaScript Date holds whole milliseconds.
 const DATE_FRACTION_DIGITS: number = 3;
@@ -133,7 +134,8 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 	}
 
 	private static check(property: string, date: Date | undefined, text: string | undefined, isInstant: boolean, fractionDigits: number): string | undefined {
-		if (!date || Number.isNaN(date.getTime()) || (text !== undefined && !DATE_TIME_PATTERN.test(text))) {
+		// JavaScript rolls a day or hour that does not exist over into the next one, so the text itself must name an existing one.
+		if (!date || Number.isNaN(date.getTime()) || (text !== undefined && (!DATE_TIME_PATTERN.test(text) || !IsCalendarDateTime(text)))) {
 			return `${property} must be a valid ISO 8601 date-time`;
 		}
 

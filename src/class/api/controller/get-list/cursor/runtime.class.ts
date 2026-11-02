@@ -20,6 +20,7 @@ import { BadRequestException } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { IsCalendarDateTime } from "@utility/is/calendar-date-time.utility";
 import { Equal, LessThan, MoreThan } from "typeorm";
 
 const CURSOR_CONTEXT_HASH_PATTERN: RegExp = /^[\da-f]{64}$/u;
@@ -293,13 +294,9 @@ export class ApiControllerGetListCursorRuntime {
 			return value;
 		}
 
-		if (field.type === EApiPropertyDescribeType.DATE && "format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE_TIME && typeof value === "string" && API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN.test(value)) {
-			const date: Date = new Date(value);
-
-			// The seek binds this UTC string: pg serializes a Date through a local offset truncated to whole minutes.
-			if (!Number.isNaN(date.getTime()) && date.toISOString() === value) {
-				return value;
-			}
+		// The seek binds this UTC string: pg serializes a Date through a local offset truncated to whole minutes.
+		if (field.type === EApiPropertyDescribeType.DATE && "format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE_TIME && typeof value === "string" && API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN.test(value) && IsCalendarDateTime(value)) {
+			return value;
 		}
 
 		throw new BadRequestException("CURSOR_NOT_VALID");

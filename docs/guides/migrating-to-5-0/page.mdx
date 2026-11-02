@@ -171,6 +171,7 @@ Every generated `CREATE` runs in one transaction with its checks. Read [Authoriz
 - Work on another `DataSource` in a subscriber does not roll back with the `CREATE`, so compensate for it yourself. A transaction scope on the same `DataSource` joins the `CREATE` and rolls back with it.
 - `onAfterErrorCreate` runs after the rollback in a transaction a route or a function owns: read through `DATA.repository`, and move work that needs the transaction to `onBeforeErrorCreate`.
 - A `CREATE` that loses a concurrency race answers `409` and leaves no row, so clients can send it again.
+- A date and time primary key in the body that names a day or an hour the calendar does not hold, such as `2026-02-30T00:00:00.000Z`, `2026-04-31T10:00:00+03:00`, `2025-02-29 08:00:00Z` or `2026-01-01T24:00:00Z`, answers `400` with `at must be a valid ISO 8601 date-time` and no SQL runs. It used to be stored as the day or hour it rolls over into, such as March 2 for February 30. See [Impossible Calendar Dates](#impossible-calendar-dates).
 
 ## Custom Routes On Securable Controllers
 
@@ -366,6 +367,20 @@ Under a host `ValidationPipe`, a request value of an `@ApiPropertyDate` property
 Type `DATE` and `TIME` properties of request DTOs as `string`, and change custom handlers that call `Date` methods on them. Without a host pipe a generated route does not check the body, as before, and stores the text as sent.
 
 `@ApiPropertyString` with `format: EApiPropertyStringType.DATE` now fails at decoration, on request and response properties, and an entity property described with `@ApiPropertyDescribe({ type: EApiPropertyDescribeType.STRING, format: EApiPropertyStringType.DATE })` fails when a generated DTO is built from it, naming that DTO. It accepted any text `new Date()` could read and turned it into a `Date`. On a DTO use `@ApiPropertyDate` with `EApiPropertyDateType.DATE`, or `DATE_TIME` for an instant. On an entity use `@ApiPropertyDescribe({ type: EApiPropertyDescribeType.DATE, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE })`.
+
+## Impossible Calendar Dates
+
+Every place the library reads date text applies one rule: the text must name a day and a time of day that exist. February 30, April 31, February 29 in a common year, month `13`, hour `24`, and minute or second `60` answer `400` before any SQL, with the body of that entry point, instead of rolling over into the next day or month as a JavaScript `Date` would:
+
+| Entry point                                                              | Body                                                                           |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| A date and time primary key in a generated `CREATE` body                 | `message: ["<key> must be a valid ISO 8601 date-time"]`                        |
+| A `DATE` or `DATE_TIME` property of a body under a host `ValidationPipe` | `message: ["<property> must be in <form> format"]`                             |
+| A `DATE` or `DATE_TIME` path value                                       | `message: ["<parameter> must be in <form> format"]`                            |
+| A `GET_LIST` filter value                                                | `FILTER_NOT_VALID`, or the QUERY DTO message on a route without a typed filter |
+| A CURSOR token value                                                     | `CURSOR_NOT_VALID`                                                             |
+
+The day is checked as the text writes it, before an offset moves the instant, so `2026-02-28T23:00:00-05:00` is accepted and names March 1 in UTC. Only the primary key of a `CREATE` body used to roll over; the other entry points already refused such values and now share the check. Without a host pipe a generated route still does not check the other body properties and stores their text as sent. IAM conditions compare text and do not read dates.
 
 ## Path Values
 

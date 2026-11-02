@@ -13,6 +13,7 @@ import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
+import { IsCalendarDateTime } from "@utility/is/calendar-date-time.utility";
 import { NumberParseCanonicalInteger } from "@utility/number";
 
 // A date-time filter value is a calendar date, or a date, a "T" or a space, a time of day, and an optional `Z` or numeric offset with minutes.
@@ -151,22 +152,12 @@ export class ApiControllerGetListQueryRuntime {
 			return false;
 		}
 
-		const [year = 0, month = 0, day = 0]: Array<number> = datePart.split("-").map(Number);
-		const [hour = "00", minute = "00", second = "00"]: Array<string> = timePart === "" ? [] : timePart.slice(1).split(":");
-		// Date.UTC reads years 0 to 99 as 1900 to 1999, so the year is set on its own.
-		const calendar: Date = new Date(0);
-
-		calendar.setUTCFullYear(year, month - 1, day);
-		// Date setters drop the fraction of a second.
-		calendar.setUTCHours(Number(hour), Number(minute), Number(second));
-
-		// A date or time that does not exist rolls over into another one and so does not round-trip.
-		const isCalendarValid: boolean = calendar.toISOString().startsWith(`${datePart}T${hour}:${minute}:${second.slice(0, "SS".length)}`);
+		const year: number = Number(datePart.slice(0, "YYYY".length));
 		// A zone moves the instant itself, which must stay within the same years.
 		const instantYear: number = new Date(value).getUTCFullYear();
 
 		// An offset beyond what JavaScript parses names no instant, and its NaN year fails the range as well.
-		return isCalendarValid && year >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && (zonePart === "" || (instantYear >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && instantYear <= PROPERTY_DATE_DECORATOR_API_CONSTANT.MAXIMUM_YEAR));
+		return IsCalendarDateTime(value) && year >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && (zonePart === "" || (instantYear >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && instantYear <= PROPERTY_DATE_DECORATOR_API_CONSTANT.MAXIMUM_YEAR));
 	}
 
 	private static parseCursor(afterValue: unknown, beforeValue: unknown, pageValue: unknown): { after?: string; before?: string } {
