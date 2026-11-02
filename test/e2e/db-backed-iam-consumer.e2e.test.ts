@@ -406,8 +406,9 @@ class IamConsumerItemController {
 Reflect.defineMetadata(
 	METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
 	{
+		// The resource path names {id}, which this route does not carry, so it must be a list: IAM maps such a placeholder to rows only on a list.
 		resource: {
-			action: "export",
+			action: "list",
 			entity: IamConsumerItemEntity,
 		},
 		route: {
@@ -1015,7 +1016,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 		expect(await listItemIds()).toEqual({ ids: ["iam-item-own"], statusCode: 200 });
 	});
 
-	it("passes Deny exclusions to custom routes through decision.scope", async () => {
+	it("passes Deny exclusions to custom list routes through decision.scope", async () => {
 		await itemService.repository.save([
 			{ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" },
 			{ id: "iam-item-hidden", name: "Hidden Item", operatorId: "operator-1" },
@@ -1023,7 +1024,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 		]);
 		await appendPolicyStatements([
 			{
-				Action: ["admin:item:export"],
+				Action: ["admin:item:list"],
 				Condition: {
 					StringEquals: {
 						"resource.operatorId": "${principal.attributes.operatorId}",
@@ -1033,7 +1034,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 				Resource: ["gameport:admin:item/*"],
 			},
 			{
-				Action: ["admin:item:export"],
+				Action: ["admin:item:list"],
 				Condition: {
 					StringEqualsIfExists: {
 						"resource.id": "iam-item-hidden",

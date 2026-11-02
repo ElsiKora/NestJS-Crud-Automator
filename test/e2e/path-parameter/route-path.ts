@@ -117,6 +117,12 @@ export class E2eRoutePathIdDto {
 	public id!: number;
 }
 
+// Holds the item under the path parameter "itemId", a name the IAM resource path does not use.
+export class E2eRoutePathItemIdDto {
+	@copy("id")
+	public itemId!: number;
+}
+
 export class E2eRoutePathTenantDto {
 	@copy("id")
 	public id!: number;
@@ -174,13 +180,14 @@ function authorization(mode: EApiAuthorizationMode, resourcePath: string): never
  * @param {EApiAuthorizationMode} mode - Authorization mode.
  * @param {new () => unknown} dto - PARAMETERS DTO.
  * @param {new () => unknown} [guard] - Authentication guard.
+ * @param {string} [action] - Route action.
  * @returns {never} The `@ApiRouteCustom` properties.
  */
-function customRoute(path: string, mode: EApiAuthorizationMode, dto: new () => unknown, guard: new () => unknown = E2eRoutePathGuard): never {
+function customRoute(path: string, mode: EApiAuthorizationMode, dto: new () => unknown, guard: new () => unknown = E2eRoutePathGuard, action: string = "read"): never {
 	return {
 		documentation: { description: "Reads an item", summary: "Reads an item" },
 		dto: { [EApiDtoType.PARAMETERS]: dto },
-		resource: { action: "read", entity: E2eRoutePathItemEntity },
+		resource: { action, entity: E2eRoutePathItemEntity },
 		response: { errors: {}, serialization: { isEnabled: false }, status: HttpStatus.OK, type: E2eRoutePathResponseDto },
 		route: { method: RequestMethod.GET, path },
 		security: { authentication: { guard, type: EApiAuthenticationType.USER }, authorization: { mode } },
@@ -322,4 +329,20 @@ export function E2eRoutePathBuildGeneratedController(mode: EApiAuthorizationMode
 	const routes: Record<string, unknown> = { ...(NO_GENERATED_ROUTES as Record<string, unknown>), [EApiRouteType.GET]: { security: { authentication: { guard: E2eRoutePathGuard, type: EApiAuthenticationType.USER } } } };
 
 	return E2eRoutePathSecure({ controller: GeneratedController, mode, name, path: "items", routes: routes as never });
+}
+
+/**
+ * Builds an IAM controller whose route lists items with the `list` action and carries no path parameter, under a resource path with placeholders a list maps to rows.
+ * @param {string} name - Unique controller name.
+ * @returns {new () => unknown} The securable controller.
+ */
+export function E2eRoutePathBuildListController(name: string): new () => unknown {
+	class ListController {
+		@ApiRouteCustom(customRoute("list/all", EApiAuthorizationMode.IAM, E2eRoutePathIdDto, E2eRoutePathGuard, "list"))
+		public list(): Record<string, unknown> {
+			return { label: "listed" };
+		}
+	}
+
+	return E2eRoutePathSecure({ controller: ListController, mode: EApiAuthorizationMode.IAM, name, path: `route-path/${name}`, resourcePath: "route-path/t{tenant}/{id}" });
 }

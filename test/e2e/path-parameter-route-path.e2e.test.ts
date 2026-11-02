@@ -1,6 +1,7 @@
 import "reflect-metadata";
 
 import type { DynamicModule, INestApplication, PipeTransform } from "@nestjs/common";
+import type { GlobalPrefixOptions } from "@nestjs/common/internal";
 import type { Routes } from "@nestjs/core";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { Logger } from "typeorm";
@@ -29,11 +30,13 @@ import {
 	E2E_ROUTE_PATH_UNIT,
 	E2eRoutePathBuildController,
 	E2eRoutePathBuildGeneratedController,
+	E2eRoutePathBuildListController,
 	E2eRoutePathBuildModule,
 	E2eRoutePathBuildPipesController,
 	E2eRoutePathBuildTenantPipeController,
 	E2eRoutePathGuard,
 	E2eRoutePathIdDto,
+	E2eRoutePathItemIdDto,
 	E2eRoutePathInjectingGuard,
 	E2eRoutePathItemEntity,
 	E2eRoutePathItemService,
@@ -94,14 +97,14 @@ class E2eRoutePathTenantValidatorDto {
  * @param {TAdapterName} options.adapterName - HTTP adapter.
  * @param {StartedPostgreSqlContainer} [options.container] - PostgreSQL container, or SQLite when absent.
  * @param {Array<new () => unknown>} [options.controllers] - Controllers of the root module.
- * @param {string} [options.globalPrefix] - Global prefix.
+ * @param {[string, GlobalPrefixOptions] | string} [options.globalPrefix] - Global prefix, with its options.
  * @param {THostPipe} options.hostPipe - Host pipe.
  * @param {Array<new () => unknown>} [options.modules] - Feature modules.
  * @param {RoutePathQueryLogger} [options.logger] - Query logger.
  * @param {Routes} [options.routes] - `RouterModule` routes.
  * @returns {Promise<INestApplication>} The application, not yet initialized.
  */
-async function buildApplication(options: { adapterName: TAdapterName; container?: StartedPostgreSqlContainer; controllers?: Array<new () => unknown>; globalPrefix?: string; hostPipe: THostPipe; logger?: RoutePathQueryLogger; modules?: Array<new () => unknown>; routes?: Routes }): Promise<INestApplication> {
+async function buildApplication(options: { adapterName: TAdapterName; container?: StartedPostgreSqlContainer; controllers?: Array<new () => unknown>; globalPrefix?: [string, GlobalPrefixOptions] | string; hostPipe: THostPipe; logger?: RoutePathQueryLogger; modules?: Array<new () => unknown>; routes?: Routes }): Promise<INestApplication> {
 	const entities: Array<new () => unknown> = [E2eRoutePathItemEntity];
 	const database: Record<string, unknown> = options.container ? { type: "postgres", url: options.container.getConnectionUri() } : { database: ":memory:", type: "better-sqlite3" };
 	const routerModules: Array<DynamicModule> = options.routes ? [RouterModule.register(options.routes)] : [];
@@ -123,12 +126,15 @@ async function buildApplication(options: { adapterName: TAdapterName; container?
 		providers: [E2eRoutePathItemService, E2eRoutePathGuard, E2eRoutePathInjectingGuard, E2eRoutePathPolicy],
 	}).compile();
 	const app: INestApplication = moduleReference.createNestApplication(options.adapterName === "Express" ? new ExpressAdapter() : new FastifyAdapter(), { logger: false });
-	const pipes: Record<THostPipe, Array<PipeTransform>> = { none: [], transform: [new ValidationPipe({ transform: true })], validate: [new ValidationPipe()] };
+	// Each pipe is created only when used: creating a ValidationPipe resets the class-transformer and class-validator Nest shares among every ValidationPipe.
+	const pipes: Record<THostPipe, () => Array<PipeTransform>> = { none: () => [], transform: () => [new ValidationPipe({ transform: true })], validate: () => [new ValidationPipe()] };
 
-	app.useGlobalPipes(...pipes[options.hostPipe]);
+	app.useGlobalPipes(...pipes[options.hostPipe]());
 
 	if (options.globalPrefix) {
-		app.setGlobalPrefix(options.globalPrefix);
+		const [prefix, prefixOptions]: [string, GlobalPrefixOptions | undefined] = typeof options.globalPrefix === "string" ? [options.globalPrefix, undefined] : options.globalPrefix;
+
+		app.setGlobalPrefix(prefix, prefixOptions);
 	}
 
 	return app;
@@ -306,7 +312,7 @@ describe.each([
 
 interface IRefusedCase {
 	adapters?: Array<TAdapterName>;
-	build: (mode: EApiAuthorizationMode, adapterName: TAdapterName, name: string) => { controllers?: Array<new () => unknown>; globalPrefix?: string; modules?: Array<new () => unknown>; routes?: Routes };
+	build: (mode: EApiAuthorizationMode, adapterName: TAdapterName, name: string) => { controllers?: Array<new () => unknown>; globalPrefix?: [string, GlobalPrefixOptions] | string; modules?: Array<new () => unknown>; routes?: Routes };
 	message: (name: string) => string;
 	modes?: Array<EApiAuthorizationMode>;
 	name: string;
@@ -397,6 +403,35 @@ const REFUSED: Array<IRefusedCase> = [
 		modes: [EApiAuthorizationMode.IAM],
 		name: "an IAM resourcePath placeholder from a RouterModule path that is not copied from a column",
 	},
+	{
+		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildController({ dto: E2eRoutePathItemIdDto, mode, name, path: `route-path/${name}`, resourcePath: "route-path/{id}", routePath: "items/:itemId" })] }),
+		message: (name: string): string => `Controller "${name}" method "read" names "{id}" in its IAM resourcePath, which is not a path parameter of the route, and a route that does not list renders it as "*"`,
+		modes: [EApiAuthorizationMode.IAM],
+		name: "an IAM route that does not list and reads the row under another parameter than its resourcePath placeholder",
+	},
+	{
+		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildController({ dto: E2eRoutePathIdDto, mode, name, path: `route-path/${name}`, resourcePath: "route-path/t{tenant}/{id}" })] }),
+		message: (name: string): string => `Controller "${name}" method "read" names "{tenant}" in its IAM resourcePath, which is not a path parameter of the route`,
+		modes: [EApiAuthorizationMode.IAM],
+		name: "an IAM route that does not list and lacks a resourcePath placeholder in its path",
+	},
+	{
+		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildPipesController(mode, name, "method", [new ValidationPipe({ expectedType: E2eRoutePathValidatorDto, transform: true })])] }),
+		message: (name: string): string => `Controller "${name}" method "read" runs ValidationPipe from @UsePipes on the method with expectedType`,
+		name: "a ValidationPipe with expectedType in @UsePipes",
+	},
+	{
+		// The fake class-transformer skips every @Transform; Nest keeps it for every ValidationPipe until another one is created.
+		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildPipesController(mode, name, "method", [new ValidationPipe({ transform: true, transformerPackage: { classToPlain: (value: unknown): unknown => value, plainToInstance: (type: new () => object, plain: object): object => Object.assign(new type(), plain) } as never })])] }),
+		message: (name: string): string => `Controller "${name}" method "read" runs ValidationPipe from @UsePipes on the method with another class-transformer or class-validator`,
+		name: "a ValidationPipe with another class-transformer in @UsePipes",
+	},
+	{
+		// The fake class-validator accepts every value.
+		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildPipesController(mode, name, "controller", [new ValidationPipe({ validatorPackage: { validate: async (): Promise<Array<never>> => await Promise.resolve([]) } as never })])] }),
+		message: (name: string): string => `Controller "${name}" method "read" runs ValidationPipe from @UsePipes on the controller with another class-transformer or class-validator`,
+		name: "a ValidationPipe with another class-validator in @UsePipes",
+	},
 ];
 
 describe.each<TAdapterName>(["Fastify", "Express"])("a securable route that could give a policy a path value no rule checked, through %s (E2E)", (adapterName: TAdapterName) => {
@@ -410,6 +445,8 @@ describe.each<TAdapterName>(["Fastify", "Express"])("a securable route that coul
 			await expect(app.init()).rejects.toThrow(refusedCase.message(name));
 			// The HTTP server never listened, so closing it can only fail; the module is closed by the failed start.
 			await app.close().catch((): undefined => undefined);
+			// A ValidationPipe created without packages puts the real class-transformer and class-validator back for every ValidationPipe of the process.
+			expect(new ValidationPipe()).toBeInstanceOf(ValidationPipe);
 		});
 
 		it.each(["a ValidationPipe class", "a ValidationPipe instance"])("starts with %s in @UsePipes", async (pipeName: string) => {
@@ -419,5 +456,71 @@ describe.each<TAdapterName>(["Fastify", "Express"])("a securable route that coul
 			await expect(app.init()).resolves.toBe(app);
 			await app.close();
 		});
+	});
+});
+
+describe.each<TAdapterName>(["Fastify", "Express"])("a securable route whose path parameters are read from the paths Nest serves, through %s (E2E)", (adapterName: TAdapterName) => {
+	const logger: RoutePathQueryLogger = new RoutePathQueryLogger();
+	const applications: Array<INestApplication> = [];
+
+	/**
+	 * Starts an application on a free port.
+	 * @param {INestApplication} app - Application.
+	 * @returns {Promise<string>} Its base URL.
+	 */
+	const listen = async (app: INestApplication): Promise<string> => {
+		applications.push(app);
+		await app.init();
+		await app.get(E2eRoutePathItemService).repository.save([{ id: E2E_ROUTE_PATH_ITEM, label: "one", tenant: E2E_ROUTE_PATH_ALLOWED_TENANT, unit: E2E_ROUTE_PATH_UNIT }]);
+		await app.listen(0, "127.0.0.1");
+
+		return (await app.getUrl()).replace("[::1]", "127.0.0.1");
+	};
+
+	/**
+	 * Sends a GET and reads the status and the SQL it sent.
+	 * @param {string} url - Full URL.
+	 * @returns {Promise<{ queries: Array<string>; status: number }>} Status and SQL.
+	 */
+	const read = async (url: string): Promise<{ queries: Array<string>; status: number }> => {
+		const queryCount: number = logger.queries.length;
+		const response: Response = await fetch(url);
+		await response.text();
+
+		return { queries: logger.queries.slice(queryCount), status: response.status };
+	};
+
+	afterAll(async () => {
+		for (const app of applications) {
+			await app.close();
+		}
+	});
+
+	describe.each(MODES)("on $mode", ({ mode, segment }: { mode: EApiAuthorizationMode; segment: string }) => {
+		it("reads no parameter from escaped text in the route path", async () => {
+			const name: string = `E2eRoutePathEscaped${adapterName}${segment}`;
+			const [routePath, sentPath]: [string, string] = adapterName === "Fastify" ? ["items/a::b/:id", "items/a:b"] : ["items/\\:x/:id", "items/:x"];
+			const base: string = await listen(await buildApplication({ adapterName, controllers: [E2eRoutePathBuildController({ dto: E2eRoutePathIdDto, mode, name, path: `route-path/${name}`, routePath })], hostPipe: "none", logger }));
+
+			expect((await read(`${base}/route-path/${name}/${sentPath}/${ITEM}`)).status).toBe(HttpStatus.OK);
+			expect(await read(`${base}/route-path/${name}/${sentPath}/0${ITEM}`)).toEqual({ queries: [], status: HttpStatus.BAD_REQUEST });
+		});
+
+		it("reads no global prefix parameter on a route setGlobalPrefix excludes", async () => {
+			const name: string = `E2eRoutePathExcluded${adapterName}${segment}`;
+			const controllers: Array<new () => unknown> = [E2eRoutePathBuildController({ dto: E2eRoutePathIdDto, mode, name, path: `route-path/${name}` }), E2eRoutePathBuildController({ dto: E2eRoutePathIdDto, mode, name: `${name}Health`, path: `route-path/${name}-health`, resourcePath: "route-path/health", routePath: "health" })];
+			const base: string = await listen(await buildApplication({ adapterName, controllers, globalPrefix: ["orgs/:org", { exclude: [`route-path/${name}/{*rest}`, `route-path/${name}-health/health`] }], hostPipe: "none", logger }));
+
+			expect((await read(`${base}/route-path/${name}/items/${ITEM}`)).status).toBe(HttpStatus.OK);
+			expect(await read(`${base}/route-path/${name}/items/0${ITEM}`)).toEqual({ queries: [], status: HttpStatus.BAD_REQUEST });
+		});
+	});
+
+	it("keeps a resourcePath placeholder a list route does not carry, and maps a Deny on it to the rows of the list", async () => {
+		const name: string = `E2eRoutePathList${adapterName}`;
+		const base: string = await listen(await buildApplication({ adapterName, controllers: [E2eRoutePathBuildListController(name)], hostPipe: "none", logger }));
+
+		// The Deny names tenant 16, which the resource definition has no field for, so the whole list is denied.
+		expect(await read(`${base}/route-path/${name}/list/all`)).toEqual({ queries: [], status: HttpStatus.FORBIDDEN });
 	});
 });

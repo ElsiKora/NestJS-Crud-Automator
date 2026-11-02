@@ -139,7 +139,8 @@ function buildServedController(mode: EApiAuthorizationMode): new () => unknown {
 		@Inject(E2ePathParameterHandlerItemService)
 		public readonly service!: E2ePathParameterHandlerItemService;
 
-		@ApiRouteCustom(customRoute("code/:code", mode, E2ePathParameterHandlerCodeDto))
+		// The IAM resource path names {id}, which this route does not carry, so the route is authorized by the HOOKS policy in both controllers.
+		@ApiRouteCustom(customRoute("code/:code", EApiAuthorizationMode.HOOKS, E2ePathParameterHandlerCodeDto))
 		public async readCode(@Param("code") code: string): Promise<Record<string, unknown>> {
 			const row: E2ePathParameterHandlerItemEntity | null = await this.service.repository.findOneBy({ code });
 

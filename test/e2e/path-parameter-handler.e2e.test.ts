@@ -199,9 +199,7 @@ describe.each([
 
 				expect(allowed).toMatchObject({ body: { code: E2E_PATH_PARAMETER_HANDLER_ALLOWED_CODE, label: "one" }, status: HttpStatus.OK });
 
-				if (mode === EApiAuthorizationMode.HOOKS) {
-					expect(denied.status).toBe(HttpStatus.FORBIDDEN);
-				}
+				expect(denied.status).toBe(HttpStatus.FORBIDDEN);
 			});
 
 			it("gives a @Param() typed as the PARAMETERS DTO the value it checked", async () => {
