@@ -99,9 +99,9 @@ describe.each([
 			fastify = app.getHttpAdapter().getInstance();
 
 			await app.get(E2eLegacyQueryItemService).repository.save([
-				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), isFeatured: true, label: "Alpha", note: "Noted", opensAt: "08:00:00", rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
-				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), isFeatured: false, label: "Beta", opensAt: "12:30:00", rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
-				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), isFeatured: false, label: "Gamma", opensAt: "18:45:00", rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
+				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), exposeHidden: 3, queryDisabled: 3, responseHidden: 2, isFeatured: true, label: "Alpha", note: "Noted", opensAt: "08:00:00", rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
+				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), exposeHidden: 1, queryDisabled: 1, responseHidden: 3, isFeatured: false, label: "Beta", opensAt: "12:30:00", rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
+				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), exposeHidden: 2, queryDisabled: 2, responseHidden: 1, isFeatured: false, label: "Gamma", opensAt: "18:45:00", rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
 			] as Array<E2eLegacyQueryItemEntity>);
 		});
 

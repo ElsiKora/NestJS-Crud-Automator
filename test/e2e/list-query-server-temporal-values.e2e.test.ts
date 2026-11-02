@@ -163,17 +163,22 @@ describe.each([
 
 	describe("a typed defaultCondition", () => {
 		it.each(TIMEZONES)("filters by a Date and by a UTC instant string as the same instant in a %s process", async (timezone: string) => {
-			const app: INestApplication = await createApp(fixture, [fixture.createDefaultConditionController(new Date(MIDDLE), "date-default"), fixture.createDefaultConditionController(MIDDLE, "instant-default")], container);
+			// A schema prefix names one controller class per application, so each value gets its own application.
+			for (const [value, path] of [
+				[new Date(MIDDLE), "date-default"],
+				[MIDDLE, "instant-default"],
+			] as Array<[Date | string, string]>) {
+				const app: INestApplication = await createApp(fixture, [fixture.createDefaultConditionController(value, path)], container);
 
-			try {
-				const inject: TInject = getInject(app);
+				try {
+					const inject: TInject = getInject(app);
 
-				await inTimezone(timezone, async () => {
-					await expectLabels(inject, `/server-temporal/date-default?${PAGE}`, AFTER_MIDDLE);
-					await expectLabels(inject, `/server-temporal/instant-default?${PAGE}`, AFTER_MIDDLE);
-				});
-			} finally {
-				await app.close();
+					await inTimezone(timezone, async () => {
+						await expectLabels(inject, `/server-temporal/${path}?${PAGE}`, AFTER_MIDDLE);
+					});
+				} finally {
+					await app.close();
+				}
 			}
 		});
 
