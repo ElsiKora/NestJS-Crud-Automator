@@ -197,9 +197,11 @@ The route compares the body with the path itself, whatever pipe runs. It reads t
 
 - A bound field in the body, directly or through the relation it joins, must equal the path value on CREATE, PATCH and PUT.
 - A key column in a PATCH or PUT body must equal its row parameter. A key column the path leaves out, through `rowPath`, cannot appear in the body at all.
-- Only a scalar names a value: an array, an object or `null` in place of one answers `400`.
+- Only the string the path would carry names a value: a date and time in its canonical UTC millisecond form, such as `2026-01-01T00:00:00.002Z`, and anything else as the path spells it. A number, an epoch, another offset or extra fraction digits, an array, an object or `null` answers `400`.
 
-A differing value answers `400 INVALID_PARAMETERS` before any change and is not echoed.
+A differing value answers `400 INVALID_PARAMETERS` before any change and is not echoed. A matching value leaves the written body, with the relation that joins it, because the path already names it: a key the save read from the body would insert another row.
+
+The response of CREATE reloads the row by every key column, and a date and time key the body spelled as a string is read as an instant first, so the reload finds the stored value on every driver.
 
 A `request[PARAMETERS]` transformer runs before the binding is read, so a transformer on a bound field overrides the value of the path for every query and write of that request.
 

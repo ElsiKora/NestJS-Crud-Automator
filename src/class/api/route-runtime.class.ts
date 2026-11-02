@@ -246,6 +246,7 @@ export class ApiRouteRuntime {
 	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
 	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all.
 	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
+	 * Once the body matches, every field the path addresses leaves the written body, with the relation that joins it: the path names them, and a key the save reads from the body would make it insert another row.
 	 * @template E - Entity type owned by the route.
 	 * @template R - Generated route type.
 	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
@@ -286,6 +287,22 @@ export class ApiRouteRuntime {
 							throw new BadRequestException("PARAMETERS_NOT_VALID");
 						}
 					}
+				}
+			}
+		}
+
+		if (!targets.body) {
+			return;
+		}
+
+		const writtenBody: Record<string, unknown> = targets.body as Record<string, unknown>;
+
+		for (const field of Object.keys(pathValues)) {
+			Reflect.deleteProperty(writtenBody, field);
+
+			for (const relation of relations) {
+				if (relation.joinColumns.some((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field)) {
+					Reflect.deleteProperty(writtenBody, relation.propertyName);
 				}
 			}
 		}
@@ -855,6 +872,19 @@ export class ApiRouteRuntime {
 	}
 
 	/**
+	 * Tells whether a column stores a date and time.
+	 * @param {Repository<IApiBaseEntity>} repository - Repository of the entity.
+	 * @param {string} field - Property name of the column.
+	 * @returns {boolean} Whether the column stores a date and time.
+	 */
+	private static isDateTimeColumn(repository: Repository<IApiBaseEntity>, field: string): boolean {
+		const column: TTypeOrmColumnMetadata | undefined = repository.metadata.findColumnWithPropertyPath(field);
+		const columnType: string | undefined = column ? repository.manager.dataSource.driver.normalizeType(column) : undefined;
+
+		return columnType !== undefined && (DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType));
+	}
+
+	/**
 	 * Tells whether a JavaScript `Date` reproduces every value a column of the entity stores.
 	 * @param {Repository<IApiBaseEntity>} repository - Repository of the entity.
 	 * @param {string} field - Property name of the column.
@@ -867,17 +897,13 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Compares a body value with the value its path parameter binds. Only a scalar can name the value, so an array or an object never does.
+	 * Compares a body value with the value its path parameter binds. Only the string the path itself would carry names that value: a date and time in its canonical UTC millisecond form, anything else as written.
 	 * @param {unknown} value - Value the request body carries.
 	 * @param {unknown} pathValue - Value the request path binds.
 	 * @returns {boolean} Whether both name the same value.
 	 */
 	private static isSamePathValue(value: unknown, pathValue: unknown): boolean {
-		if (pathValue instanceof Date) {
-			return (typeof value === "string" || typeof value === "number" || value instanceof Date) && new Date(value).getTime() === pathValue.getTime();
-		}
-
-		return (typeof value === "string" || typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") && String(value) === String(pathValue);
+		return typeof value === "string" && value === (pathValue instanceof Date ? pathValue.toISOString() : String(pathValue));
 	}
 
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {
@@ -1067,10 +1093,7 @@ export class ApiRouteRuntime {
 
 		if (repository instanceof Repository) {
 			for (const mapping of mappings) {
-				const column: TTypeOrmColumnMetadata | undefined = repository.metadata.findColumnWithPropertyPath(mapping.field);
-				const columnType: string | undefined = column ? repository.manager.dataSource.driver.normalizeType(column) : undefined;
-
-				if (columnType && (DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType))) {
+				if (this.isDateTimeColumn(repository as Repository<IApiBaseEntity>, mapping.field)) {
 					instantFields.add(mapping.field);
 				}
 			}

@@ -476,7 +476,7 @@ A `timestamptz` key column with a precision above 3, an unset precision, another
 
 **A bound field leaves the generated body.** CREATE takes the value from the path. A body naming the bound field is refused by a `ValidationPipe` with `forbidNonWhitelisted`; with any other pipe or none, a different value answers `400` and an equal one passes.
 
-**A key column in a PATCH or PUT body must equal the path.** Before 5.0.0, a body such as `{ "id": "I2" }` on `PATCH /parent/P1/item/I1` moved the row `I2` of another parent into `P1`, and a composite key column in the body inserted a duplicate row. Now a differing key value, or a key column the path leaves out, answers `400` with nothing changed, whatever pipe runs.
+**A key column in a PATCH or PUT body must equal the path.** Before 5.0.0, a body such as `{ "id": "I2" }` on `PATCH /parent/P1/item/I1` moved the row `I2` of another parent into `P1`, and a composite key column in the body inserted a duplicate row. Now a differing key value, or a key column the path leaves out, answers `400` with nothing changed, whatever pipe runs. A key or bound value in the body must be the string the path carries, a date and time in its canonical UTC millisecond form, so a number such as `{ "id": 5 }` on `/item/5` or an epoch for a date key also answers `400`.
 
 **Names.** The PARAMETERS DTO of a bound route is `<Prefix><Route>ParametersDTO`, without a signature. `IApiControllerPropertiesRouteBaseRead`, `IApiControllerPropertiesRouteReadScope`, `IApiControllerPropertiesRouteReadScopeParameter` and `TApiControllerReadDirectScalarField` are replaced by `IApiControllerPropertiesPathScope`, `IApiControllerPropertiesPathScopeParameter` and `TApiControllerPathDirectScalarField`.
 

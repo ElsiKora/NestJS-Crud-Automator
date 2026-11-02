@@ -152,6 +152,49 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 			});
 		});
 
+		describe("a date and time key column in the body on a full composite path", () => {
+			const STORED: string = "2026-01-01T00:00:00.002Z";
+			const PATH: string = `/reading/s1/${STORED}`;
+			const literal = (instant: string): string => (driver === "postgres" ? instant : instant.replace("T", " ").replace("Z", ""));
+
+			beforeEach(async () => {
+				await dataSource.query("DELETE FROM row_path_key_readings");
+				await dataSource.query(`INSERT INTO row_path_key_readings ("sensorId", "recordedAt", "name", "siteId") VALUES ('s1', '${literal(STORED)}', 'own', NULL), ('s1', '${literal("2026-01-01T00:00:00.003Z")}', 'next', NULL)`);
+			});
+
+			const names = async (): Promise<Array<unknown>> => (await rows("row_path_key_readings", `"recordedAt"`)).map((row: Record<string, unknown>) => row.name);
+
+			it.each([
+				["PATCH", { name: "epoch", recordedAt: Date.parse(STORED) }],
+				["PUT", { name: "epoch", recordedAt: Date.parse(STORED) }],
+				["PATCH", { name: "offset", recordedAt: "2026-01-01T03:00:00.002+03:00" }],
+				["PUT", { name: "offset", recordedAt: "2026-01-01T03:00:00.002+03:00" }],
+				["PATCH", { name: "finer", recordedAt: "2026-01-01T00:00:00.0026Z" }],
+				["PUT", { name: "finer", recordedAt: "2026-01-01T00:00:00.002999Z" }],
+				["PATCH", { name: "padded", recordedAt: "2026-01-01T00:00:00.0020Z" }],
+				["PATCH", { name: "number", sensorId: 1 }],
+			])("%s with %j answers 400 and neither changes nor adds a row", async (method: string, payload: object) => {
+				expect((await send(method, PATH, payload)).statusCode).toBe(400);
+				expect(await names()).toEqual(["own", "next"]);
+			});
+
+			it.each([["PATCH"], ["PUT"]])("%s with the key the path names writes the addressed row and adds none", async (method: string) => {
+				const response: TResponse = await send(method, PATH, { name: "same", recordedAt: STORED, sensorId: "s1" });
+
+				expect(response.statusCode).toBe(equalKeyStatus);
+				expect(await names()).toEqual(pipe === "forbid" ? ["own", "next"] : ["same", "next"]);
+			});
+
+			// The generated create body leaves the key columns out, so a whitelisting pipe drops or refuses them before the route.
+			it.runIf(pipe === "none" || pipe === "transform")("CREATE with a key instant the body spells answers the created row", async () => {
+				const response: TResponse = await send("POST", "/reading", { name: "created", recordedAt: "2026-03-01T00:00:00.123Z", sensorId: "s2" });
+
+				expect(response.statusCode).toBe(201);
+				expect(response.json()).toMatchObject({ name: "created", recordedAt: "2026-03-01T00:00:00.123Z", sensorId: "s2" });
+				expect(await names()).toEqual(["own", "next", "created"]);
+			});
+		});
+
 		describe.runIf(pipe === "none")("the reload of a written row by its full key", () => {
 			const EARLIER: string = "2026-01-01T00:00:00.001Z";
 			const LATER: string = "2026-01-01T00:00:00.002Z";
