@@ -116,6 +116,22 @@ describe.each(DECORATORS)("%s and @Expose", (_name: string, factory: TDecoratorF
 			expect(plainToInstance(Dto, { value }, { excludeExtraneousValues: true }).value).toBeUndefined();
 		});
 
+		it.each(ORDERS)("reads only the exposed name, also with exposeUnsetFields off, with %s", (_order: string, isExplicitFirst: boolean) => {
+			const decorators: Array<PropertyDecorator> = [apiProperty(modeOptions), Expose({ name: "wire" })];
+			let Dto: (new () => TDtoInstance) | undefined;
+
+			runWithDeferredDecorators(() => {
+				Dto = buildDto(isExplicitFirst ? decorators.toReversed() : decorators);
+			});
+
+			if (!Dto) {
+				throw new Error("The DTO was not built");
+			}
+
+			expect(plainToInstance(Dto, { value }, { exposeUnsetFields: false }).value).toBeUndefined();
+			expect(plainToInstance(Dto, { value, wire: value }, { exposeUnsetFields: false }).value).toBeDefined();
+		});
+
 		it.each(ORDERS)("keeps every other option with %s", (_order: string, isExplicitFirst: boolean) => {
 			const decorators: Array<PropertyDecorator> = [apiProperty(modeOptions), Expose({ groups: ["admin"] })];
 			const Dto: new () => TDtoInstance = buildDto(isExplicitFirst ? decorators.toReversed() : decorators);
