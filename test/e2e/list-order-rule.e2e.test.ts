@@ -12,7 +12,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eListOrderRuleItemController, E2eListOrderRuleItemEntity, E2eListOrderRuleItemService, E2eListOrderRuleTypedItemController } from "./list-order-rule";
+import { E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleItemController, E2eListOrderRuleItemEntity, E2eListOrderRuleItemService, E2eListOrderRuleManualItemController, E2eListOrderRuleTypedItemController } from "./list-order-rule";
 
 class ListOrderRuleLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -42,6 +42,8 @@ interface IHostPipeCase {
 const PAGE: string = "limit=10&page=1";
 const ITEMS: string = "/list-order-rule/items";
 const TYPED_ITEMS: string = "/list-order-rule/typed-items";
+const MANUAL_ITEMS: string = "/list-order-rule/manual-items";
+const DEFAULT_DIRECTION_ITEMS: string = "/list-order-rule/default-direction-items";
 
 describe.each([
 	{ databaseName: "SQLite", isPostgres: false },
@@ -68,7 +70,7 @@ describe.each([
 			const entities: Array<new () => unknown> = [E2eListOrderRuleItemEntity];
 			const connection = { dropSchema: true, entities, logger: queryLogger, logging: true, synchronize: true } as const;
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eListOrderRuleItemController, E2eListOrderRuleTypedItemController],
+				controllers: [E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRuleTypedItemController],
 				imports: [TypeOrmModule.forRoot(container ? { ...connection, type: "postgres", url: container.getConnectionUri() } : { ...connection, database: ":memory:", type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListOrderRuleItemService],
 			}).compile();
@@ -115,6 +117,15 @@ describe.each([
 			expect(await listLabels(`${path}?${PAGE}&orderBy=rank&orderDirection=asc`)).toEqual(["Beta", "Alpha", "Gamma"]);
 			await expectRejected(`${path}?${PAGE}&orderBy=rank&orderDirection=ASC`);
 			await expectRejected(`${path}?${PAGE}&orderBy=rank&orderDirection=Desc`);
+		});
+
+		it.each([ITEMS, TYPED_ITEMS, MANUAL_ITEMS])("rejects a one-sided order on %s", async (path: string) => {
+			expect(await expectRejected(`${path}?${PAGE}&orderBy=rank`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${path}?${PAGE}&orderDirection=asc`)).toContain("INVALID_ORDER");
+		});
+
+		it("completes a one-sided order from a manual QUERY DTO class default", async () => {
+			expect(await listLabels(`${DEFAULT_DIRECTION_ITEMS}?${PAGE}&orderBy=rank`)).toEqual(["Gamma", "Alpha", "Beta"]);
 		});
 	});
 });
