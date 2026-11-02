@@ -2,6 +2,7 @@ import type { IApiControllerGetListQueryAst, IApiControllerGetListQueryAstNode, 
 import type { TApiFunctionGetListPropertiesWhere } from "@type/decorator/api/function";
 import type { FindOperator } from "typeorm";
 
+import { DATE_TIME_TEXT_CONSTANT } from "@constant/date-time-text.constant";
 import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
@@ -18,7 +19,6 @@ import { NumberParseCanonicalInteger } from "@utility/number";
 const DATE_VALUE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
 const DATE_VALUE_LENGTH: number = "YYYY-MM-DD".length;
 const TIME_VALUE_PATTERN: RegExp = /^[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?$/iu;
-const ZONE_VALUE_PATTERN: RegExp = /(?:Z|[+-]\d{2}:?\d{2})$/iu;
 
 export class ApiControllerGetListQueryRuntime {
 	/**
@@ -144,7 +144,7 @@ export class ApiControllerGetListQueryRuntime {
 	 */
 	private static isDateTimeFilterValue(value: string, isInstant: boolean): boolean {
 		const datePart: string = value.slice(0, DATE_VALUE_LENGTH);
-		const zonePart: string = ZONE_VALUE_PATTERN.exec(value.slice(DATE_VALUE_LENGTH))?.[0] ?? "";
+		const zonePart: string = DATE_TIME_TEXT_CONSTANT.ZONE_PATTERN.exec(value.slice(DATE_VALUE_LENGTH))?.[0] ?? "";
 		const timePart: string = value.slice(DATE_VALUE_LENGTH, value.length - zonePart.length);
 
 		if (!DATE_VALUE_PATTERN.test(datePart) || (timePart === "" ? zonePart !== "" : !TIME_VALUE_PATTERN.test(timePart)) || (isInstant && timePart !== "" && zonePart === "")) {

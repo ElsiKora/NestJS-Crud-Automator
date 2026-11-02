@@ -3,8 +3,10 @@ import type { IApiEntityColumn } from "@interface/entity";
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { FindOptionsWhere, Repository } from "typeorm";
 
+import { ApiControllerGeneratedCreateTemporalKeyContract } from "@class/api/controller/generated/create-temporal-key-contract.class";
 import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
-import { ApiControllerGeneratedTemporalParameterContract } from "@class/api/controller/generated/temporal-parameter-contract.class";
+import { ApiFunctionBoundOperator } from "@class/api/function/bound-operator.class";
+import { DatabaseTypeOrmBindInstant } from "@utility/database/typeorm/bind/instant.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { And, LessThan, MoreThanOrEqual } from "typeorm";
 
@@ -39,6 +41,7 @@ export class ApiControllerGeneratedCreateIdentityContract {
 	/**
 	 * Builds reload criteria from captured primary column values and confirms that they match exactly one stored row, which is then the created one.
 	 * A date and time column matches its whole millisecond, because the database may store a finer precision than the driver reads back.
+	 * A transformed date and time column matches its stored value, because each end of that range would go through the transformer on its own.
 	 * @template E The entity type
 	 * @param {Repository<E> | undefined} repository - Repository bound to the active transaction, if any.
 	 * @param {Partial<Record<keyof E, unknown>>} values - Values from {@link ApiControllerGeneratedCreateIdentityContract.capture}.
@@ -57,7 +60,7 @@ export class ApiControllerGeneratedCreateIdentityContract {
 
 		for (const key of Object.keys(values) as Array<keyof E>) {
 			const column: TTypeOrmColumnMetadata | undefined = repository.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => primaryColumn.propertyName === key);
-			identity[key] = column ? this.createCondition(column, values[key], repository.manager.dataSource.driver.normalizeType(column)) : values[key];
+			identity[key] = column ? this.createCondition(column, values[key], repository.manager.dataSource.driver.normalizeType(column), repository.manager.dataSource.options.type) : values[key];
 		}
 
 		const rows: Array<E> = await repository.find({
@@ -74,9 +77,14 @@ export class ApiControllerGeneratedCreateIdentityContract {
 		return identity as FindOptionsWhere<E>;
 	}
 
-	private static createCondition(column: TTypeOrmColumnMetadata, value: unknown, columnType: string): unknown {
-		if (!ApiControllerGeneratedTemporalParameterContract.isDateTime(columnType)) {
+	private static createCondition(column: TTypeOrmColumnMetadata, value: unknown, columnType: string, driverType: string): unknown {
+		if (!ApiControllerGeneratedCreateTemporalKeyContract.isDateTime(columnType)) {
 			return value;
+		}
+
+		// A bound operator keeps TypeORM from running the column transformer again, or over the operators of the range.
+		if (column.transformer) {
+			return new ApiFunctionBoundOperator<unknown>(DatabaseTypeOrmBindInstant(value, columnType, driverType, column.transformer), column.transformer);
 		}
 
 		// A create function may report its key as text, while the column stores a parsed date.
@@ -86,6 +94,10 @@ export class ApiControllerGeneratedCreateIdentityContract {
 			throw ErrorException(`Generated create result holds an invalid date in primary column ${column.propertyName}`);
 		}
 
-		return And(MoreThanOrEqual(ApiControllerGeneratedTemporalParameterContract.bind(date, columnType)), LessThan(ApiControllerGeneratedTemporalParameterContract.bind(new Date(date.getTime() + 1), columnType)));
+		const lower: unknown = DatabaseTypeOrmBindInstant(date, columnType, driverType);
+		const upper: unknown = DatabaseTypeOrmBindInstant(new Date(date.getTime() + 1), columnType, driverType);
+		const range: Array<ApiFunctionBoundOperator<unknown>> = [new ApiFunctionBoundOperator<unknown>(lower, undefined, MoreThanOrEqual(lower)), new ApiFunctionBoundOperator<unknown>(upper, undefined, LessThan(upper))];
+
+		return new ApiFunctionBoundOperator<unknown>(range, undefined, And(...range));
 	}
 }

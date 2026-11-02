@@ -3,7 +3,10 @@ import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { Driver, Repository } from "typeorm";
 
 import { ApiControllerGeneratedTemporalBodySource } from "@class/api/controller/generated/temporal-body-source.class";
-import { ApiControllerGeneratedTemporalParameterContract } from "@class/api/controller/generated/temporal-parameter-contract.class";
+import { ApiControllerGeneratedUtcDate } from "@class/api/controller/generated/utc-date.class";
+import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
+import { DATABASE_DRIVER_TYPE_CONSTANT } from "@constant/database-driver-type.constant";
+import { DATE_TIME_TEXT_CONSTANT } from "@constant/date-time-text.constant";
 import { BadRequestException } from "@nestjs/common";
 import { ErrorException } from "@utility/error/exception.utility";
 
@@ -15,9 +18,6 @@ const DATE_TIME_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
 
 // Digits of the fraction of a second.
 const FRACTION_PATTERN: RegExp = /\.(\d+)/;
-
-// Trailing zone designator or offset.
-const ZONE_PATTERN: RegExp = /(?:Z|[+-]\d{2}(?::?\d{2})?)$/i;
 
 // Fraction digits past the precision a column stores, which must all be zeros.
 const ZERO_DIGITS_PATTERN: RegExp = /^0*$/;
@@ -41,7 +41,7 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 	 * @throws {Error} When a date and time primary key meets an unsupported driver.
 	 */
 	public static assertDriver<E extends IApiBaseEntity>(repository: Repository<E> | undefined): void {
-		const column: TTypeOrmColumnMetadata | undefined = repository?.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => ApiControllerGeneratedTemporalParameterContract.isDateTime(repository.manager.dataSource.driver.normalizeType(primaryColumn)));
+		const column: TTypeOrmColumnMetadata | undefined = repository?.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => this.isDateTime(repository.manager.dataSource.driver.normalizeType(primaryColumn)));
 
 		if (repository && column && !SUPPORTED_DRIVER_TYPES.has(repository.manager.dataSource.options.type)) {
 			throw ErrorException(`Generated create of ${repository.metadata.name} cannot identify its date and time primary column ${column.propertyName} on the ${repository.manager.dataSource.options.type} driver; supported drivers are ${[...SUPPORTED_DRIVER_TYPES].join(", ")}`);
@@ -49,7 +49,16 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 	}
 
 	/**
-	 * Replaces each date and time primary key value of the body with its parsed value, bound by its column type.
+	 * Tells whether a column stores a date and a time, with or without a zone.
+	 * @param {string} columnType - Column type as the driver normalizes it.
+	 * @returns {boolean} True for timestamp, datetime, and timestamptz columns.
+	 */
+	public static isDateTime(columnType: string): boolean {
+		return DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
+	}
+
+	/**
+	 * Replaces each date and time primary key value of the body with its parsed Date.
 	 * @template E The entity type
 	 * @param {Repository<E> | undefined} repository - Repository of the created entity.
 	 * @param {object | undefined} body - Create body, changed in place.
@@ -72,20 +81,21 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 			const columnType: string = driver.normalizeType(column);
 			const value: unknown = values[column.propertyName];
 
-			if (!ApiControllerGeneratedTemporalParameterContract.isDateTime(columnType) || value === undefined || value === null) {
+			if (!this.isDateTime(columnType) || value === undefined || value === null) {
 				continue;
 			}
 
 			const text: string | undefined = this.readText(value);
 			// A body DTO has already parsed its value, and that Date stays the one the row and the key hold.
 			const date: Date | undefined = value instanceof Date ? value : this.parseText(text);
-			const message: string | undefined = this.check(column.propertyName, date, text, ApiControllerGeneratedTemporalParameterContract.isInstant(columnType), Math.min(this.getPrecision(driver, column, columnType), DATE_FRACTION_DIGITS));
+			const isInstant: boolean = DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
+			const message: string | undefined = this.check(column.propertyName, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType), DATE_FRACTION_DIGITS));
 
 			if (message) {
 				messages.push(message);
 			} else if (date) {
-				// The write binds like the key: node-postgres would move a Date in an instant column by its truncated local offset.
-				values[column.propertyName] = ApiControllerGeneratedTemporalParameterContract.bind(date, columnType);
+				// The column transformer receives this Date once on the write; node-postgres would move an instant in a zone whose offset holds seconds.
+				values[column.propertyName] = isInstant && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(repository.manager.dataSource.options.type) ? new ApiControllerGeneratedUtcDate(date.getTime()) : date;
 			}
 		}
 
@@ -100,7 +110,7 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 		}
 
 		// An instant column stores a point in time, which a wall-clock value without a zone does not name.
-		if (isInstant && text !== undefined && !ZONE_PATTERN.test(text)) {
+		if (isInstant && text !== undefined && !DATE_TIME_TEXT_CONSTANT.ZONE_PATTERN.test(text)) {
 			return `${property} must carry a time zone designator or an offset`;
 		}
 

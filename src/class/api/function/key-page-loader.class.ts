@@ -270,13 +270,18 @@ export class ApiFunctionKeyPageLoader {
 
 	/**
 	 * Binds the operands of a `timestamptz` column condition through the column transformers once, and a `Date` they return as canonical UTC text.
-	 * A condition that binds so becomes operators that TypeORM binds without the column transformer.
+	 * A condition that binds so becomes operators that TypeORM binds without the column transformer, and a condition already bound so stays as it is.
 	 * @param {Driver} driver - Driver of the read
 	 * @param {TTypeOrmColumnMetadata} column - Column the condition filters
 	 * @param {unknown} condition - Plain value or find operator of the column
 	 * @returns {unknown} The condition itself when nothing binds, otherwise the bound condition
 	 */
 	private static bindCondition(driver: Driver, column: TTypeOrmColumnMetadata, condition: unknown): unknown {
+		// A bound operator already went through the column transformer, so binding it again would hand the transformer its output.
+		if (condition instanceof ApiFunctionBoundOperator) {
+			return condition;
+		}
+
 		const columnType: string = driver.normalizeType(column);
 		const driverType: string = driver.options.type;
 
