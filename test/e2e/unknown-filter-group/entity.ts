@@ -2,7 +2,7 @@ import "reflect-metadata";
 
 import type { Relation } from "typeorm";
 
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 
 import { ApiPropertyDescribe, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 
@@ -90,6 +90,15 @@ export class E2eUnknownFilterItemEntity extends E2eUnknownFilterCodedEntity {
 		type: EApiPropertyDescribeType.STRING,
 	})
 	public secret!: string;
+
+	@OneToOne(() => E2eUnknownFilterOwnerEntity, { nullable: true })
+	@JoinColumn()
+	@ApiPropertyDescribe({
+		description: "sponsor",
+		relationMetadata: { entity: E2eUnknownFilterOwnerEntity, isEager: false, relationType: "one-to-one" },
+		type: EApiPropertyDescribeType.RELATION,
+	} as unknown as { description: string; type: EApiPropertyDescribeType.RELATION })
+	public sponsor?: E2eUnknownFilterOwnerEntity | null;
 
 	@OneToMany(() => E2eUnknownFilterTagEntity, ({ item }: E2eUnknownFilterTagEntity) => item)
 	@ApiPropertyDescribe({ description: "tags", type: EApiPropertyDescribeType.RELATION })

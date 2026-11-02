@@ -50,7 +50,7 @@ const ITEM_GAMMA: string = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const filterGroupKeys = (field: string): Array<string> => [`${field}[operator]`, `${field}[value]`, `${field}[values]`];
 
 // Only to-one relation fields are filters: the route applies nothing it does not publish, so a to-many path such as tags.name is not published.
-const LEGACY_QUERY_PARAMETERS: Array<string> = ["limit", "orderBy", "orderDirection", "page", ...["code", "label", "owner.id", "owner.name", "rank"].flatMap(filterGroupKeys)].toSorted();
+const LEGACY_QUERY_PARAMETERS: Array<string> = ["limit", "orderBy", "orderDirection", "page", ...["code", "label", "owner.id", "owner.name", "rank", "sponsor.id", "sponsor.name"].flatMap(filterGroupKeys)].toSorted();
 
 const PAGE: string = "limit=10&page=1";
 const BY_LABEL: string = "orderBy=label&orderDirection=asc";
@@ -110,6 +110,8 @@ const LEGACY_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Alpha", "Gamma"], query: `owner.id[operator]=eq&owner.id[value]=${OWNER_ANN}` },
 	{ labels: ["Beta"], query: "owner.name[operator]=eq&owner.name[value]=Bob" },
 	{ labels: ["Beta", "Gamma"], query: "rank[operator]=gt&rank[value]=1" },
+	{ labels: ["Beta"], query: "sponsor.name[operator]=eq&sponsor.name[value]=Ann" },
+	{ labels: ["Alpha"], query: `sponsor.id[operator]=eq&sponsor.id[value]=${OWNER_BOB}` },
 ];
 
 const TYPED_REJECTED_QUERIES: Array<string> = [...Object.values(UNKNOWN_GROUPS), ...UNKNOWN_PLAIN_KEYS.map(({ query }: { query: string }): string => query)];
@@ -121,6 +123,8 @@ const TYPED_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Alpha", "Gamma"], query: `owner.id[operator]=eq&owner.id[value]=${OWNER_ANN}` },
 	{ labels: ["Beta"], query: "owner.name[operator]=eq&owner.name[value]=Bob" },
 	{ labels: ["Beta", "Gamma"], query: "rank[operator]=gt&rank[value]=1" },
+	{ labels: ["Beta"], query: "sponsor.name[operator]=eq&sponsor.name[value]=Ann" },
+	{ labels: ["Alpha"], query: `sponsor.id[operator]=eq&sponsor.id[value]=${OWNER_BOB}` },
 ];
 
 const CURSOR_REJECTED_QUERIES: Array<string> = [`id[operator]=eq&id[value]=${ITEM_ALPHA}`, `owner.id[operator]=eq&owner.id[value]=${OWNER_ANN}`, ...Object.values(UNKNOWN_GROUPS), ...UNKNOWN_PLAIN_KEYS.filter(({ key }: { key: string }): boolean => key !== "after").map(({ query }: { query: string }): string => query)];
@@ -184,8 +188,8 @@ describe.each([
 				{ id: OWNER_BOB, name: "Bob" },
 			]);
 			await app.get(E2eUnknownFilterItemService).repository.save([
-				{ code: "A1", id: ITEM_ALPHA, label: "Alpha", owner: { id: OWNER_ANN }, rank: 1, secret: "Hidden", undescribed: "x" },
-				{ code: "B2", id: ITEM_BETA, label: "Beta", owner: { id: OWNER_BOB }, rank: 2, secret: "Hidden", undescribed: "x" },
+				{ code: "A1", id: ITEM_ALPHA, label: "Alpha", owner: { id: OWNER_ANN }, rank: 1, secret: "Hidden", sponsor: { id: OWNER_BOB }, undescribed: "x" },
+				{ code: "B2", id: ITEM_BETA, label: "Beta", owner: { id: OWNER_BOB }, rank: 2, secret: "Hidden", sponsor: { id: OWNER_ANN }, undescribed: "x" },
 				{ code: "C3", id: ITEM_GAMMA, label: "Gamma", owner: { id: OWNER_ANN }, rank: 3, secret: "Hidden", undescribed: "x" },
 			] as Array<E2eUnknownFilterItemEntity>);
 			await app.get(E2eUnknownFilterTagService).repository.save([

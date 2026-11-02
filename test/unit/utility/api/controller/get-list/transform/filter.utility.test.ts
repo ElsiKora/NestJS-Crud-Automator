@@ -12,7 +12,7 @@ import { BadRequestException } from "@nestjs/common";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list/query-properties.utility";
-import { Column, Entity, IsNull, ManyToOne, Not, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, IsNull, JoinColumn, ManyToOne, Not, OneToMany, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 import { OwnerGroupEntity, OwnerMetadata } from "./fixture/owner";
@@ -88,6 +88,14 @@ class ItemEntity {
 	} as TApiPropertyDescribeProperties)
 	@Column({ type: "varchar" })
 	public internalReference!: string;
+
+	@OneToOne(() => OwnerEntity)
+	@JoinColumn()
+	@ApiPropertyDescribe({
+		description: "item profile",
+		type: EApiPropertyDescribeType.RELATION,
+	} as TApiPropertyDescribeProperties)
+	public profile!: OwnerEntity;
 
 	@ManyToOne(() => OwnerEntity)
 	@ApiPropertyDescribe({
@@ -173,10 +181,12 @@ function expectInvalidFilter<E>(query: Record<string, unknown>, metadata: IApiEn
 describe("ApiControllerGetListTransformFilter", () => {
 	it("publishes and applies one-hop filters on to-one relations only", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
-		const relationProperties = metadata.columns.filter((column): boolean => column.name === "owner" || column.name === "notes").map((column) => ({ isPrimary: false, metadata: column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties, name: column.name }));
+		const relationProperties = metadata.columns.filter((column): boolean => column.name === "owner" || column.name === "profile" || column.name === "notes").map((column) => ({ isPrimary: false, metadata: column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties, name: column.name }));
 		const publishedNames: Array<string> = DtoGenerateGetListQueryProperties(metadata, relationProperties).map(({ name }: { name: string }): string => name);
 
-		expect(publishedNames).toEqual(["owner.name"]);
+		expect(publishedNames.toSorted()).toEqual(["owner.name", "profile.name"]);
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "owner.name[operator]": EFilterOperation.EQ, "owner.name[value]": "x" }, metadata)).toHaveProperty("owner.name");
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "profile.name[operator]": EFilterOperation.EQ, "profile.name[value]": "x" }, metadata)).toHaveProperty("profile.name");
 		expectInvalidFilter({ "notes.text[operator]": EFilterOperation.EQ, "notes.text[value]": "x" }, metadata);
 	});
 
