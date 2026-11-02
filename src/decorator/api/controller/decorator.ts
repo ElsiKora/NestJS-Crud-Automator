@@ -2,19 +2,9 @@ import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/a
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { TApiControllerConstructor } from "@type/decorator/api/controller";
-import type { Repository } from "typeorm";
 
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
-import { EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerFactory } from "@factory/api-controller.factory";
-import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
-import { ApiControllerAssertRouteCursorDataSource } from "@utility/api/controller/assert/route-cursor-data-source.utility";
-import { ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert/route-relation-loads.utility";
-import { DatabaseTypeOrmGetRepositoryGap } from "@utility/database/typeorm/get/repository-gap.utility";
-import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
-import { ErrorException } from "@utility/error/exception.utility";
-
-const TESTING_GUIDE_URL: string = "https://elsikora.com/docs/nestjs-crud-automator/guides/testing";
 
 /**
  * Automatically generates CRUD endpoints for an entity.
@@ -44,6 +34,7 @@ export const ApiController =
 	<T extends TApiControllerConstructor>(target: T): T => {
 		const factory: ApiControllerFactory<E, EApiControllerGetListQueryPaginationMode> = new ApiControllerFactory<E, EApiControllerGetListQueryPaginationMode>(target, options);
 		factory.init();
+		factory.installBootstrapChecks();
 
 		let isStartupChecked: boolean = false;
 
@@ -65,34 +56,6 @@ export const ApiController =
 					runStartupCheck();
 				}
 			}
-
-			/**
-			 * Validates the service repository, the route relation loads, and a CURSOR route's database contract against the initialized data source, then runs the controller's own hook.
-			 * @returns {Promise<void>} Resolves when the controller bootstrap finished
-			 */
-			public async onApplicationBootstrap(): Promise<void> {
-				const repository: unknown = (this as { service?: { repository?: unknown } }).service?.repository;
-
-				if (!DatabaseTypeOrmIsRepository(repository)) {
-					throw ErrorException(`Controller "${target.name}" of entity "${options.entity.name}": service.repository is not a TypeORM repository because ${DatabaseTypeOrmGetRepositoryGap(repository) ?? "it is unrecognized"}. In tests, use a repository of an in-memory DataSource and stub its methods: ${TESTING_GUIDE_URL}`);
-				}
-
-				if (Object.values(EApiRouteType).some((routeType: EApiRouteType): boolean => options.routes[routeType]?.generation?.isEnabled !== false)) {
-					ApiControllerAssertRepositoryEntity(options.entity, repository, target.name);
-				}
-
-				for (const routeType of Object.values(EApiRouteType)) {
-					ApiControllerAssertRouteRelationLoads(repository as Repository<E>, options.routes[routeType], `Controller "${target.name}" route "${routeType}"`);
-				}
-
-				ApiControllerAssertRouteCursorDataSource(Object.getPrototypeOf(this) as object, repository as Repository<E>, options.routes[EApiRouteType.GET_LIST], `Controller "${target.name}" route "${EApiRouteType.GET_LIST}"`);
-
-				const controllerHook: (() => unknown) | undefined = (target.prototype as { onApplicationBootstrap?: () => unknown }).onApplicationBootstrap;
-
-				if (controllerHook) {
-					await controllerHook.call(this);
-				}
-			}
 		};
 		Object.defineProperty(ValidatedController, "name", { value: target.name });
 		Reflect.defineMetadata(
@@ -101,7 +64,7 @@ export const ApiController =
 				runStartupCheck();
 				isStartupChecked = isConstructedPerRequest;
 			},
-			ValidatedController,
+			target,
 		);
 
 		return ValidatedController as T;

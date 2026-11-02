@@ -12,6 +12,7 @@ import { ApiControllerObservable } from "@decorator/api/controller/observable.de
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiDtoType, EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EFilterOrderDirection } from "@enum/filter/order-direction.enum";
 import { ApiProperty } from "@nestjs/swagger";
 import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
 import { KeyPageAuditorEntity } from "@test/unit/class/api/function/fixture/key-page-auditor.entity";
@@ -212,15 +213,15 @@ describe("ApiController", () => {
 		const hook = vi.fn();
 		const disabled = { generation: { isEnabled: false } };
 
-		class JournalController {
-			public service: { repository: unknown } = { repository: dataSource.getRepository(KeyPageJournalEntity) };
-
-			public onApplicationBootstrap(): void {
-				hook();
-			}
-		}
-
 		const createController = (getRoute: object): { onApplicationBootstrap: () => Promise<void> } => {
+			class JournalController {
+				public service: { repository: unknown } = { repository: dataSource.getRepository(KeyPageJournalEntity) };
+
+				public onApplicationBootstrap(): void {
+					hook();
+				}
+			}
+
 			const Decorated = ApiController<IApiBaseEntity>({
 				entity: createDescribedEntity(KeyPageJournalEntity),
 				routes: {
@@ -513,10 +514,121 @@ describe("ApiController", () => {
 
 		// A second TypeORM copy brands its own classes, so its repository fails instanceof but keeps the shape.
 		await expect(bootstrap({ repository: { manager: repository.manager, metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" route "create": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
-		await expect(bootstrap({ repository: { find: vi.fn() } })).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a TypeORM repository because its metadata is not TypeORM entity metadata. In tests, use a repository of an in-memory DataSource and stub its methods: https://elsikora.com/docs/nestjs-crud-automator/guides/testing');
-		await expect(bootstrap({ repository: { metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a TypeORM repository because its manager is not a TypeORM entity manager bound to a data source.');
-		await expect(bootstrap({})).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a TypeORM repository because the service has no repository.');
-		await expect(bootstrap(undefined)).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a TypeORM repository because the service has no repository.');
+		await expect(bootstrap({ repository: { find: vi.fn() } })).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because its metadata is not TypeORM entity metadata. In tests, use a repository of an in-memory DataSource and stub its methods: https://elsikora.com/docs/nestjs-crud-automator/guides/testing');
+		await expect(bootstrap({ repository: { metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because its manager is not a TypeORM entity manager bound to a data source.');
+		await expect(bootstrap({})).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because the service has no repository.');
+		await expect(bootstrap(undefined)).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because the controller has no service.');
+
+		vi.restoreAllMocks();
+	});
+
+	it("runs the startup checks once on the decorated class and on the class the decorator returns", async () => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+
+		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageJournalEntity], type: "postgres" });
+
+		// Metadata is enough for the startup check; the test never connects.
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+		const repository = dataSource.getRepository(KeyPageJournalEntity);
+		const disabled = { generation: { isEnabled: false } };
+		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
+		const hook = vi.fn();
+		const metadata = vi.fn((): unknown => repository.metadata);
+
+		class CountedController {
+			public service: { repository: unknown } = {
+				repository: {
+					get metadata(): unknown {
+						return metadata();
+					},
+					manager: repository.manager,
+				},
+			};
+
+			public onApplicationBootstrap(): void {
+				hook();
+			}
+		}
+
+		class SilentController {
+			public service: { repository: unknown } = { repository: { find: vi.fn() } };
+		}
+
+		const Returned = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: allDisabled } as never)(CountedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+
+		await new Returned().onApplicationBootstrap();
+		expect(hook).toHaveBeenCalledOnce();
+		expect(metadata.mock.calls.length).toBeGreaterThan(0);
+
+		const readsOfOneRun: number = metadata.mock.calls.length;
+
+		await new (CountedController as unknown as new () => { onApplicationBootstrap: () => Promise<void> })().onApplicationBootstrap();
+		expect(hook).toHaveBeenCalledTimes(2);
+		expect(metadata.mock.calls.length).toBe(readsOfOneRun * 2);
+
+		// A caller that discards the return value and registers the class it decorated keeps the checks.
+		ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: allDisabled } as never)(SilentController as never);
+
+		await expect(new (SilentController as unknown as new () => { onApplicationBootstrap: () => Promise<void> })().onApplicationBootstrap()).rejects.toThrow('Controller "SilentController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because its metadata is not TypeORM entity metadata');
+
+		vi.restoreAllMocks();
+	});
+
+	it("names the controller when its repository cannot be read at bootstrap, and accepts a Proxy-wrapped repository", async () => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+
+		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageJournalEntity], type: "postgres" });
+		const disabled = { generation: { isEnabled: false } };
+		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
+		const bootstrap = async (repository: unknown): Promise<void> => {
+			class WrappedController {
+				public service: { repository: unknown } = { repository };
+			}
+
+			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: allDisabled } as never)(WrappedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+
+			await new Decorated().onApplicationBootstrap();
+		};
+		const repository = dataSource.getRepository(KeyPageJournalEntity);
+
+		// The data source has no metadata yet, like a repository whose data source initializes after application bootstrap.
+		await expect(bootstrap(repository)).rejects.toThrow(/Controller "WrappedController" of entity "FactoryEntity": service\.repository is not a usable TypeORM repository because reading it failed, usually because its data source is not initialized yet \(.*KeyPageJournalEntity.*\)\. In tests/u);
+
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+		const forward = (_target: object, property: PropertyKey): unknown => Reflect.get(repository, property, repository);
+
+		await expect(bootstrap(new Proxy({}, { get: forward }))).resolves.toBeUndefined();
+		await expect(bootstrap(new Proxy((): undefined => undefined, { get: forward }))).resolves.toBeUndefined();
+
+		vi.restoreAllMocks();
+	});
+
+	it("checks a CURSOR route against the database at bootstrap and names the route, the driver and the guide", async () => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+
+		const disabled = { generation: { isEnabled: false } };
+		const bootstrap = async (type: "better-sqlite3" | "postgres", getList: object): Promise<void> => {
+			const dataSource: DataSource = new DataSource({ ...(type === "postgres" ? {} : { database: ":memory:" }), entities: [FactoryEntity], type } as never);
+
+			// Metadata is enough for the startup check; the test never connects.
+			await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+			class CursorRouteController {
+				public service: { repository: unknown } = { repository: dataSource.getRepository(FactoryEntity) };
+			}
+
+			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: getList, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled } } as never)(CursorRouteController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+
+			await new Decorated().onApplicationBootstrap();
+		};
+		const cursorRoute = { request: { [EApiControllerRequestTarget.QUERY]: { order: { fields: {}, tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }], unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT }, pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR } } } };
+
+		await expect(bootstrap("better-sqlite3", cursorRoute)).rejects.toThrow('Controller "CursorRouteController" route "getList": CURSOR GET_LIST supports only PostgreSQL; the active driver is "better-sqlite3". In tests, CURSOR needs a PostgreSQL DataSource: https://elsikora.com/docs/nestjs-crud-automator/guides/testing#cursor-controllers');
+		await expect(bootstrap("better-sqlite3", {})).resolves.toBeUndefined();
+		await expect(bootstrap("better-sqlite3", disabled)).resolves.toBeUndefined();
+		await expect(bootstrap("postgres", cursorRoute)).resolves.toBeUndefined();
 
 		vi.restoreAllMocks();
 	});

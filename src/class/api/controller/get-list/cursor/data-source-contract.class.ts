@@ -6,6 +6,7 @@ import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { EntitySubscriberInterface, EntityTarget, Repository } from "typeorm";
 
 import { API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN, API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
+import { API_CONTROLLER_TESTING_GUIDE_URL } from "@constant/api-controller-testing-guide.constant";
 import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
@@ -13,6 +14,7 @@ import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ObjectFindPropertyDescriptor } from "@utility/object-find-property-descriptor.utility";
 
+const ERROR_EXCEPTION_PREFIX_PATTERN: RegExp = /^\[NestJS-Crud-Automator\] /u;
 const POSTGRES_BOOLEAN_OID: number = 16;
 const POSTGRES_BIGINT_OID: number = 20;
 const POSTGRES_SMALLINT_OID: number = 21;
@@ -62,6 +64,22 @@ const EXACT_STORAGE_TYPES_BY_DRIVER: Readonly<Record<string, Readonly<Record<str
  * contract for every protected cursor tuple field.
  */
 export class ApiControllerGetListCursorDataSourceContract {
+	/**
+	 * Runs the contract for a route at application bootstrap, naming the route and the testing guide when it fails.
+	 * @param {Repository<E>} repository - Repository of the route entity
+	 * @param {TApiControllerGetListQueryCompiledPlan} plan - Compiled query plan of the route
+	 * @param {string} source - Route named in the error
+	 * @template E - The entity type
+	 * @throws {Error} When the active database or storage cannot serve the route
+	 */
+	public static assertRouteSafe<E extends IApiBaseEntity>(repository: Repository<E>, plan: TApiControllerGetListQueryCompiledPlan, source: string): void {
+		try {
+			this.assertSafe(repository, plan);
+		} catch (error) {
+			throw this.createRouteError(error, source);
+		}
+	}
+
 	public static assertSafe<E extends IApiBaseEntity>(repository: Repository<E>, plan?: TApiControllerGetListQueryCompiledPlan): void {
 		if (plan) {
 			this.assertStorageSafe(repository, plan);
@@ -77,6 +95,24 @@ export class ApiControllerGetListCursorDataSourceContract {
 			if (this.hasAfterLoad(subscriber) && this.isApplicable(subscriber, target)) {
 				throw ErrorException("CURSOR GET_LIST entity cannot use an applicable TypeORM afterLoad subscriber");
 			}
+		}
+	}
+
+	/**
+	 * Creates the value validator for a request, naming the route and the testing guide when the contract fails.
+	 * A request-scoped controller has no bootstrap check, so this is where such a route learns its database cannot serve it.
+	 * @param {Repository<E>} repository - Active repository of the request
+	 * @param {TApiControllerGetListQueryCompiledPlan} plan - Compiled query plan of the route
+	 * @param {string} source - Route named in the error
+	 * @template E - The entity type
+	 * @returns {(field: TApiControllerGetListQueryCompiledOrderField, value: unknown) => void} The value validator
+	 * @throws {Error} When the active database or storage cannot serve the route
+	 */
+	public static createRouteValueValidator<E extends IApiBaseEntity>(repository: Repository<E>, plan: TApiControllerGetListQueryCompiledPlan, source: string): (field: TApiControllerGetListQueryCompiledOrderField, value: unknown) => void {
+		try {
+			return this.createValueValidator(repository, plan);
+		} catch (error) {
+			throw this.createRouteError(error, source);
 		}
 	}
 
@@ -330,6 +366,18 @@ export class ApiControllerGetListCursorDataSourceContract {
 
 	private static createPostgresParserProbe(input: string, expected: unknown): Readonly<[string, unknown]> {
 		return Object.freeze<[string, unknown]>([input, expected]);
+	}
+
+	/**
+	 * Builds the error of a failed route contract.
+	 * @param {unknown} error - The contract failure
+	 * @param {string} source - Route named in the error
+	 * @returns {Error} The error naming the route, the failure and the testing guide
+	 */
+	private static createRouteError(error: unknown, source: string): Error {
+		const reason: string = error instanceof Error ? error.message.replace(ERROR_EXCEPTION_PREFIX_PATTERN, "") : String(error);
+
+		return ErrorException(`${source}: ${reason}. In tests, CURSOR needs a PostgreSQL DataSource: ${API_CONTROLLER_TESTING_GUIDE_URL}#cursor-controllers`);
 	}
 
 	private static getDriverType<E extends IApiBaseEntity>(repository: Repository<E>): string | undefined {

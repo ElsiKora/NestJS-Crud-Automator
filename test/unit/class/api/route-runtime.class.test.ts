@@ -65,9 +65,22 @@ describe("ApiRouteRuntime date and time filter paths", () => {
 		expect(resolve({ repository: { manager: repository.manager, metadata: repository.metadata } }, { "plainAt[value]": "x" })).toEqual(new Map([["plainAt", true]]));
 	});
 
+	it("reads a Proxy-wrapped repository through its get trap, over an object or a function target", async () => {
+		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageInstantEntity, KeyPageLedgerEntity], type: "postgres" });
+
+		// Metadata is enough to build repositories; the test never connects.
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+		const repository = dataSource.getRepository(KeyPageInstantEntity);
+		const forward = (_target: object, property: PropertyKey): unknown => Reflect.get(repository, property, repository);
+
+		expect(resolve({ repository: new Proxy({}, { get: forward }) }, { "plainAt[value]": "x" })).toEqual(new Map([["plainAt", true]]));
+		expect(resolve({ repository: new Proxy((): undefined => undefined, { get: forward }) }, { "plainAt[value]": "x" })).toEqual(new Map([["plainAt", true]]));
+	});
+
 	it("fails closed for a service without a recognized repository", () => {
-		expect(() => resolve({}, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a TypeORM repository because the service has no repository, so its date and time filter values cannot be checked');
-		expect(() => resolve(undefined, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a TypeORM repository because the service has no repository');
-		expect(() => resolve({ repository: { metadata: {} } }, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a TypeORM repository because its metadata is not TypeORM entity metadata');
+		expect(() => resolve({}, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a usable TypeORM repository because the service has no repository, so its date and time filter values cannot be checked');
+		expect(() => resolve(undefined, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a usable TypeORM repository because the controller has no service');
+		expect(() => resolve({ repository: { metadata: {} } }, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a usable TypeORM repository because its metadata is not TypeORM entity metadata');
 	});
 });

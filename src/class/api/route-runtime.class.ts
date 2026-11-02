@@ -27,7 +27,7 @@ import type { TApiControllerTransformDataTargets } from "@type/utility/api/contr
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
-import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, RelationMetadata, Repository } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
@@ -66,8 +66,7 @@ import { ApiRouteResponseIsListEnvelope } from "@utility/api/route/response/is-l
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
-import { DatabaseTypeOrmGetRepositoryGap } from "@utility/database/typeorm/get/repository-gap.utility";
-import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
+import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeorm/assert/service-repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { instanceToPlain, plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
@@ -411,6 +410,7 @@ export class ApiRouteRuntime {
 					cursorPlan = queryPlan as TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>;
 				}
 
+				const routeSource: string = `Controller "${options.controller.constructor.name}" route "${options.method}"`;
 				const cursorRuntimeQuery: TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorPlan ? (ApiControllerGetListQueryRuntime.parse(requestQuery, cursorPlan) as unknown as TApiControllerGetListCursorQueryRuntimeResult) : undefined;
 				const pageRuntimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = !cursorPlan && queryPlan ? ApiControllerGetListQueryRuntime.parse(requestQuery, queryPlan) : undefined;
 				const runtimeQuery: IApiControllerGetListQueryRuntimeResult | TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorRuntimeQuery ?? pageRuntimeQuery;
@@ -425,7 +425,7 @@ export class ApiRouteRuntime {
 				}
 
 				// Date-time values the DTO or plan accepted must also name a calendar instant before any query.
-				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery, `Controller "${(options.controller as object).constructor.name}" route "${options.method}"`));
+				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery, routeSource));
 
 				const {
 					limit,
@@ -486,7 +486,7 @@ export class ApiRouteRuntime {
 						}
 
 						const activeRepository: Repository<E> = eventManager ? eventManager.getRepository<E>(serviceRepository.target) : serviceRepository;
-						const validateStorageValue: TApiControllerGetListCursorExecutionOptions<E>["validateStorageValue"] = ApiControllerGetListCursorDataSourceContract.createValueValidator(activeRepository, cursorPlan);
+						const validateStorageValue: TApiControllerGetListCursorExecutionOptions<E>["validateStorageValue"] = ApiControllerGetListCursorDataSourceContract.createRouteValueValidator(activeRepository, cursorPlan, routeSource);
 
 						return await ApiControllerGetListCursorRuntime.execute<E>({
 							baseProperties,
@@ -736,12 +736,8 @@ export class ApiRouteRuntime {
 	 * @throws {Error} When the service has no TypeORM repository, so the filter values cannot be checked
 	 */
 	private static resolveDateTimeFilterPaths(service: unknown, query: Record<string, unknown>, source: string): ReadonlyMap<string, boolean> {
-		const repository: unknown = (service as { repository?: unknown } | undefined)?.repository;
+		const repository: Repository<ObjectLiteral> = DatabaseTypeOrmAssertServiceRepository(service, source, ", so its date and time filter values cannot be checked");
 		const dateTimePaths: Map<string, boolean> = new Map<string, boolean>();
-
-		if (!DatabaseTypeOrmIsRepository(repository)) {
-			throw ErrorException(`${source}: service.repository is not a TypeORM repository because ${DatabaseTypeOrmGetRepositoryGap(repository) ?? "it is unrecognized"}, so its date and time filter values cannot be checked`);
-		}
 
 		for (const key of Object.keys(query)) {
 			const path: string | undefined = FILTER_VALUE_KEY_PATTERN.exec(key)?.[1];

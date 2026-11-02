@@ -12,8 +12,6 @@ import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-li
 import { ApiControllerGetMethodName } from "@utility/api/controller/get/method-name.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
-const ERROR_EXCEPTION_PREFIX_PATTERN: RegExp = /^\[NestJS-Crud-Automator\] /u;
-
 /**
  * Validates a CURSOR GET_LIST route against the database and storage contract of the initialized data source.
  * It runs the same proof the route runs before query I/O, so a route the active database cannot serve fails at bootstrap.
@@ -35,17 +33,18 @@ export function ApiControllerAssertRouteCursorDataSource<E extends IApiBaseEntit
 		return;
 	}
 
-	const compiledPlan: Partial<TApiControllerGetListQueryCompiledPlan> = plan as Partial<TApiControllerGetListQueryCompiledPlan>;
-
-	if (!compiledPlan.order?.serverFields) {
+	if (!isCompiledPlan(plan)) {
 		throw ErrorException(`${source}: CURSOR GET_LIST compiled query plan is unavailable`);
 	}
 
-	try {
-		ApiControllerGetListCursorDataSourceContract.assertSafe(repository, plan as TApiControllerGetListQueryCompiledPlan);
-	} catch (error) {
-		const reason: string = error instanceof Error ? error.message.replace(ERROR_EXCEPTION_PREFIX_PATTERN, "") : String(error);
+	ApiControllerGetListCursorDataSourceContract.assertRouteSafe(repository, plan, source);
+}
 
-		throw ErrorException(`${source}: ${reason}`);
-	}
+/**
+ * Detects a query plan whose order fields were compiled for the server.
+ * @param {IApiControllerGetListQueryPlan} plan - Query plan of the route
+ * @returns {boolean} True when the plan holds the compiled server order fields
+ */
+function isCompiledPlan(plan: IApiControllerGetListQueryPlan): plan is TApiControllerGetListQueryCompiledPlan {
+	return "serverFields" in plan.order;
 }

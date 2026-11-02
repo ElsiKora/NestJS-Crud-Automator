@@ -118,6 +118,6 @@ describe("ApiController (E2E)", () => {
 		const Decorated = ApiController<IApiBaseEntity>({ entity: ControllerEntity, routes: {} })(MockedServiceController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
 		const controller = new Decorated();
 
-		await expect(controller.onApplicationBootstrap()).rejects.toThrow('Controller "MockedServiceController" of entity "ControllerEntity": service.repository is not a TypeORM repository because the service has no repository.');
+		await expect(controller.onApplicationBootstrap()).rejects.toThrow('Controller "MockedServiceController" of entity "ControllerEntity": service.repository is not a usable TypeORM repository because the service has no repository.');
 	});
 });

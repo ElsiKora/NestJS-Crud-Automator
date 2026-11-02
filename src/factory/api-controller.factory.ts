@@ -9,7 +9,7 @@ import type { IApiEntity } from "@interface/entity";
 import type { TApiControllerMethod } from "@type/class";
 import type { TApiControllerConstructor, TApiControllerGetListQuery, TApiControllerGetListResponse, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiControllerMethodMap, TApiControllerMethodName, TApiControllerMethodNameMap, TApiControllerTargetMethod } from "@type/factory/api/controller";
-import type { DeepPartial } from "typeorm";
+import type { DeepPartial, Repository } from "typeorm";
 
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
 import { ApiControllerIdentityPlanCompiler } from "@class/api/controller/identity-plan-compiler.class";
@@ -18,6 +18,7 @@ import { ApiControllerRequestRelationsValidator } from "@class/api/controller/re
 import { ApiControllerSchemaNameCheck } from "@class/api/controller/schema-name-check.class";
 import { ApiControllerTableInheritancePlanCompiler } from "@class/api/controller/table-inheritance-plan-compiler.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
+import { API_CONTROLLER_TESTING_GUIDE_URL } from "@constant/api-controller-testing-guide.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
 import { EApiRouteType } from "@enum/decorator/api";
@@ -26,6 +27,8 @@ import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
+import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
+import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListTransformAssertRelationTargets } from "@utility/api/controller/get-list/transform/assert-relation-targets.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
@@ -33,6 +36,7 @@ import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadPlanSet } from "@utility/api/controller/read";
 import { ApiControllerWriteDtoSwaggerWithReadPlan } from "@utility/api/controller/write/dto-swagger.utility";
 import { ApiRouteRebindInheritedCustom } from "@utility/api/route/rebind-inherited-custom.utility";
+import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeorm/assert/service-repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
@@ -157,6 +161,26 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		}
 	}
 
+	/**
+	 * Installs the startup checks on the target's own prototype in front of the hook it already has.
+	 * The class the decorator returns inherits them, so they run exactly once whether Nest receives that class or the decorated target.
+	 * @returns {void}
+	 */
+	installBootstrapChecks(): void {
+		const assertBootstrap = (controller: object): void => {
+			this.assertBootstrap(controller);
+		};
+		const controllerHook: unknown = Reflect.get(this.targetPrototype, "onApplicationBootstrap");
+
+		Reflect.set(this.targetPrototype, "onApplicationBootstrap", async function (this: object): Promise<void> {
+			assertBootstrap(this);
+
+			if (typeof controllerHook === "function") {
+				await Reflect.apply(controllerHook, this, []);
+			}
+		});
+	}
+
 	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		const schemaPrefix: string = this.schemaPrefix;
 
@@ -233,6 +257,27 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.defineUpdateRouteMethod(method, methodName, properties, entityMetadata);
+	}
+
+	/**
+	 * Validates the table inheritance children, the service repository, the route relation loads, and a CURSOR route's database contract against the initialized data source.
+	 * @param {object} controller - The controller instance Nest bootstraps
+	 * @throws {Error} When the controller cannot serve its routes on the active data source
+	 */
+	private assertBootstrap(controller: object): void {
+		this.assertTableInheritanceChildren();
+
+		const repository: Repository<E> = DatabaseTypeOrmAssertServiceRepository<E>(Reflect.get(controller, "service"), `Controller "${this.target.name}" of entity "${this.properties.entity.name}"`, `. In tests, use a repository of an in-memory DataSource and stub its methods: ${API_CONTROLLER_TESTING_GUIDE_URL}`);
+
+		if (Object.values(EApiRouteType).some((routeType: EApiRouteType): boolean => this.properties.routes[routeType]?.generation?.isEnabled !== false)) {
+			ApiControllerAssertRepositoryEntity(this.properties.entity, repository, this.target.name);
+		}
+
+		for (const routeType of Object.values(EApiRouteType)) {
+			ApiControllerAssertRouteRelationLoads(repository, this.properties.routes[routeType], `Controller "${this.target.name}" route "${routeType}"`);
+		}
+
+		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
 	}
 
 	/**
