@@ -2,8 +2,8 @@ import { Inject } from "@nestjs/common";
 
 import { ApiController, EApiControllerRelationReferenceShape, EApiRouteType } from "../../../src/index";
 
-import { E2eRelationWriteCompositeEntity, E2eRelationWritePostEntity } from "./entity";
-import { E2eRelationWriteCompositeService, E2eRelationWritePostService } from "./service";
+import { E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteStampEntity } from "./entity";
+import { E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWritePostService, E2eRelationWriteStampService } from "./service";
 
 const DISABLED = { generation: { isEnabled: false } } as const;
 
@@ -41,12 +41,32 @@ export class E2eRelationWriteIncludeController {
 	public constructor(@Inject(E2eRelationWritePostService) public readonly service: E2eRelationWritePostService) {}
 }
 
-@ApiController<E2eRelationWriteCompositeEntity>({
-	entity: E2eRelationWriteCompositeEntity,
-	name: "E2eRelationWriteCompositeRows",
-	path: "relation-write-composite-rows",
+@ApiController<E2eRelationWriteNoteEntity>({
+	entity: E2eRelationWriteNoteEntity,
+	name: "E2eRelationWriteNotes",
+	path: "relation-write-notes",
 	routes: buildRoutes(),
 } as never)
-export class E2eRelationWriteCompositeController {
-	public constructor(@Inject(E2eRelationWriteCompositeService) public readonly service: E2eRelationWriteCompositeService) {}
+export class E2eRelationWriteNoteController {
+	public constructor(@Inject(E2eRelationWriteNoteService) public readonly service: E2eRelationWriteNoteService) {}
+}
+
+@ApiController<E2eRelationWriteNoteEntity>({
+	entity: E2eRelationWriteNoteEntity,
+	name: "E2eRelationWritePatchNotes",
+	path: "relation-write-patch-notes",
+	routes: buildRoutes(),
+} as never)
+export class E2eRelationWriteNotePatchController {
+	public constructor(@Inject(E2eRelationWriteNotePatchService) public readonly service: E2eRelationWriteNotePatchService) {}
+}
+
+@ApiController<E2eRelationWriteStampEntity>({
+	entity: E2eRelationWriteStampEntity,
+	name: "E2eRelationWriteStamps",
+	path: "relation-write-stamps",
+	routes: buildRoutes(),
+} as never)
+export class E2eRelationWriteStampController {
+	public constructor(@Inject(E2eRelationWriteStampService) public readonly service: E2eRelationWriteStampService) {}
 }

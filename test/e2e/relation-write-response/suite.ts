@@ -12,13 +12,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../src/index";
 import { createRelationReferenceSchemaChecker, type IRelationReferenceSchemaChecker } from "../relation-reference-dto";
 
-import { E2eRelationWriteCompositeController, E2eRelationWriteDefaultController, E2eRelationWriteIncludeController } from "./controller";
-import { E2eRelationWriteAuthorEntity, E2eRelationWriteCompositeEntity, E2eRelationWritePostEntity, E2eRelationWriteTagEntity } from "./entity";
-import { E2eRelationWriteCompositeService, E2eRelationWritePostService } from "./service";
+import { E2eRelationWriteDefaultController, E2eRelationWriteIncludeController, E2eRelationWriteNoteController, E2eRelationWriteNotePatchController, E2eRelationWriteStampController } from "./controller";
+import { E2eRelationWriteAuthorEntity, E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteStampEntity, E2eRelationWriteTagEntity } from "./entity";
+import { E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWritePostService, E2eRelationWriteStampService } from "./service";
+import { E2eRelationWriteNoteSubscriber, noteUpdateResult } from "./subscriber";
 
 const AUTHOR_FIRST: string = "11111111-1111-4111-8111-111111111111";
 const AUTHOR_SECOND: string = "11111111-1111-4111-8111-111111111112";
-const COMPOSITE_ID: string = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+const NOTE: string = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+const NOTE_OTHER: string = "cccccccc-cccc-4ccc-8ccc-ccccccccccc2";
+const NOTE_OTHER_TITLE: string = "OTHER-ROW-SECRET";
+const STAMP: string = "2026-11-02T10:00:00.123456Z";
 const DEFAULT_PATH: string = "relation-write-default-posts";
 const INCLUDE_PATH: string = "relation-write-include-posts";
 const POST: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
@@ -29,6 +33,7 @@ type TVerb = "PATCH" | "PUT";
 
 interface IRelationWriteSuiteOptions {
 	createDataSourceOptions: () => Promise<DataSourceOptions>;
+	hasMicrosecondTimestamps?: boolean;
 	stop?: () => Promise<void>;
 }
 
@@ -73,21 +78,22 @@ export function describeRelationWriteResponseSuite(name: string, options: IRelat
 		};
 
 		beforeAll(async () => {
+			const stampControllers: Array<new (...arguments_: Array<never>) => object> = options.hasMicrosecondTimestamps ? [E2eRelationWriteStampController] : [];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eRelationWriteCompositeController, E2eRelationWriteDefaultController, E2eRelationWriteIncludeController],
+				controllers: [E2eRelationWriteDefaultController, E2eRelationWriteIncludeController, E2eRelationWriteNoteController, E2eRelationWriteNotePatchController, ...stampControllers],
 				imports: [
 					TypeOrmModule.forRoot({
 						...(await options.createDataSourceOptions()),
 						dropSchema: true,
-						entities: [E2eRelationWriteAuthorEntity, E2eRelationWriteCompositeEntity, E2eRelationWritePostEntity, E2eRelationWriteTagEntity],
+						entities: [E2eRelationWriteAuthorEntity, E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteTagEntity, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampEntity] : [])],
 						logging: false,
 						synchronize: true,
 					} as DataSourceOptions),
-					TypeOrmModule.forFeature([E2eRelationWriteCompositeEntity, E2eRelationWritePostEntity]),
+					TypeOrmModule.forFeature([E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampEntity] : [])]),
 					ApiAuthorizationModule.forRoot(),
 					ApiSubscriberModule,
 				],
-				providers: [E2eRelationWriteCompositeService, E2eRelationWritePostService],
+				providers: [E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWriteNoteSubscriber, E2eRelationWritePostService, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampService] : [])],
 			}).compile();
 
 			app = moduleReference.createNestApplication(new FastifyAdapter());
@@ -108,6 +114,13 @@ export function describeRelationWriteResponseSuite(name: string, options: IRelat
 			const tag: E2eRelationWriteTagEntity = await manager.findOneByOrFail(E2eRelationWriteTagEntity, { id: TAG });
 
 			await manager.save(E2eRelationWritePostEntity, { author, editor: author, id: POST, labels: [tag], reviewer: author, tags: [tag], title: "title" });
+			// A plain DELETE and INSERT, so the @AfterLoad of a note cannot redirect the setup to another row.
+			await manager.query(`DELETE FROM e2e_relation_write_notes`);
+			await manager.insert(E2eRelationWriteNoteEntity, [
+				{ id: NOTE, presentedId: null, title: "Note" },
+				{ id: NOTE_OTHER, presentedId: null, title: NOTE_OTHER_TITLE },
+			]);
+			delete noteUpdateResult.replace;
 		});
 
 		afterAll(async () => {
@@ -171,20 +184,63 @@ export function describeRelationWriteResponseSuite(name: string, options: IRelat
 			});
 		});
 
-		describe("a primary key of several columns on a route that knows one of them", () => {
-			it.each<[TVerb, Record<string, unknown>]>([
-				["PATCH", { title: "changed" }],
-				["PUT", { title: "changed" }],
-			])("%s answers with the row it wrote, not another row with the same known column", async (verb: TVerb, payload: Record<string, unknown>) => {
-				await manager.save(E2eRelationWriteCompositeEntity, [
-					{ id: COMPOSITE_ID, part: "first", title: "title" },
-					{ id: COMPOSITE_ID, part: "second", title: "title" },
-				]);
+		describe("a function onAfterUpdate or a loaded entity that presents another key", () => {
+			const readNoteTitles = async (): Promise<Record<string, string>> => Object.fromEntries(((await manager.query(`SELECT id, title FROM e2e_relation_write_notes`)) as Array<{ id: string; title: string }>).map(({ id, title }: { id: string; title: string }): [string, string] => [id, title]));
 
-				const response = await fastify.inject({ method: verb, payload, url: `/relation-write-composite-rows/${COMPOSITE_ID}` });
+			it.each<TVerb>(["PATCH", "PUT"])("%s answers with the written row when onAfterUpdate returns a partial result", async (verb: TVerb) => {
+				noteUpdateResult.replace = (): E2eRelationWriteNoteEntity => ({ title: "Partial" }) as E2eRelationWriteNoteEntity;
+
+				const response = await fastify.inject({ method: verb, payload: { title: "Changed" }, url: `/relation-write-notes/${NOTE}` });
 
 				expect(response.statusCode, response.body).toBe(HttpStatus.OK);
-				expect(response.json()).toMatchObject({ title: "changed" });
+				expect(response.json()).toEqual({ id: NOTE, title: "Changed" });
+			});
+
+			it.each<TVerb>(["PATCH", "PUT"])("%s answers with the written row, not the row whose key onAfterUpdate returns", async (verb: TVerb) => {
+				noteUpdateResult.replace = (): E2eRelationWriteNoteEntity => ({ id: NOTE_OTHER, title: NOTE_OTHER_TITLE }) as E2eRelationWriteNoteEntity;
+
+				const response = await fastify.inject({ method: verb, payload: { title: "Changed" }, url: `/relation-write-notes/${NOTE}` });
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.OK);
+				expect(response.json()).toEqual({ id: NOTE, title: "Changed" });
+				expect(response.body).not.toContain(NOTE_OTHER_TITLE);
+			});
+
+			it.each<TVerb>(["PATCH", "PUT"])("%s drops a change that onAfterUpdate makes to the result in place", async (verb: TVerb) => {
+				noteUpdateResult.replace = (context): E2eRelationWriteNoteEntity => {
+					context.result.title = "Masked";
+
+					return context.result;
+				};
+
+				const response = await fastify.inject({ method: verb, payload: { title: "Changed" }, url: `/relation-write-notes/${NOTE}` });
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.OK);
+				expect(response.json()).toEqual({ id: NOTE, title: "Changed" });
+			});
+
+			it.each<TVerb>(["PATCH", "PUT"])("%s reads the written row by the key of the request when an @AfterLoad presents another key", async (verb: TVerb) => {
+				await manager.update(E2eRelationWriteNoteEntity, { id: NOTE }, { presentedId: NOTE_OTHER });
+
+				const response = await fastify.inject({ method: verb, payload: { title: "Changed" }, url: `/relation-write-patch-notes/${NOTE}` });
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.OK);
+				expect(await readNoteTitles()).toEqual({ [NOTE]: "Changed", [NOTE_OTHER]: NOTE_OTHER_TITLE });
+				expect(response.json()).toMatchObject({ title: "Changed" });
+				expect(response.body).not.toContain(NOTE_OTHER_TITLE);
+			});
+		});
+
+		describe.runIf(options.hasMicrosecondTimestamps)("a key the entity holds with less precision than the database", () => {
+			it.each<TVerb>(["PATCH", "PUT"])("%s answers with the written row of a microsecond timestamptz key", async (verb: TVerb) => {
+				await manager.query(`DELETE FROM e2e_relation_write_stamps`);
+				await manager.query(`INSERT INTO e2e_relation_write_stamps (stamp, title) VALUES ($1, 'Stamp')`, [STAMP]);
+
+				const response = await fastify.inject({ method: verb, payload: { title: "Changed" }, url: `/relation-write-stamps/${STAMP}` });
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.OK);
+				expect(response.json()).toMatchObject({ title: "Changed" });
+				expect(await manager.query(`SELECT stamp::text AS stamp, title FROM e2e_relation_write_stamps`)).toEqual([{ stamp: "2026-11-02 10:00:00.123456+00", title: "Changed" }]);
 			});
 		});
 	});

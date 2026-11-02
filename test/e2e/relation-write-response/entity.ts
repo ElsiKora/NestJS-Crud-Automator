@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
-import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../src/index";
-import { Column, Entity, JoinTable, ManyToMany, ManyToOne, PrimaryColumn, type Relation } from "typeorm";
+import { ApiPropertyDescribe, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../src/index";
+import { AfterLoad, Column, Entity, JoinTable, ManyToMany, ManyToOne, PrimaryColumn, type Relation } from "typeorm";
 
 const describeId: PropertyDecorator = ApiPropertyDescribe({
 	description: "id",
@@ -14,6 +14,16 @@ const describeCode: PropertyDecorator = ApiPropertyDescribe({
 	maxLength: 32,
 	minLength: 1,
 	pattern: "/^[a-z-]+$/",
+	type: EApiPropertyDescribeType.STRING,
+});
+
+const describeText: PropertyDecorator = ApiPropertyDescribe({
+	description: "text",
+	exampleValue: "Some text",
+	format: EApiPropertyStringType.STRING,
+	maxLength: 64,
+	minLength: 1,
+	pattern: "/^[\\w -]+$/",
 	type: EApiPropertyDescribeType.STRING,
 });
 
@@ -90,17 +100,32 @@ export class E2eRelationWritePostEntity {
 	public labels?: Array<E2eRelationWriteTagEntity>;
 }
 
-@Entity("e2e_relation_write_composite_rows")
-export class E2eRelationWriteCompositeEntity {
+@Entity("e2e_relation_write_notes")
+export class E2eRelationWriteNoteEntity {
 	@describeId
 	@PrimaryColumn({ type: "varchar" })
 	public id!: string;
 
-	@describeCode
-	@PrimaryColumn({ type: "varchar" })
-	public part!: string;
+	@Column({ nullable: true, type: "varchar" })
+	public presentedId?: null | string;
 
 	@Column({ type: "varchar" })
-	@describeCode
+	@describeText
+	public title!: string;
+
+	@AfterLoad()
+	public present(): void {
+		if (this.presentedId) this.id = this.presentedId;
+	}
+}
+
+@Entity("e2e_relation_write_stamps")
+export class E2eRelationWriteStampEntity {
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	@PrimaryColumn({ type: "timestamptz" })
+	public stamp!: Date;
+
+	@Column({ type: "varchar" })
+	@describeText
 	public title!: string;
 }
