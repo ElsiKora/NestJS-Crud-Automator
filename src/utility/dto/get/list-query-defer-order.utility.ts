@@ -12,6 +12,7 @@ const SWAGGER_METADATA_FACTORY_NAME: string = "_OPENAPI_METADATA_FACTORY";
 /**
  * Declares orderBy and orderDirection of a list query DTO from fields that are read on first use, for a list response whose lazy types may name classes that do not exist yet.
  * The document and the validation match the eager order decorators of the same DTO, including the route that has no orderable field: it documents no order and refuses any it receives.
+ * The eager decorators also take an enumName, but ApiPropertyEnum does not pass it to the document, where both enums are inline, so these options have none.
  * @template E - The entity type
  * @param {Type<unknown>} dto - The list query DTO base class.
  * @param {IApiEntity<E>} entityMetadata - The entity metadata, which names the documented parameters.
@@ -46,6 +47,7 @@ export function DtoGetListQueryDeferOrder<E>(dto: Type<unknown>, entityMetadata:
 				{
 					get: (_target: Record<string, ApiPropertyOptions>, key: string | symbol): ApiPropertyOptions | undefined => (key === "orderBy" || key === "orderDirection" ? readMetadata()[key] : undefined),
 					getOwnPropertyDescriptor: (_target: Record<string, ApiPropertyOptions>, key: string | symbol): PropertyDescriptor | undefined => Reflect.getOwnPropertyDescriptor(readMetadata(), key),
+					has: (_target: Record<string, ApiPropertyOptions>, key: string | symbol): boolean => (key === "orderBy" || key === "orderDirection") && Reflect.has(readMetadata(), key),
 					ownKeys: (): Array<string | symbol> => Reflect.ownKeys(readMetadata()),
 				},
 			),
