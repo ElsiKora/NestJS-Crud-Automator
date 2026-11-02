@@ -17,6 +17,7 @@ type TRouteDtoFastify = { inject: (options: { method: string; url: string }) => 
 
 const SPELLINGS: Array<[string, string]> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.flatMap((routeCase: IE2ePathParameterRouteDtoCase) => routeCase.denied.map((spelling: string): [string, string] => [routeCase.name, spelling]));
 const INVALID_VALUES: Array<[string, string]> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.flatMap((routeCase: IE2ePathParameterRouteDtoCase) => routeCase.invalid.map((value: string): [string, string] => [routeCase.name, value]));
+const UPPER_CASE_UUIDS: Array<[string, string]> = INVALID_VALUES.filter(([, value]: [string, string]): boolean => /^[\dA-F]{8}(?:-[\dA-F]{4}){3}-[\dA-F]{12}$/.test(value));
 
 const PIPES: Array<TE2ePathParameterRouteDtoPipe> = ["none", "validate", "transform", "implicit", "consumer", "groups", "version", "oldVersion"];
 
@@ -101,6 +102,13 @@ describe.each<TE2ePathParameterRouteDtoPipe>(PIPES)("the guard runs the route PA
 		const response = await fastify.inject({ method: "GET", url: `/route-dto/${name}/${value}` });
 
 		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+	});
+
+	it.each(UPPER_CASE_UUIDS)("refuses %s/%s, an upper-case UUID, with the lower-case rule", async (name: string, value: string) => {
+		const response = await fastify.inject({ method: "GET", url: `/route-dto/${name}/${value}` });
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(response.json().message).toEqual(["id must be a lower-case UUID"]);
 	});
 
 	it.each(E2E_PATH_PARAMETER_ROUTE_DTO_CASES)("gives the handler the value IAM saw on $name", async (routeCase: IE2ePathParameterRouteDtoCase) => {

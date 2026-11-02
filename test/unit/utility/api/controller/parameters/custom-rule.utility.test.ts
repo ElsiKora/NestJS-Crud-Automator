@@ -442,7 +442,8 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		const owner: string = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 		expect(rule).toBeDefined();
-		await expect(ApiControllerParametersValidate(rule!, { id: "16", owner: owner.toUpperCase() } as never)).resolves.toEqual({ id: 16, owner });
+		await expect(ApiControllerParametersValidate(rule!, { id: "16", owner } as never)).resolves.toEqual({ id: 16, owner });
+		await expect(ApiControllerParametersValidate(rule!, { id: "16", owner: owner.toUpperCase() } as never)).rejects.toMatchObject({ response: { message: ["owner must be a lower-case UUID"] } });
 
 		for (const id of ["016", "1e1", "abc"]) {
 			await expect(ApiControllerParametersValidate(rule!, { id, owner } as never)).rejects.toThrow();
@@ -549,13 +550,14 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		await expect(ApiControllerParametersValidate(rule!, { id: "false" } as never)).resolves.toEqual({ id: false });
 	});
 
-	it("keeps the sent text of a bare class-validator rule, while ApiPropertyUUID gives the one canonical form", async () => {
+	it("refuses an upper-case UUID under a bare class-validator rule and under ApiPropertyUUID, without a column", async () => {
 		const bare: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleBareUuidParametersDto, methodName: "bare", pathParameters: ["id"], resourcePath: "custom-rule/item" });
 		const described: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleDescribedParametersDto, methodName: "described", pathParameters: ["id", "owner"], resourcePath: "custom-rule/item" });
 		const sent: string = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA";
 
-		await expect(ApiControllerParametersValidate(bare!, { id: sent } as never)).resolves.toEqual({ id: sent });
-		await expect(ApiControllerParametersValidate(described!, { id: "16", owner: sent } as never)).resolves.toEqual({ id: 16, owner: sent.toLowerCase() });
+		await expect(ApiControllerParametersValidate(bare!, { id: sent } as never)).rejects.toMatchObject({ response: { message: ["id must be a lower-case UUID"] } });
+		await expect(ApiControllerParametersValidate(described!, { id: "16", owner: sent } as never)).rejects.toMatchObject({ response: { message: ["owner must be a lower-case UUID"] } });
+		await expect(ApiControllerParametersValidate(bare!, { id: sent.toLowerCase() } as never)).resolves.toEqual({ id: sent.toLowerCase() });
 	});
 
 	it.each([

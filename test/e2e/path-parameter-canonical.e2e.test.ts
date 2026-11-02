@@ -358,9 +358,13 @@ describe.each([
 		}
 
 		expect(await expectStatus("/path-parameter/canonical/ppc-described-int/1", HttpStatus.OK)).toEqual({ value: "string:1" });
-		await expectStatus(`/path-parameter/canonical/ppc-described-uuid/${E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase()}`, HttpStatus.FORBIDDEN);
-		await expectStatus("/path-parameter/canonical/ppc-described-uuid/not-a-uuid", HttpStatus.BAD_REQUEST);
-		expect(await expectStatus(`/path-parameter/canonical/ppc-described-uuid/${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID.toUpperCase()}`, HttpStatus.OK)).toEqual({ value: `string:${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID}` });
+		await expectStatus(`/path-parameter/canonical/ppc-described-uuid/${E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID}`, HttpStatus.FORBIDDEN);
+
+		for (const value of ["not-a-uuid", E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase(), E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID.toUpperCase()]) {
+			await expectStatus(`/path-parameter/canonical/ppc-described-uuid/${value}`, HttpStatus.BAD_REQUEST);
+		}
+
+		expect(await expectStatus(`/path-parameter/canonical/ppc-described-uuid/${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID}`, HttpStatus.OK)).toEqual({ value: `string:${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID}` });
 	});
 
 	it.each(SENT_LIST_CASES)("reads the query %s by one rule for every list type", async (query: string, received: Record<string, unknown> | undefined) => {

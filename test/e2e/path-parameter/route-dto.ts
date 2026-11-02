@@ -354,21 +354,24 @@ const TEXT_REJECTED_PIPES: Partial<Record<TE2ePathParameterRouteDtoPipe, { statu
 // Under a pipe with implicit conversion `@IsDateString() id: Date` sees a Date, so that pipe gives its own 400.
 const DATE_REJECTED_PIPES: Partial<Record<TE2ePathParameterRouteDtoPipe, { status: number }>> = { consumer: { status: 400 }, implicit: { status: 400 } };
 
-const UUID_ALLOWED: IE2ePathParameterRouteDtoAllowed = { piped: { id: OTHER_UUID }, raw: { id: OTHER_UUID }, sent: OTHER_UUID.toUpperCase() };
+const UUID_ALLOWED: IE2ePathParameterRouteDtoAllowed = { piped: { id: OTHER_UUID }, raw: { id: OTHER_UUID }, sent: OTHER_UUID };
+
+// A UUID path value is refused in upper case, as on a generated route, whether the DTO copies a column or only validates the value as a UUID.
+const UUID_INVALID: Array<string> = ["not-a-uuid", DENIED_UUID.toUpperCase(), OTHER_UUID.toUpperCase()];
 
 export const E2E_PATH_PARAMETER_ROUTE_DTO_CASES: Array<IE2ePathParameterRouteDtoCase> = [
-	{ allowed: { piped: { internalId: OTHER_UUID }, raw: { id: OTHER_UUID }, sent: OTHER_UUID.toUpperCase() }, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: RenamedUuidDto, invalid: ["not-a-uuid"], name: "renamed-uuid", value: DENIED_UUID },
+	{ allowed: { piped: { internalId: OTHER_UUID }, raw: { id: OTHER_UUID }, sent: OTHER_UUID }, denied: [DENIED_UUID], dto: RenamedUuidDto, invalid: UUID_INVALID, name: "renamed-uuid", value: DENIED_UUID },
 	{ allowed: { piped: { internalId: 17 }, raw: { id: "17" }, sent: "17" }, denied: ["16"], dto: RenamedNumberDto, invalid: ["016", "1e1", "abc"], name: "renamed-number", value: "16" },
 	{ allowed: { piped: { internalId: 17 }, raw: { id: "17" }, sent: "17" }, denied: ["16"], dto: RenamedCopyDto, invalid: ["016", "1e1", "abc"], name: "renamed-copy", value: "16" },
-	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: PickedUuidDto, invalid: ["not-a-uuid"], name: "picked-uuid", value: DENIED_UUID },
-	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: OmittedUuidDto, invalid: ["not-a-uuid"], name: "omitted-uuid", value: DENIED_UUID },
-	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: PartialUuidDto, invalid: ["not-a-uuid"], name: "partial-uuid", value: DENIED_UUID },
-	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: IntersectedUuidDto, invalid: ["not-a-uuid"], name: "intersected-uuid", value: DENIED_UUID },
+	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID], dto: PickedUuidDto, invalid: UUID_INVALID, name: "picked-uuid", value: DENIED_UUID },
+	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID], dto: OmittedUuidDto, invalid: UUID_INVALID, name: "omitted-uuid", value: DENIED_UUID },
+	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID], dto: PartialUuidDto, invalid: UUID_INVALID, name: "partial-uuid", value: DENIED_UUID },
+	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID], dto: IntersectedUuidDto, invalid: UUID_INVALID, name: "intersected-uuid", value: DENIED_UUID },
 	{ allowed: { piped: { id: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00.000Z" }, denied: [DENIED_AT], dto: PickedMomentDto, invalid: ["garbage", "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], name: "picked-moment", value: DENIED_AT },
 	{ allowed: { piped: { id: 17 }, raw: { id: "17" }, sent: "0x11" }, denied: ["16", "016", "0x10", "1.6e1"], dto: IsIntTypeDto, invalid: ["abc", "1.5"], name: "is-int-type", value: "16" },
 	{ allowed: { piped: { id: 17 }, pipes: TEXT_REJECTED_PIPES, raw: { id: "17" }, sent: "017" }, denied: ["16", "016", "0x10", "1.6e1"], dto: IsIntOnlyDto, invalid: ["abc", "1.5"], name: "is-int-only", value: "16" },
 	{ allowed: { piped: { id: "xyz" }, raw: { id: "xyz" }, sent: "XYZ" }, denied: ["abc", "ABC"], dto: LowerCasedStringDto, invalid: ["toolongvalue"], name: "lower-cased-string", value: "abc" },
-	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: LowerCasedUuidDto, invalid: ["not-a-uuid"], name: "lower-cased-uuid", value: DENIED_UUID },
+	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID], dto: LowerCasedUuidDto, invalid: UUID_INVALID, name: "lower-cased-uuid", value: DENIED_UUID },
 	{ allowed: { piped: { id: "p-xyz" }, raw: { id: "p-xyz" }, sent: "xyz" }, denied: ["abc", "p-abc"], dto: StablePrefixDto, invalid: [], name: "stable-prefix", value: "p-abc" },
 	{ allowed: { piped: { id: "2024-03-11" }, pipes: DATE_REJECTED_PIPES, raw: { id: "2024-03-11" }, sent: "2024-03-11" }, denied: ["2024-03-10"], dto: DeclaredTextDto, invalid: ["garbage"], name: "declared-text", value: "2024-03-10" },
 	{ allowed: { piped: { id: "17" }, pipes: { consumer: { status: 200, value: { id: 17 } }, implicit: { status: 200, value: { id: 17 } } }, raw: { id: "17" }, sent: "17" }, denied: ["16"], dto: UntypedNumberDto, invalid: ["016", "0x10", "abc"], name: "untyped-number", value: "16" },
