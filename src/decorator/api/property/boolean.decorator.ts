@@ -1,6 +1,5 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyBooleanProperties } from "@type/decorator/api/property";
 
 import { EApiPropertyDataType } from "@enum/decorator/api";
@@ -71,7 +70,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, Validate
  */
 export function ApiPropertyBoolean(properties: TApiPropertyBooleanProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		WithResolvedPropertyEntity(properties.entity, "ApiPropertyBoolean", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyBoolean", (resolvedEntity: TApiEntityReference) => {
 			const normalizedProperties: TApiPropertyBooleanProperties = { ...properties, entity: resolvedEntity };
 
 			validateOptions(normalizedProperties, target, propertyKey);

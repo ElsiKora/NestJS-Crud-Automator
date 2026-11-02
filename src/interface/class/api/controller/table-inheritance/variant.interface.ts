@@ -1,8 +1,8 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity } from "@interface/entity";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 
 export interface IApiControllerTableInheritanceVariant {
 	discriminatorValue: string;
-	entity: IApiBaseEntity;
+	entity: TApiEntityReference;
 	entityMetadata: IApiEntity<unknown>;
 }

@@ -404,7 +404,7 @@ export class ApiControllerGetListCursorRuntime {
 			return Object.freeze(
 				order.map((entry: IApiControllerGetListQueryPlanOrderEntry): unknown => {
 					const field: TApiControllerGetListQueryCompiledOrderField = this.getOrderField(plan, entry);
-					const rawValue: unknown = item[entry.field];
+					const rawValue: unknown = Reflect.get(item, entry.field);
 					const value: unknown = this.decodeValue(rawValue instanceof Date ? rawValue.toISOString() : rawValue, field);
 
 					validateStorageValue(field, value);

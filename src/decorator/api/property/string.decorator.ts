@@ -1,6 +1,5 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type as NestType } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyStringProperties } from "@type/decorator/api/property";
 
 import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "@constant/interface/api";
@@ -130,7 +129,7 @@ import {
  */
 export function ApiPropertyString(properties: TApiPropertyStringProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		WithResolvedPropertyEntity(properties.entity, "ApiPropertyString", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyString", (resolvedEntity: TApiEntityReference) => {
 			const normalizedProperties: TApiPropertyStringProperties = {
 				...properties,
 				entity: resolvedEntity,

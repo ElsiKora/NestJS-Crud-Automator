@@ -1,6 +1,5 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type as NestType } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyNumberProperties } from "@type/decorator/api/property";
 
 import { NUMBER_CONSTANT } from "@constant/number.constant";
@@ -87,7 +86,7 @@ import random from "lodash/random.js";
  */
 export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		WithResolvedPropertyEntity(properties.entity, "ApiPropertyNumber", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyNumber", (resolvedEntity: TApiEntityReference) => {
 			const normalizedProperties: TApiPropertyNumberProperties = {
 				...properties,
 				entity: resolvedEntity,

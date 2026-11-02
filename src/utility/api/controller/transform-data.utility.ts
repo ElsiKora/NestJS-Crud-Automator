@@ -24,8 +24,19 @@ import { ErrorString } from "@utility/error/string.utility";
  * @returns {void}
  */
 export function ApiControllerTransformData<E extends IApiBaseEntity>(targets: Partial<Record<EApiControllerRequestTarget | EApiControllerResponseTarget, { transformers?: Array<TApiRequestTransformer<E>> }>> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
-	const runtimeTargets: TApiControllerTransformDataTargets<E> | undefined = targets;
+	ApiControllerTransformRouteData<E>(targets, properties, objectToTransform, data);
+}
 
+/**
+ * Applies configured transformers to a generated route's request, whose path parameter transformers may name a route parameter instead of an entity key.
+ * @param {TApiControllerTransformDataTargets<E> | undefined} runtimeTargets - Route request targets.
+ * @param {IApiControllerProperties<E>} properties - Controller properties.
+ * @param {TApiControllerTransformDataObjectToTransform<E>} objectToTransform - Values to transform.
+ * @param {TApiControllerTransformDataData} data - Request data.
+ * @returns {void}
+ * @template E - Entity type.
+ */
+export function ApiControllerTransformRouteData<E extends IApiBaseEntity>(runtimeTargets: TApiControllerTransformDataTargets<E> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
 	if (!runtimeTargets) return;
 
 	if (EApiControllerRequestTarget.BODY in runtimeTargets && runtimeTargets[EApiControllerRequestTarget.BODY]?.transformers) {

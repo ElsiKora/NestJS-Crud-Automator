@@ -1,7 +1,7 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TApiPropertyCopyProperties } from "@type/decorator/api/property/copy-properties.type";
 
@@ -64,7 +64,7 @@ export function ApiPropertyCopy<E>(properties: TApiPropertyCopyProperties<E>): P
 
 	return function (target: object, key: string | symbol): void {
 		const executeWithEntity = (decoratorTarget: object): void => {
-			WithResolvedPropertyEntity(entity, "ApiPropertyCopy", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+			WithResolvedPropertyEntity(entity, "ApiPropertyCopy", (resolvedEntity: TApiEntityReference) => {
 				executeWithContext(decoratorTarget, resolvedEntity as Type<E>);
 			});
 		};

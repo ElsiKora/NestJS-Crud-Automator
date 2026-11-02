@@ -6,15 +6,34 @@ Complete reference for key interfaces used in NestJS CRUD Automator.
 
 ### IApiBaseEntity
 
-Base interface for all entities.
+Base type for all entities.
 
 ```typescript
-interface IApiBaseEntity {
-	[key: string]: unknown;
-}
+type IApiBaseEntity = object;
 ```
 
-All entities must implement this interface (implicitly through TypeScript's structural typing).
+Any class or interface is an entity, and nothing has to implement this type. It adds no keys, so `keyof` of an entity gives the entity's own keys only.
+
+### TApiEntityReference
+
+What the `entity` option of `@ApiController` and of the property decorators, `ErrorString` and `GenerateEntityInformation` take: a class, an abstract class or an object with a string `name`.
+
+```typescript
+type TApiEntityReference = { name?: string } | Abstract<object>;
+```
+
+TypeScript refuses `{ foo: 1 }`, `{ name: 1 }`, a string, `null`, an array and an instance of a class without a `name`. It cannot refuse `{}`, a value typed `object`, `Object.create(null)` or any function, because a function has a `name`. For those, `@ApiController` throws when the class is decorated, for example `Table for entity undefined not found in metadata storage` for `{}`, and a property decorator given `{}` starts the property's description with `undefined`.
+
+#### Migration Notes
+
+- **5.0:** `IApiBaseEntity` was an interface with a string index signature and a `name`. So in an `interface X extends IApiBaseEntity`, every key counted as a column: `getList({ limit: 10, page: 1 })` and `repository.update({ id }, { description })` did not compile, and `create({ notAColumn: 1 })` and `entity.notAColumn` did. Declare every key on the entity.
+- **5.0:** Index access to a key the entity does not declare stops compiling. On a non-generic entity `(entity as Record<string, unknown>)[key]` is also an error, `TS2352`. Type the key as `keyof E`, read it with `Reflect.get(entity, key)`, or write `entity as unknown as Record<string, unknown>`.
+- **5.0:** `IApiBaseEntity` is a type alias, so a `declare module` augmentation of it fails with `TS2300`, even with `skipLibCheck`. Remove the augmentation, declare the shared keys on your own `interface IAppEntity extends IApiBaseEntity`, and extend that in your entities.
+- **5.0:** The `entity` option of `@ApiController` and of the property decorators, and the arguments of `ErrorString` and `GenerateEntityInformation`, are a `TApiEntityReference`, no longer any object. `ErrorString({ entity: new NoName(), ... })` no longer compiles for an instance of a class without a `name`. Pass the class, or give the object a `name`.
+- **5.0:** `IApiEntity<E>` no longer extends `IApiBaseEntity`. It has its own `name`.
+- **5.0:** `scopeToOwner` takes a key of the entity. With no argument it still uses `ownerId`. In a policy that is generic over `E`, a literal `"ownerId"` needs `"ownerId" as keyof E`, or leave the argument out.
+- **5.0:** In a function generic over `E`, `getList` needs `{ limit, page } as TApiControllerGetListQuery<E>`, because TypeScript cannot resolve the entity's filter keys until `E` is known.
+- **5.0:** `ApiControllerTransformData<IX>(route.request, ...)` with the `request` of a `GET` or `GET_LIST` route no longer compiles on an interface entity, the same as on a class entity. Its `PARAMETERS` transformers can name a route parameter instead of an entity key. Add `as Parameters<typeof ApiControllerTransformData<IX>>[0]`.
 
 ### IApiGetListResponseResult\<E\>
 
@@ -57,7 +76,7 @@ Configuration options for `@ApiController`.
 ```typescript
 interface IApiControllerProperties<E extends IApiBaseEntity> {
 	authorization?: IApiControllerAuthorizationProperties<E>;
-	entity: IApiBaseEntity;
+	entity: TApiEntityReference;
 	name?: string;
 	path?: string;
 	routes: {

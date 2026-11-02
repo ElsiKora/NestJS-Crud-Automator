@@ -1,5 +1,4 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type } from "@nestjs/common";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 
 import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 
@@ -8,6 +7,6 @@ import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
  * @param {unknown} candidate - Value to inspect.
  * @returns {boolean} True when candidate is a lazy resolver function.
  */
-export function IsEntityFactory(candidate: unknown): candidate is () => IApiBaseEntity | Type<IApiBaseEntity> | undefined {
+export function IsEntityFactory(candidate: unknown): candidate is () => TApiEntityReference | undefined {
 	return typeof candidate === "function" && !IsEntityConstructor(candidate);
 }

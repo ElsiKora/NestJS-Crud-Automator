@@ -119,15 +119,7 @@ function reachDecoratedClass(decorated: DecoratedController, merged: MergedContr
  * @returns {ReadonlyArray<unknown>} Never read; the function only has to compile.
  */
 function callExtendingEntityMethods(controller: TExtendingController): ReadonlyArray<unknown> {
-	return [
-		controller.create({ id: "id" }, {}, "127.0.0.1"),
-		controller.get({ id: "id" }, {}, "127.0.0.1"),
-		controller.update({ id: "id" }, { id: "other" }, {}, "127.0.0.1"),
-		controller.partialUpdate({ id: "id" }, { id: "other" }, {}, "127.0.0.1"),
-		controller.delete({ id: "id" }, {}, "127.0.0.1"),
-		// @ts-expect-error bugfix/base-entity-index-signature makes this call compile and removes this directive
-		controller.getList({ limit: 10, page: 1 }, {}, "127.0.0.1"),
-	];
+	return [controller.create({ id: "id" }, {}, "127.0.0.1"), controller.get({ id: "id" }, {}, "127.0.0.1"), controller.update({ id: "id" }, { id: "other" }, {}, "127.0.0.1"), controller.partialUpdate({ id: "id" }, { id: "other" }, {}, "127.0.0.1"), controller.delete({ id: "id" }, {}, "127.0.0.1"), controller.getList({ limit: 10, page: 1 }, {}, "127.0.0.1")];
 }
 
 describe("generated controller method names", () => {

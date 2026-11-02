@@ -11,7 +11,7 @@ Generates entity metadata from an entity class. The result includes TypeORM colu
 **Location:** `src/utility/generate-entity-information.utility.ts`
 
 ```typescript
-function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E>;
+function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiEntity<E>;
 ```
 
 **Usage:**
@@ -126,7 +126,7 @@ Formats error objects to strings.
 **Location:** `src/utility/error/string.utility.ts`
 
 ```typescript
-function ErrorString<T extends IApiBaseEntity>(properties: TErrorStringProperties<T>): string;
+function ErrorString<T extends TApiEntityReference>(properties: TErrorStringProperties<T>): string;
 ```
 
 ### IsErrorOfType

@@ -1,7 +1,7 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type as NestType } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyObjectProperties, TApiPropertyObjectWithDiscriminatorProperties } from "@type/decorator/api/property";
 import type { ClassConstructor } from "class-transformer";
 
@@ -53,7 +53,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, Validate,
  */
 export function ApiPropertyObject(options: TApiPropertyObjectProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		WithResolvedPropertyEntity(options.entity, "ApiPropertyObject", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
+		WithResolvedPropertyEntity(options.entity, "ApiPropertyObject", (resolvedEntity: TApiEntityReference) => {
 			const normalizedOptions: TApiPropertyObjectProperties = resolveContextualObjectOptions(target, propertyKey, { ...options, entity: resolvedEntity });
 
 			RegisterAutoDtoChild(target, normalizedOptions.type);

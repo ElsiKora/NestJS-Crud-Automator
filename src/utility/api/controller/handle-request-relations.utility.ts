@@ -248,7 +248,8 @@ function resolveRelationReferenceValue(entity: IApiBaseEntity, propertyName: str
  * @template E - Entity type.
  */
 function resolveRelationServiceName<E extends IApiBaseEntity>(propertyName: string, services: NonNullable<IApiControllerPropertiesRouteBaseRelationsRequest<E>["load"]>["services"]): keyof TApiServiceKeys<E> {
-	const serviceName: string = services?.[propertyName] ?? `${propertyName}Service`;
+	const configuredName: unknown = services ? Reflect.get(services, propertyName) : undefined;
+	const serviceName: string = typeof configuredName === "string" ? configuredName : `${propertyName}Service`;
 
 	if (!serviceName) {
 		throw ErrorException(`Service name not specified for property ${propertyName}`);

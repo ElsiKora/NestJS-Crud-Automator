@@ -1,6 +1,5 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyDateProperties } from "@type/decorator/api/property";
 
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
@@ -74,7 +73,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, Validate, V
  */
 export function ApiPropertyDate(properties: TApiPropertyDateProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		WithResolvedPropertyEntity(properties.entity, "ApiPropertyDate", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyDate", (resolvedEntity: TApiEntityReference) => {
 			const normalizedProperties: TApiPropertyDateProperties = { ...properties, entity: resolvedEntity };
 
 			validateOptions(normalizedProperties, target, propertyKey);

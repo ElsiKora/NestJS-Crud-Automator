@@ -139,6 +139,20 @@ See [Authorization: Migration Notes](/docs/nestjs-crud-automator/guides/authoriz
 
 `isUniqueItems: true` on a request array now answers `400` for equal items, on every `@ApiProperty*` decorator and, when the application installs a `ValidationPipe`, on generated routes. An array whose items nest more than 64 levels answers `400` as well. Before 5.0.0 it only set `uniqueItems` in the OpenAPI schema. Set `isUniqueItems: false` on an array that accepts repeated values. See [Validation: Migration Notes](/docs/nestjs-crud-automator/guides/validation#migration-notes).
 
+## Base Entity Type
+
+`IApiBaseEntity` is now `object`. Its string index signature made every key of an `interface X extends IApiBaseEntity` a column: `getList({ limit: 10, page: 1 })` and `repository.update({ id }, { description })` did not compile, and `create({ notAColumn: 1 })` did.
+
+Declare every key on the entity, and remove any cast you added to call `getList` or `update`. These also stop compiling:
+
+- Index access to a key the entity does not declare. On a non-generic entity `(entity as Record<string, unknown>)[key]` is `TS2352`: use `keyof E`, `Reflect.get(entity, key)` or `as unknown as Record<string, unknown>`.
+- A `declare module` augmentation of `IApiBaseEntity`, which gives `TS2300` even with `skipLibCheck`. Declare the shared keys on your own interface that extends `IApiBaseEntity`, and extend that in your entities.
+- An `entity` option of `@ApiController` or of a property decorator, or an argument of `ErrorString` or `GenerateEntityInformation`, that is an instance of a class without a `name`, or `{ foo: 1 }`. Pass the class, or give the object a `name`. `{}` and any function still compile. `@ApiController` then throws when the class is decorated.
+- A key `IApiEntity<E>` does not declare. It no longer extends `IApiBaseEntity` and has its own `name`.
+- `ApiControllerTransformData<IX>(route.request, ...)` with the `request` of a `GET` or `GET_LIST` route on an interface entity, the same as on a class entity. Add `as Parameters<typeof ApiControllerTransformData<IX>>[0]`.
+
+Inside code that is generic over `E`, `getList` needs `{ limit, page } as TApiControllerGetListQuery<E>`, and `scopeToOwner` with a literal needs `"ownerId" as keyof E` or no argument. See [Interfaces: Migration Notes](/docs/nestjs-crud-automator/api-reference/interfaces#migration-notes).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

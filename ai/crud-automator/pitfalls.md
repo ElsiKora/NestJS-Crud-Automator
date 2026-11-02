@@ -274,6 +274,10 @@ Rows with a value that has no variant fail with `500`, so adding a value to the 
 
 From 5.0.0, generated GET and GET_LIST over such a root no longer produce the 4.x `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components, and `GenerateEntityInformation(Child).tableName` returns the root table. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route.
 
+## Base Entity Type
+
+From 5.0.0 `IApiBaseEntity` is `object`, a breaking change: it has no index signature and no `name`, and a `declare module` augmentation of it gives `TS2300`. Declare every key on the entity, or on your own interface that extends `IApiBaseEntity`. Do not read undeclared keys with `(entity as Record<string, unknown>)[key]`, which is `TS2352` on a non-generic entity; use `keyof E` or `Reflect.get`. An `entity` option, `ErrorString` and `GenerateEntityInformation` take a `TApiEntityReference`: it refuses `{ foo: 1 }` and an instance of a class without a `name`, but not `{}` or a function, so `@ApiController` catches those when the class is decorated. In code generic over `E`, write `{ limit, page } as TApiControllerGetListQuery<E>` for `getList` and `"ownerId" as keyof E` or no argument for `scopeToOwner`.
+
 ## Removed 3.0 Exports
 
 Use `EApiGetDefaultStringFormatPropertiesBigIntStringSign` instead of the removed `TApiGetDefaultStringFormatPropertiesBigIntStringSign` type. Do not import the removed `EHasPairedCustomSuffixesFieldsArgumentType`, `THasPairedCustomSuffixesFieldsOperationConfig`, or `VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT`; `HasPairedCustomSuffixesFieldsValidator` remains public. Import supported symbols from the package root.

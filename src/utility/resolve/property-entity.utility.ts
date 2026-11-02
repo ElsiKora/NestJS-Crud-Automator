@@ -1,5 +1,4 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type } from "@nestjs/common";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyEntity } from "@type/index";
 
 import { ErrorException } from "@utility/error/exception.utility";
@@ -11,11 +10,10 @@ import { IsEntityLiteral } from "@utility/is/entity/literal.utility";
  * Resolves property decorator entity references immediately or throws if unavailable.
  * @param {TApiPropertyEntity} entity - Entity reference or resolver.
  * @param {string} decoratorName - Decorator name for error context.
- * @returns {IApiBaseEntity | Type<IApiBaseEntity>} Normalized entity reference.
+ * @returns {TApiEntityReference} Normalized entity reference.
  */
-export function ResolvePropertyEntity(entity: TApiPropertyEntity, decoratorName: string): IApiBaseEntity | Type<IApiBaseEntity> {
-	// eslint-disable-next-line @elsikora/sonar/use-type-alias
-	const resolved: IApiBaseEntity | Type<IApiBaseEntity> | undefined = TryResolvePropertyEntity(entity);
+export function ResolvePropertyEntity(entity: TApiPropertyEntity, decoratorName: string): TApiEntityReference {
+	const resolved: TApiEntityReference | undefined = TryResolvePropertyEntity(entity);
 
 	if (!resolved) {
 		throw ErrorException(`Entity for ${decoratorName} could not be resolved. Provide the entity class or a factory that returns it.`);
@@ -27,9 +25,9 @@ export function ResolvePropertyEntity(entity: TApiPropertyEntity, decoratorName:
 /**
  * Attempts to resolve the entity reference without throwing when the resolver returns undefined.
  * @param {TApiPropertyEntity} entity - Entity reference or factory.
- * @returns {IApiBaseEntity | Type<IApiBaseEntity> | undefined} Resolved entity or undefined when not ready.
+ * @returns {TApiEntityReference | undefined} Resolved entity or undefined when not ready.
  */
-export function TryResolvePropertyEntity(entity: TApiPropertyEntity): IApiBaseEntity | Type<IApiBaseEntity> | undefined {
+export function TryResolvePropertyEntity(entity: TApiPropertyEntity): TApiEntityReference | undefined {
 	if (IsEntityConstructor(entity)) {
 		return entity;
 	}
@@ -39,7 +37,7 @@ export function TryResolvePropertyEntity(entity: TApiPropertyEntity): IApiBaseEn
 	}
 
 	if (IsEntityFactory(entity)) {
-		const factory: () => IApiBaseEntity | Type<IApiBaseEntity> | undefined = entity;
+		const factory: () => TApiEntityReference | undefined = entity;
 
 		return factory();
 	}

@@ -1,3 +1,4 @@
+export { type TApiEntityReference } from "./api-entity-reference.type";
 export { type TApiRequestTransformer } from "./api-request-transformer.type";
 export { type IDtoAutoContextMetadata } from "./auto-context-metadata.type";
 export type * from "./class";

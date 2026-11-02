@@ -1,6 +1,5 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyEnumProperties } from "@type/decorator/api/property/enum-properties.type";
 
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
@@ -92,7 +91,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, Validate, V
  */
 export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		WithResolvedPropertyEntity(properties.entity, "ApiPropertyEnum", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyEnum", (resolvedEntity: TApiEntityReference) => {
 			const normalizedProperties: TApiPropertyEnumProperties = { ...properties, entity: resolvedEntity };
 
 			validateOptions(normalizedProperties, target, propertyKey);

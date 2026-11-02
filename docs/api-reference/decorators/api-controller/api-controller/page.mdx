@@ -12,7 +12,7 @@ Generates CRUD endpoints, DTOs, Swagger metadata, guards, and request/response p
 
 | Option   | Type                                                                  | Description                                                                                              |
 | -------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `entity` | `IApiBaseEntity`                                                      | Entity class used to inspect columns, relations, and repository metadata.                                |
+| `entity` | `TApiEntityReference`                                                 | Entity class used to inspect columns, relations, and repository metadata.                                |
 | `name`   | `string`                                                              | Optional human-friendly resource label used for Swagger tags and generated route documentation.          |
 | `path`   | `string`                                                              | Overrides the route prefix if the controller path differs from the entity plural name.                   |
 | `routes` | `Partial<Record<EApiRouteType, TApiControllerPropertiesRoute<E, R>>>` | Per-route configuration covering security, DTO sources, request/response metadata, and generation flags. |

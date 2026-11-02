@@ -10,10 +10,9 @@ import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/
 import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/api/subscriber/route/execution/context";
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context";
 import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRelationsResponseLoad, IApiControllerPropertiesRouteBaseRequestTarget, IApiRouteMetadata, IApiRouteRuntimeProperties } from "@interface/decorator/api";
-import type { IApiEntity } from "@interface/entity";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { IApiControllerPrimaryColumn } from "@interface/utility";
 import type { Type } from "@nestjs/common";
-import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiControllerGetListQueryCompiledPlan } from "@type/class/api/controller/get-list/compiled/plan.type";
@@ -24,6 +23,7 @@ import type { TApiControllerGetListQuery, TApiControllerPropertiesRoute } from "
 import type { TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetListPropertiesWhere, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "@type/decorator/api/function";
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { TApiControllerTransformDataObjectToTransform } from "@type/utility";
+import type { TApiControllerTransformDataTargets } from "@type/utility/api/controller/transform-data/targets.type";
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
@@ -56,7 +56,7 @@ import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
-import { ApiControllerTransformData } from "@utility/api/controller/transform-data.utility";
+import { ApiControllerTransformData, ApiControllerTransformRouteData } from "@utility/api/controller/transform-data.utility";
 import { ApiControllerValidateRequest } from "@utility/api/controller/validate-request.utility";
 import { ApiRouteProjectRelationResponse, ApiRouteValidationFlattenErrors } from "@utility/api/route";
 import { ApiRouteCreateDiscriminatedDtoValidationFailure, ApiRouteIsDiscriminatedDtoProperties, ApiRoutePrepareDiscriminatedDtoPayload, ApiRouteResolveDiscriminatedDto, ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
@@ -526,21 +526,21 @@ export class ApiRouteRuntime {
 	private static async executeGeneratedRequestPipeline<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, targetOrder: Array<EApiControllerRequestTarget>): Promise<void> {
 		const routeConfig: TApiControllerPropertiesRoute<E, R> = options.properties.routes[options.method] ?? {};
 		const requestTargets: Partial<Record<EApiControllerRequestTarget, unknown>> | undefined = routeConfig.request;
-		const transformTargets: Partial<Record<EApiControllerRequestTarget, { transformers?: Array<TApiRequestTransformer<E>> }>> | undefined = routeConfig.request;
+		const transformTargets: TApiControllerTransformDataTargets<E> | undefined = routeConfig.request;
 
 		for (const target of targetOrder) {
 			if (target === EApiControllerRequestTarget.PARAMETERS) {
-				ApiControllerTransformData<E>(transformTargets, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
+				ApiControllerTransformRouteData<E>(transformTargets, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, targets.parameters ?? {});
 			}
 
 			if (target === EApiControllerRequestTarget.QUERY) {
-				ApiControllerTransformData<E>(transformTargets, options.properties, { query: targets.query }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
+				ApiControllerTransformRouteData<E>(transformTargets, options.properties, { query: targets.query }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E, EApiControllerGetListQueryPaginationMode>(requestTargets?.[EApiControllerRequestTarget.QUERY] as IApiControllerPropertiesRouteBaseRequestTarget<E, EApiControllerGetListQueryPaginationMode> | undefined, options.properties, targets.query ?? {});
 			}
 
 			if (target === EApiControllerRequestTarget.BODY) {
-				ApiControllerTransformData<E>(transformTargets, options.properties, { body: targets.body }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
+				ApiControllerTransformRouteData<E>(transformTargets, options.properties, { body: targets.body }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, (targets.body ?? {}) as Partial<E>);
 			}
 		}
@@ -789,8 +789,14 @@ export class ApiRouteRuntime {
 			throw new BadRequestException("INVALID_PARAMETERS");
 		}
 
+		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((entityColumn: IApiEntityColumn<E>): boolean => String(entityColumn.name) === identityPlan.field);
+
+		if (!column) {
+			throw ErrorException(`Identity field ${identityPlan.field} not found in entity columns`);
+		}
+
 		return {
-			key: identityPlan.field,
+			key: column.name,
 			value: value as string,
 		};
 	}

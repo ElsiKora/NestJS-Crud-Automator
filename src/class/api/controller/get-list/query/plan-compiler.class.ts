@@ -5,6 +5,7 @@ import type { IApiControllerPropertiesRouteGetListQueryFilter, IApiControllerPro
 import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiControllerGetListQueryCompiledOrderField } from "@type/class/api/controller/get-list/compiled/order-field.type";
 import type { TApiControllerGetListQueryCompiledOrder } from "@type/class/api/controller/get-list/compiled/order.type";
 import type { TApiControllerGetListQueryCompiledPlan } from "@type/class/api/controller/get-list/compiled/plan.type";
@@ -645,7 +646,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	// Reads the columns of the entity class and its parents, as TypeORM does: a property a parent declares keeps the parent's column.
-	private static findColumnMetadata(entity: IApiBaseEntity | ObjectLiteral, propertyName: string): TTypeOrmColumnMetadataArguments | undefined {
+	private static findColumnMetadata(entity: ObjectLiteral | TApiEntityReference, propertyName: string): TTypeOrmColumnMetadataArguments | undefined {
 		return getMetadataArgsStorage()
 			.filterColumns(GetClassHierarchy(DatabaseTypeOrmGetEntityClass(entity)))
 			.find((column: TTypeOrmColumnMetadataArguments): boolean => column.propertyName === propertyName);
@@ -687,13 +688,13 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return "its column type cannot be ordered";
 	}
 
-	private static hasAfterLoadListener(entity: IApiBaseEntity | ObjectLiteral): boolean {
+	private static hasAfterLoadListener(entity: ObjectLiteral | TApiEntityReference): boolean {
 		return getMetadataArgsStorage()
 			.filterListeners(GetClassHierarchy(entity))
 			.some((listener: TTypeOrmEntityListenerMetadataArguments): boolean => listener.type === "after-load");
 	}
 
-	private static hasPropertyAccessor(entity: IApiBaseEntity | ObjectLiteral | Type<unknown>, propertyName: string): boolean {
+	private static hasPropertyAccessor(entity: ObjectLiteral | TApiEntityReference | Type<unknown>, propertyName: string): boolean {
 		if (typeof entity === "function") {
 			try {
 				const instance: object = Reflect.construct(entity, []) as object;
@@ -722,7 +723,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return false;
 	}
 
-	private static isColumnNullable(entity: IApiBaseEntity | ObjectLiteral, propertyName: string, metadata: TApiPropertyDescribeProperties): boolean {
+	private static isColumnNullable(entity: ObjectLiteral | TApiEntityReference, propertyName: string, metadata: TApiPropertyDescribeProperties): boolean {
 		return this.findColumnMetadata(entity, propertyName)?.options.nullable === true || metadata.isNullable === true;
 	}
 

@@ -66,7 +66,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 			throw ErrorException(`Table inheritance root ${root.name} has no child entity loaded when the controller is decorated. Import the child entity files before the controller.`);
 		}
 
-		const discriminatorColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => column.name === discriminatorPropertyName);
+		const discriminatorColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => String(column.name) === discriminatorPropertyName);
 
 		if (!discriminatorColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]) {
 			throw ErrorException(`Table inheritance root ${root.name} must declare and describe its discriminator column "${discriminatorPropertyName}"`);

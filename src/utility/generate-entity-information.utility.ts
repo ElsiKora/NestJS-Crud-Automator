@@ -1,6 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TTypeOrmColumnMetadataArguments, TTypeOrmRelationMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
@@ -10,11 +11,11 @@ import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
 
 /**
  * Generates metadata information about an entity including columns, table name, and primary key
- * @param {IApiBaseEntity} entity - The entity to generate information for
+ * @param {TApiEntityReference} entity - The entity to generate information for
  * @returns {IApiEntity<E>} The generated entity information object
  * @template E - The entity type
  */
-export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E> {
+export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiEntity<E> {
 	const tableName: string = ((): string => {
 		// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 		const table: TTypeOrmTableMetadataArguments | undefined = getMetadataArgsStorage().tables.find(({ target }: TTypeOrmTableMetadataArguments): boolean => (target as Function).name === entity.name);
@@ -121,7 +122,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			} else if (typeof resolvedRelationTarget === "function" && resolvedRelationTarget.name) {
 				relationTarget = resolvedRelationTarget;
 			} else if (typeof resolvedRelationTarget === "object" && resolvedRelationTarget !== null && "name" in resolvedRelationTarget && typeof (resolvedRelationTarget as { name?: unknown }).name === "string") {
-				relationTarget = resolvedRelationTarget as IApiBaseEntity;
+				relationTarget = resolvedRelationTarget;
 			}
 
 			return {

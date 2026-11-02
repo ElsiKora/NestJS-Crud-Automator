@@ -1,6 +1,5 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyUuidProperties } from "@type/decorator/api/property";
 
 import { randomUUID } from "node:crypto";
@@ -62,7 +61,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsUUID, Validate, V
  */
 export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		WithResolvedPropertyEntity(properties.entity, "ApiPropertyUUID", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyUUID", (resolvedEntity: TApiEntityReference) => {
 			const normalizedProperties: TApiPropertyUuidProperties = { ...properties, entity: resolvedEntity };
 			const uuidExample: string = randomUUID();
 
