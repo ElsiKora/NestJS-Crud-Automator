@@ -57,17 +57,18 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 
 		for (const column of repository.metadata.primaryColumns) {
 			const columnType: string = driver.normalizeType(column);
+			const path: string = column.propertyPath ?? column.propertyName;
 
 			if (!this.isDateTime(columnType)) {
 				continue;
 			}
 
 			if (this.isFilledByDatabase(column) && !FILLED_KEY_DRIVER_TYPES.has(options.type)) {
-				throw ErrorException(`${source} cannot identify the row it creates: the database fills date and time primary column ${column.propertyName} of ${repository.metadata.name}, and the ${options.type} driver cannot read that value back; send the key in the body or use one of ${[...FILLED_KEY_DRIVER_TYPES].join(", ")}`);
+				throw ErrorException(`${source} cannot identify the row it creates: the database fills date and time primary column ${path} of ${repository.metadata.name}, and the ${options.type} driver cannot read that value back; send the key in the body or use one of ${[...FILLED_KEY_DRIVER_TYPES].join(", ")}`);
 			}
 
 			if (isSecurable && this.holdsFinerThanDate(driver, column, columnType, options.type)) {
-				throw ErrorException(`${source} cannot identify the row it creates under authorization: date and time primary column ${column.propertyName} of ${repository.metadata.name} can hold values finer than a millisecond, which a JavaScript Date cannot tell apart, so the scope could be checked against another row; declare it with precision: ${String(DATE_FRACTION_DIGITS)}`);
+				throw ErrorException(`${source} cannot identify the row it creates under authorization: date and time primary column ${path} of ${repository.metadata.name} can hold values finer than a millisecond, which a JavaScript Date cannot tell apart, so the scope could be checked against another row; declare it with precision: ${String(DATE_FRACTION_DIGITS)}`);
 			}
 		}
 	}
@@ -102,7 +103,9 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 
 		for (const column of repository.metadata.primaryColumns) {
 			const columnType: string = driver.normalizeType(column);
-			const value: unknown = Reflect.get(body, column.propertyName);
+			// A key inside an embedded property sits under that property in the body, as in the entity.
+			const path: string = column.propertyPath ?? column.propertyName;
+			const value: unknown = this.readPath(body, path);
 
 			if (!this.isDateTime(columnType) || value === undefined || value === null) {
 				continue;
@@ -114,13 +117,13 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 			const isInstant: boolean = DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
 			// Every other column stores the local wall clock of the Date, which the second occurrence of a repeated hour shares with the first, so one key would name the row of the other.
 			const isWallClock: boolean = !isInstant && !DATABASE_DRIVER_TYPE_CONSTANT.SQLITE_FAMILY.has(repository.manager.dataSource.options.type);
-			const message: string | undefined = this.check(column.propertyName, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType) ?? DATE_FRACTION_DIGITS, DATE_FRACTION_DIGITS)) ?? (isWallClock && date && this.isRepeatedHour(date) ? `${column.propertyName} falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first` : undefined);
+			const message: string | undefined = this.check(path, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType) ?? DATE_FRACTION_DIGITS, DATE_FRACTION_DIGITS)) ?? (isWallClock && date && this.isRepeatedHour(date) ? `${path} falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first` : undefined);
 
 			if (message) {
 				messages.push(message);
 			} else if (date) {
 				// The column transformer receives this Date once on the write; node-postgres would move an instant in a zone whose offset holds seconds.
-				Reflect.set(body, column.propertyName, isInstant && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(repository.manager.dataSource.options.type) ? new ApiControllerGeneratedUtcDate(date.getTime()) : date);
+				this.writePath(body, path, isInstant && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(repository.manager.dataSource.options.type) ? new ApiControllerGeneratedUtcDate(date.getTime()) : date);
 			}
 		}
 
@@ -176,11 +179,46 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 		return text === undefined ? undefined : new Date(text.replace(" ", "T"));
 	}
 
+	/**
+	 * Reads a value of the body by its property path, through the embedded properties it holds.
+	 * @param {object} body - Create body.
+	 * @param {string} path - Property path of the column.
+	 * @returns {unknown} The value, or undefined when the body lacks it or an embedded property on its way.
+	 */
+	private static readPath(body: object, path: string): unknown {
+		let current: unknown = body;
+
+		for (const key of path.split(".")) {
+			if (typeof current !== "object" || current === null) {
+				return undefined;
+			}
+
+			current = Reflect.get(current, key);
+		}
+
+		return current;
+	}
+
 	private static readText(value: unknown): string | undefined {
 		if (typeof value === "string") {
 			return value;
 		}
 
 		return value instanceof Date ? ApiControllerGeneratedTemporalBodySource.read(value) : undefined;
+	}
+
+	/**
+	 * Writes a value of the body by its property path, into the embedded properties {@link ApiControllerGeneratedCreateTemporalKeyContract.readPath} found.
+	 * @param {object} body - Create body, changed in place.
+	 * @param {string} path - Property path of the column.
+	 * @param {unknown} value - The value to write.
+	 */
+	private static writePath(body: object, path: string, value: unknown): void {
+		const separator: number = path.lastIndexOf(".");
+		const owner: unknown = separator === -1 ? body : this.readPath(body, path.slice(0, separator));
+
+		if (typeof owner === "object" && owner !== null) {
+			Reflect.set(owner, path.slice(separator + 1), value);
+		}
 	}
 }

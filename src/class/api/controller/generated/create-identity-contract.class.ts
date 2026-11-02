@@ -53,14 +53,7 @@ export class ApiControllerGeneratedCreateIdentityContract {
 			throw ErrorException("Repository is not available in this context");
 		}
 
-		const identity: Record<string, unknown> = {};
-
-		for (const [key, value] of Object.entries(values)) {
-			const column: TTypeOrmColumnMetadata | undefined = repository.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => primaryColumn.propertyName === key);
-			identity[key] = column ? this.createCondition(column, value, repository.manager.dataSource.driver.normalizeType(column), repository.manager.dataSource.options.type) : value;
-		}
-
-		const where: FindOptionsWhere<E> = identity as FindOptionsWhere<E>;
+		const where: FindOptionsWhere<E> = this.createIdentity(repository, values) as FindOptionsWhere<E>;
 		await this.confirm(repository, where);
 
 		return where;
@@ -88,6 +81,38 @@ export class ApiControllerGeneratedCreateIdentityContract {
 		const range: Array<ApiFunctionBoundOperator<unknown>> = [new ApiFunctionBoundOperator<unknown>(lower, undefined, MoreThanOrEqual(lower)), new ApiFunctionBoundOperator<unknown>(upper, undefined, LessThan(upper))];
 
 		return new ApiFunctionBoundOperator<unknown>(range, undefined, And(...range));
+	}
+
+	/**
+	 * Builds the criteria of one level of the reported key, which TypeORM nests by embedded property.
+	 * A primary column is found by its property path, so a date and time column inside an embedded property matches its whole millisecond too.
+	 * @template E The entity type
+	 * @param {Repository<E>} repository - Repository whose metadata names the primary columns.
+	 * @param {Record<string, unknown>} values - Reported values of this level.
+	 * @param {string} [prefix] - Property path of the embedded property this level belongs to.
+	 * @returns {Record<string, unknown>} Criteria of this level.
+	 */
+	private static createIdentity<E extends IApiBaseEntity>(repository: Repository<E>, values: Record<string, unknown>, prefix?: string): Record<string, unknown> {
+		const identity: Record<string, unknown> = {};
+
+		for (const [key, value] of Object.entries(values)) {
+			const path: string = prefix ? `${prefix}.${key}` : key;
+			const column: TTypeOrmColumnMetadata | undefined = repository.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => (primaryColumn.propertyPath ?? primaryColumn.propertyName) === path);
+
+			if (column) {
+				identity[key] = this.createCondition(column, value, repository.manager.dataSource.driver.normalizeType(column), repository.manager.dataSource.options.type);
+			} else if (this.isEmbeddedLevel(repository, path, value)) {
+				identity[key] = this.createIdentity(repository, value as Record<string, unknown>, path);
+			} else {
+				identity[key] = value;
+			}
+		}
+
+		return identity;
+	}
+
+	private static isEmbeddedLevel<E extends IApiBaseEntity>(repository: Repository<E>, path: string, value: unknown): boolean {
+		return typeof value === "object" && value !== null && !(value instanceof Date) && repository.metadata.primaryColumns.some((primaryColumn: TTypeOrmColumnMetadata): boolean => primaryColumn.propertyPath?.startsWith(`${path}.`));
 	}
 
 	private static readDate(value: unknown): Date | undefined {
