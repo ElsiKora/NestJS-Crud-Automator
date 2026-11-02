@@ -88,6 +88,13 @@ class RejectToManyCachedPost {
 	public tags?: Array<RejectToManyTag>;
 }
 
+@Entity("reject_to_many_late_details")
+@TableInheritance({ column: { name: "kind", type: "varchar" } })
+class RejectToManyLateDetail {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
 describe("ApiControllerRejectToManyUpdateKeys", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -156,5 +163,19 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { id: "post-1" } as never)).not.toThrow();
 		expect(filterRelations).not.toHaveBeenCalled();
 		expect(filterEmbeddeds).not.toHaveBeenCalled();
+	});
+
+	it("reads TypeORM metadata again when a child entity registers after the paths were cached", () => {
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateDetail, { lateTags: null } as never)).not.toThrow();
+
+		@ChildEntity("LATE")
+		class RejectToManyLateCard extends RejectToManyLateDetail {
+			@JoinTable({ name: "reject_to_many_late_card_tags" })
+			@ManyToMany(() => RejectToManyTag)
+			public lateTags?: Array<RejectToManyTag>;
+		}
+
+		expect(RejectToManyLateCard.name).toBe("RejectToManyLateCard");
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateDetail, { lateTags: null } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "lateTags", reason: "to-many reference is not allowed on update" } }) }));
 	});
 });
