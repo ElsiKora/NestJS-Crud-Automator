@@ -152,7 +152,7 @@
 						"in": "query",
 						"description": "E2eDtoNameRecordEntity title",
 						"schema": {
-							"minItems": 2,
+							"minItems": 1,
 							"maxItems": 100,
 							"uniqueItems": false,
 							"nullable": false,
@@ -197,7 +197,7 @@
 						"in": "query",
 						"description": "E2eDtoNameRecordEntity ownerId",
 						"schema": {
-							"minItems": 2,
+							"minItems": 1,
 							"maxItems": 100,
 							"uniqueItems": false,
 							"nullable": false,
@@ -242,7 +242,7 @@
 						"in": "query",
 						"description": "E2eDtoNameOwnerEntity id",
 						"schema": {
-							"minItems": 2,
+							"minItems": 1,
 							"maxItems": 100,
 							"uniqueItems": false,
 							"nullable": false,
@@ -1091,7 +1091,7 @@
 					"title[values]": {
 						"description": "E2eDtoNameRecordEntity title",
 						"nullable": false,
-						"minItems": 2,
+						"minItems": 1,
 						"maxItems": 100,
 						"uniqueItems": false,
 						"items": {
@@ -1123,7 +1123,7 @@
 					"ownerId[values]": {
 						"description": "E2eDtoNameRecordEntity ownerId",
 						"nullable": false,
-						"minItems": 2,
+						"minItems": 1,
 						"maxItems": 100,
 						"uniqueItems": false,
 						"items": {
@@ -1155,7 +1155,7 @@
 					"owner.id[values]": {
 						"description": "E2eDtoNameOwnerEntity id",
 						"nullable": false,
-						"minItems": 2,
+						"minItems": 1,
 						"maxItems": 100,
 						"uniqueItems": false,
 						"items": {
