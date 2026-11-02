@@ -205,7 +205,7 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 		expect(() => service.onApplicationBootstrap()).not.toThrow();
 	});
 
-	it("rejects securable custom routes without method-level authorization mode", () => {
+	it("accepts securable custom routes without method-level authorization mode, which resolve to the controller default", () => {
 		defineSecurableControllerMetadata(MissingCustomAuthorizationController);
 		Reflect.defineMetadata(
 			METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
@@ -224,6 +224,6 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 
 		const service = createService(MissingCustomAuthorizationController);
 
-		expect(() => service.onApplicationBootstrap()).toThrow("method-level authorization mode");
+		expect(() => service.onApplicationBootstrap()).not.toThrow();
 	});
 });
