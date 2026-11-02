@@ -24,7 +24,7 @@ describe("IsCalendarDateTime", () => {
 		expect(IsCalendarDateTime(value)).toBe(false);
 	});
 
-	it.each(["", "2026-2-3", "20260203", "Feb 3 2026", "+002026-02-03"])("rejects %j, which does not start with a calendar date", (value: string) => {
+	it.each(["", "2026-2-3", "20260203", "Feb 3 2026", "+002026-02-03", "2026-02-28T25", "2026-02-28T10", "2026-02-28Z", "2026-02-28T10:00:00 +01:00", "2026-02-28T10:00:00.Z", "2026-02-28T10:00:00+5", "2026-02-28T10:00:00Zjunk", " 2026-02-28", "2026-02-28 "])("rejects %j, which is not whole ISO 8601 date text", (value: string) => {
 		expect(IsCalendarDateTime(value)).toBe(false);
 	});
 });

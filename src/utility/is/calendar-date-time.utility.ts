@@ -1,16 +1,15 @@
-// The calendar date at the start of ISO 8601 text, with the time of day when one follows: the fields a parsed Date must keep.
-const FIELDS_PATTERN: RegExp = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/iu;
+import { DATE_TIME_TEXT_CONSTANT } from "@constant/date-time-text.constant";
 
 /**
- * Checks whether ISO 8601 text names a calendar date, and a time of day, that exist: a Date built from its fields keeps every one of them.
+ * Checks whether text is ISO 8601 date text naming a calendar date, and a time of day, that exist: a Date built from its fields keeps every one of them.
+ * The whole text must match: `YYYY-MM-DD`, optionally followed by `T` or a space, `HH:mm`, optional seconds and fraction, and an optional `Z` or numeric offset with minutes, in either letter case.
  * JavaScript rolls a day or hour past the end of its month or day over into the next one, so `2026-02-30` would become March 2 and `24:00` the next day; every place the library reads date text checks it here first.
  * The fields are compared as the text writes them, before any offset moves the instant, so a valid date whose instant falls on another UTC day still passes.
- * Only the leading fields are read; the form of the rest, such as the fraction of a second and the zone, and the range of the year, stay with the caller.
- * @param {string} text - Date text, `YYYY-MM-DD` optionally followed by `T` or a space and `HH:mm` or `HH:mm:ss`.
- * @returns {boolean} True when the date and time of day exist in the calendar.
+ * @param {string} text - Date text.
+ * @returns {boolean} True when the text has that form and its date and time of day exist in the calendar.
  */
 export function IsCalendarDateTime(text: string): boolean {
-	const match: null | RegExpExecArray = FIELDS_PATTERN.exec(text);
+	const match: null | RegExpExecArray = DATE_TIME_TEXT_CONSTANT.TEXT_PATTERN.exec(text);
 
 	if (!match) {
 		return false;
