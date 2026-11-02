@@ -304,16 +304,16 @@ export function describeRelationWriteResponseSuite(name: string, options: IRelat
 			});
 		});
 
-		describe.runIf(options.hasMicrosecondTimestamps)("a key the entity holds with less precision than the database", () => {
-			it.each<TVerb>(["PATCH", "PUT"])("%s answers with the written row of a microsecond timestamptz key", async (verb: TVerb) => {
+		describe.runIf(options.hasMicrosecondTimestamps)("a key the database holds with more precision than the api publishes", () => {
+			it.each<TVerb>(["PATCH", "PUT"])("%s refuses the microsecond text of a timestamptz key before any write", async (verb: TVerb) => {
 				await manager.query(`DELETE FROM e2e_relation_write_stamps`);
 				await manager.query(`INSERT INTO e2e_relation_write_stamps (stamp, title) VALUES ($1, 'Stamp')`, [STAMP]);
 
 				const response = await fastify.inject({ method: verb, payload: { title: "Changed" }, url: `/relation-write-stamps/${STAMP}` });
 
-				expect(response.statusCode, response.body).toBe(HttpStatus.OK);
-				expect(response.json()).toMatchObject({ title: "Changed" });
-				expect(await manager.query(`SELECT stamp::text AS stamp, title FROM e2e_relation_write_stamps`)).toEqual([{ stamp: "2026-11-02 10:00:00.123456+00", title: "Changed" }]);
+				expect(response.statusCode, response.body).toBe(HttpStatus.BAD_REQUEST);
+				expect(response.json()).toMatchObject({ message: ["stamp must be in YYYY-MM-DDTHH:mm:ss.sssZ format"] });
+				expect(await manager.query(`SELECT stamp::text AS stamp, title FROM e2e_relation_write_stamps`)).toEqual([{ stamp: "2026-11-02 10:00:00.123456+00", title: "Stamp" }]);
 			});
 		});
 	});

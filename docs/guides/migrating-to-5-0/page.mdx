@@ -358,6 +358,7 @@ A generated route, and an IAM custom route with a PARAMETERS DTO, check each pat
 
 - Integer text is canonical decimal text: `/items/016` and `/items/-0` return `400`.
 - A UUID is lower-case: `/items/AAAAAAAA-...` returns `400` with `id must be a lower-case UUID` instead of being lower-cased, because a database reads either letter case as one key while a policy compares text. Send the lower-case UUID.
+- A `DATE_TIME` path value is the published `YYYY-MM-DDTHH:mm:ss.sssZ` text: `/stamps/2026-11-02T10:00:00Z` and the microsecond text `/stamps/2026-11-02T10:00:00.123456Z` return `400`. A row whose `timestamptz` key holds microseconds cannot be addressed by a generated route; keep such keys at a precision of 3 or less.
 - A decimal, numeric, float, double or money column as a path value fails at startup on a securable route, in HOOKS mode as in IAM mode. Use an integer, UUID or text key.
 
 On a securable route the guard refuses the value ahead of your pipe, with `ApiRequestValidationException`, so the filter shown under [Request Body Limits](#request-body-limits) translates it too. See [Validation: Migration Notes](/docs/nestjs-crud-automator/guides/validation#migration-notes).
