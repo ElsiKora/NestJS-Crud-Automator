@@ -480,7 +480,7 @@ export class ApiRouteRuntime {
 
 					// A row a finer stored value keeps out of the full key stays readable, so the read keeps the where its path names.
 					if (!pathPlan.isKeyCovered && requestProperties.where) {
-						await this.findPathMatches(options, requestProperties.where, pathPlan, eventManager);
+						await this.findKeyMatches(options.controller.service, requestProperties.where, pathPlan.primaryFields, eventManager);
 					}
 
 					markAfterBoundary();
@@ -817,26 +817,25 @@ export class ApiRouteRuntime {
 
 	/**
 	 * Reads the key of the rows a where clause names, through the active transaction. Several rows mean the deployed key promise is wrong, which a client cannot fix.
-	 * @template E - Entity type owned by the route.
-	 * @template R - Generated route type.
-	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @template E - Entity type owned by the service.
+	 * @param {ApiServiceBase<E>} service - Service of the route.
 	 * @param {TApiAuthorizationScopeWhere<E>} where - Where clause, with the request's security scope applied.
-	 * @param {IApiControllerPathPlan} pathPlan - Path plan of the route.
+	 * @param {ReadonlyArray<string>} primaryFields - Key columns of the entity.
 	 * @param {EntityManager | undefined} eventManager - Active transaction manager.
 	 * @returns {Promise<Array<E>>} The row, or none.
 	 * @throws {InternalServerErrorException} When the where clause names several rows.
 	 */
-	private static async findPathMatches<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, where: NonNullable<TApiAuthorizationScopeWhere<E>>, pathPlan: IApiControllerPathPlan, eventManager: EntityManager | undefined): Promise<Array<E>> {
-		const matches: Array<E> = await this.resolveActiveRepository(options.controller.service, eventManager).find({
+	private static async findKeyMatches<E extends IApiBaseEntity>(service: ApiServiceBase<E>, where: NonNullable<TApiAuthorizationScopeWhere<E>>, primaryFields: ReadonlyArray<string>, eventManager: EntityManager | undefined): Promise<Array<E>> {
+		const matches: Array<E> = await this.resolveActiveRepository(service, eventManager).find({
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			loadEagerRelations: false,
-			select: Object.fromEntries(pathPlan.primaryFields.map((field: string): [string, boolean] => [field, true])) as FindOptionsSelect<E>,
+			select: Object.fromEntries(primaryFields.map((field: string): [string, boolean] => [field, true])) as FindOptionsSelect<E>,
 			take: PATH_MATCH_LIMIT,
 			where,
 		});
 
 		if (matches.length > 1) {
-			throw new InternalServerErrorException("Generated route path names more than one row");
+			throw new InternalServerErrorException("Route path names more than one row");
 		}
 
 		return matches;
@@ -853,22 +852,28 @@ export class ApiRouteRuntime {
 	}
 
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {
-		if (response === null || typeof response !== "object" || !("id" in response)) {
+		if (response === null || typeof response !== "object") {
 			return response;
 		}
 
-		const responseId: unknown = (response as { id?: unknown }).id;
+		const repository: unknown = (service as { repository?: unknown }).repository;
+		const primaryFields: ReadonlyArray<string> = repository instanceof Repository ? repository.metadata.primaryColumns.map((column: TTypeOrmColumnMetadata): string => column.propertyName) : ["id"];
+		const key: Record<string, unknown> = {};
 
-		if (responseId === undefined || responseId === null) {
-			return response;
+		for (const field of primaryFields) {
+			const value: unknown = (response as Record<string, unknown>)[field];
+
+			if (value === undefined || value === null) {
+				return response;
+			}
+
+			key[field] = value;
 		}
 
 		return await service.get({
 			relationLoadStrategy: runtimeProperties.relations?.response?.load?.relationLoadStrategy,
 			relations: runtimeProperties.relations?.response?.load?.include,
-			where: {
-				id: responseId,
-			} as unknown as FindOptionsWhere<E>,
+			where: await this.resolveKeyWhere(service, key, primaryFields),
 		});
 	}
 
@@ -950,6 +955,29 @@ export class ApiRouteRuntime {
 		const handler: unknown = Reflect.get(controller, methodName);
 
 		return typeof handler === "function" ? ApiControllerIdentityPlanGet(handler) : undefined;
+	}
+
+	/**
+	 * Resolves the where clause of a row by its key. A `Date` of a key column may have lost a finer stored value, so the other key columns identify the row when any exist.
+	 * @template E - Entity type owned by the service.
+	 * @param {ApiServiceBase<E>} service - Service of the route.
+	 * @param {Record<string, unknown>} key - Value of every key column.
+	 * @param {ReadonlyArray<string>} primaryFields - Key columns of the entity.
+	 * @param {EntityManager} [eventManager] - Active transaction manager.
+	 * @returns {Promise<FindOptionsWhere<E>>} The where clause.
+	 */
+	private static async resolveKeyWhere<E extends IApiBaseEntity>(service: ApiServiceBase<E>, key: Record<string, unknown>, primaryFields: ReadonlyArray<string>, eventManager?: EntityManager): Promise<FindOptionsWhere<E>> {
+		const exactFields: Array<string> = primaryFields.filter((field: string): boolean => !(key[field] instanceof Date));
+
+		if (exactFields.length === 0 || exactFields.length === primaryFields.length) {
+			return key as FindOptionsWhere<E>;
+		}
+
+		const where: FindOptionsWhere<E> = Object.fromEntries(exactFields.map((field: string): [string, unknown] => [field, key[field]])) as FindOptionsWhere<E>;
+
+		await this.findKeyMatches(service, where, primaryFields, eventManager);
+
+		return where;
 	}
 
 	/**
@@ -1041,7 +1069,7 @@ export class ApiRouteRuntime {
 			return criteria;
 		}
 
-		const [match]: Array<E> = await this.findPathMatches(options, criteria, pathPlan, eventManager);
+		const [match]: Array<E> = await this.findKeyMatches(options.controller.service, criteria, pathPlan.primaryFields, eventManager);
 
 		if (!match) {
 			return criteria;

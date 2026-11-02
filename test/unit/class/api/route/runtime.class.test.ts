@@ -12,7 +12,7 @@ import { BadRequestException, HttpStatus, RequestMethod } from "@nestjs/common";
 import { createTypeOrmRepositoryStub } from "@test/unit/fixture";
 import { ApiRouteProjectRelationResponse } from "@utility/api/route/response/project-relation.utility";
 import { ValidationError } from "class-validator";
-import { In } from "typeorm";
+import { In, Repository } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
 import { RUNTIME_ROUTE_TRANSFORM_ERROR, RuntimeRouteEmailBodyDTO, RuntimeRouteEntity, RuntimeRouteExposedEmailBodyDTO, RuntimeRouteExposedPhoneBodyDTO, RuntimeRouteListQueryDTO, RuntimeRoutePhoneBodyDTO, RuntimeRouteResponseDTO, RuntimeRouteSessionResponseDTO, RuntimeRouteTransformBodyDTO, RuntimeRouteVerificationResponseDTO } from "./runtime/fixture";
@@ -650,6 +650,28 @@ describe("ApiRouteRuntime", () => {
 
 		expect(thrownError).toBeInstanceOf(Error);
 		expect((thrownError as Error).message).toBe("[NestJS-Crud-Automator] ApiRouteSerializeResponse discriminator payload error: invalid discriminator value for field 'mode'");
+	});
+
+	it("reloads a custom route response by every primary key column", async () => {
+		const service = new ApiServiceBase<RuntimeRouteEntity>();
+		const reloaded = { id: "response-1", tenantId: "tenant-2" };
+		const get = vi.spyOn(service, "get").mockResolvedValue(reloaded as never);
+		const repository = Object.create(Repository.prototype) as Repository<RuntimeRouteEntity>;
+
+		Object.defineProperty(repository, "metadata", { value: { primaryColumns: [{ propertyName: "tenantId" }, { propertyName: "id" }] } });
+		Object.defineProperty(service, "repository", { value: repository });
+
+		const runtimeProperties = { relations: { response: { load: { include: { source: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR } } } } as never;
+
+		await expect(ApiRouteRuntime.executeCustomResponseRelations({ service } as never, runtimeProperties, { id: "response-1", tenantId: "tenant-2" })).resolves.toBe(reloaded);
+		expect(get.mock.calls[0]?.[0].where).toEqual({ id: "response-1", tenantId: "tenant-2" });
+
+		get.mockClear();
+
+		const incomplete = { id: "response-1" };
+
+		await expect(ApiRouteRuntime.executeCustomResponseRelations({ service } as never, runtimeProperties, incomplete)).resolves.toBe(incomplete);
+		expect(get).not.toHaveBeenCalled();
 	});
 
 	it("passes response relation load strategy to custom route response reload", async () => {
