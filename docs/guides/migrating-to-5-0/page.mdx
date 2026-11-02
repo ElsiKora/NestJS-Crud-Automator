@@ -421,6 +421,12 @@ A `queryPath` that the TypeORM metadata of the resource entity cannot resolve to
 
 A list, object or `null` condition operand is logged as a warning when the document loads and fails closed: the key fails for an Allow and holds for a Deny, whose other keys still decide whether it matches. It used to answer `500`. See [Allow Scopes](/docs/nestjs-crud-automator/guides/authorization#allow-scopes).
 
+## IAM Conditions Through Missing Relations
+
+A `resource.*` condition whose `queryPath` crosses a relation now treats a row with that relation missing as the in-memory evaluator does: as a missing key, at any depth. A Deny `StringEqualsIfExists` such as `owner.company.name` used to keep rows whose owner or company is `NULL`, which the simulator denied; it now hides them, and keeps only rows where the relation exists and the column differs or is `NULL`. An Allow `StringEqualsIfExists` on such a path now also includes rows with the relation missing, which it used to hide. On root and embedded columns nothing changes. Two Allow keys on one `queryPath` in one statement now both apply: different values allow no row, where the last key used to win. A `StringEqualsIfExists` through a relation to an entity without a primary column no longer compiles.
+
+A loaded resource, as in `ApiAuthorizationSimulator` with `resource` or a runtime call from your own code, is now read through each field's `queryPath`. A field `resource.ownerId` with `queryPath: "owner.id"` used to read a property named `ownerId`, so it disagreed with the scope; load the relations a `queryPath` crosses. A `resource.*` key that no field maps now fails closed in memory: it fails for an Allow and holds for a Deny. A `resourcePath` placeholder that names a field renders the value at its `queryPath`. See [Deny Semantics](/docs/nestjs-crud-automator/guides/authorization#deny-semantics).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

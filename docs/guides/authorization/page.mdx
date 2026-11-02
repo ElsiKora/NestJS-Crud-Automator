@@ -668,11 +668,15 @@ Any other operator is a document validation error: `ApiAuthorizationIamDocumentV
 
 Keys inside one statement are ANDed. `principal.*` and `request.*` keys are evaluated in memory; `resource.*` keys are evaluated in memory when the resource is already loaded (for example in `ApiAuthorizationSimulator` with `resource`) and are otherwise planned into a database scope.
 
+A loaded resource is read through the `queryPath` of each field, the same column the database scope compares: `resource.operatorId` with `queryPath: "operator.id"` reads `resource.operator.id`. Load every relation a `queryPath` crosses. A path through a relation that is `null` or not loaded is a missing key at any depth, so the `IfExists` operators hold for it. A `resource.*` key that no field maps has no column, so it fails closed in memory as in a scope: it fails for an Allow and holds for a Deny. A `resourcePath` placeholder that names a field, such as `{ownerTag}` for `resource.ownerTag`, renders the value at that field's `queryPath`; a request parameter of the same name still wins.
+
 ### Allow scopes
 
 The query planner compiles `StringEquals` and `StringEqualsIfExists` Allow conditions on `resource.*` fields marked `isFilterable` into the decision scope. Allow statements are ORed with each other and intersected with boundary scopes. An Allow statement whose `resource.*` keys use another operator, a non-filterable or unmapped field, an unresolved `${...}` variable, a value that is `""` or resolves to `null` or `""`, a `queryPath` TypeORM cannot resolve to a column, a list, object or `null` value, or on a boolean column a value other than `true`, `false` or that exact text is not matched.
 
 The planner reads each `queryPath` through the TypeORM metadata of the resource entity, at every step: relations of any depth, embedded entities, and columns inherited from a parent class or a single-table-inheritance parent. A path that does not end on a column TypeORM maps, such as a misspelled property, a relation itself, or a step past a column, does not compile.
+
+A row lacks a `queryPath` that crosses a relation when that relation is missing, as a loaded resource lacks the key. Scopes join relations with `LEFT JOIN`, and the primary column of the last relation the path crosses is `NULL` exactly then. So an Allow `StringEqualsIfExists` on such a path compiles to `field = value OR key IS NULL`, where `key` is that primary column; on the primary column itself it is `field = value OR field IS NULL`. On a root or embedded column a row always has the path, so it compiles like `StringEquals`. Through a relation whose target has no primary column the key does not compile. The keys of one statement multiply into OR branches, and a statement with more than `AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES` (128) is not matched. Two keys on one `queryPath` both apply, so different values allow no row, as in memory.
 
 A boolean column is one TypeORM types as `boolean`, `bool` or `bit` (the SQL Server boolean), including a bare `@Column()` on a `boolean` property, or one described as `BOOLEAN`; it needs no `@ApiPropertyDescribe`. On it, `true`, `false` and the text `"true"` and `"false"` bind as booleans in Allow scopes, Deny exclusions and exact row-scoped Deny patterns, so each database compares them with its stored form, such as `1` and `0` on SQLite and MySQL. Any other value, such as `"1"`, `"TRUE"`, `"yes"` or the number `1`, equals no stored boolean in the in-memory evaluator, so it does not compile. A resource entity that no TypeORM decorator maps, such as one registered only through an `EntitySchema`, has no column types to read, so none of its `resource.*` keys compile.
 
@@ -685,14 +689,16 @@ Generated routes evaluate IAM once, before the resource is loaded. A matched Den
 - **Any `resource.*` key that cannot compile** (another operator, a non-filterable or unmapped field, a `queryPath` TypeORM cannot resolve to a column, an unresolved `${...}` variable, a value that resolves to `null` or `""`, a list, object or `null` value, a value other than `true` or `false` on a boolean column) — the whole request is denied with `403`.
 - **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule. A Deny whose `Resource` names a concrete row, such as `gameport:admin:item/item-1`, is not applied on `CREATE`: the request is evaluated against the collection resource, so that pattern does not match and the row is created. To refuse a value on `CREATE`, use an Allow scope instead (see [Scoped CREATE](#scoped-create)).
 
-By De Morgan, the keys of one Deny become top-level OR branches of the exclusion. The kept rows are exactly the rows the in-memory evaluator allows once the resource is loaded. That evaluator compares values as strings and treats a stored `NULL` as a present value that normalizes to an empty string, so `NULL` never equals a non-empty value and always differs from it. The `IfExists` operators only behave differently for paths that are missing entirely, which a stored row never has, so for stored rows they compile like their plain forms:
+By De Morgan, the keys of one Deny become top-level OR branches of the exclusion. The kept rows are exactly the rows the in-memory evaluator allows once the resource is loaded. That evaluator compares values as strings and treats a stored `NULL` as a present value that normalizes to an empty string, so `NULL` never equals a non-empty value and always differs from it. A path that crosses a missing relation is a missing key, at any depth, for which the `IfExists` operators hold, while the joined column reads `NULL`. So a Deny `StringEqualsIfExists` keeps a `NULL` column only while the relation is present, checked on `key`, the primary column of the last relation the path crosses:
 
-| Deny key                  | Rows kept                         |
-| ------------------------- | --------------------------------- |
-| `StringEquals`            | `field <> value OR field IS NULL` |
-| `StringEqualsIfExists`    | `field <> value OR field IS NULL` |
-| `StringNotEquals`         | `field = value`                   |
-| `StringNotEqualsIfExists` | `field = value`                   |
+| Deny key                  | Rows kept                                               |
+| ------------------------- | ------------------------------------------------------- |
+| `StringEquals`            | `field <> value OR field IS NULL`                       |
+| `StringEqualsIfExists`    | `field <> value OR (field IS NULL AND key IS NOT NULL)` |
+| `StringNotEquals`         | `field = value`                                         |
+| `StringNotEqualsIfExists` | `field = value`                                         |
+
+On a root or embedded column the path is never missing, so `StringEqualsIfExists` keeps `field <> value OR field IS NULL`, like `StringEquals`. On the primary column itself it keeps `field <> value`. Through a relation whose target has no primary column the key does not compile.
 
 Because `""` and `NULL` compare equal in memory but not in SQL, a condition value that is `""` or resolves to `null` or `""` is not compiled; it denies the whole request instead.
 
@@ -704,8 +710,8 @@ Equality follows the database collation, exactly as it does for Allow scopes. Un
 
 A merged scope with a Deny exclusion may hold at most `AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES` (128) OR branches; a larger one denies the whole request with `403` instead of sending an unbounded query. Branches are counted without pruning:
 
-- within one Deny statement, branches add up: each `StringEquals` or `StringEqualsIfExists` key and each row-pattern placeholder constraint contributes 2 (`<> value` and `IS NULL`); each `StringNotEquals` or `StringNotEqualsIfExists` key contributes 1;
-- Deny statements multiply with each other, and the result multiplies with the Allow scope branches (one per compiled Allow statement, times the boundary scope branches).
+- within one Deny statement, branches add up: each `StringEquals` or `StringEqualsIfExists` key and each row-pattern placeholder constraint contributes 2 (`<> value` and the `IS NULL` branch), except a `StringEqualsIfExists` key on a relation primary column, which contributes 1; each `StringNotEquals` or `StringNotEqualsIfExists` key contributes 1;
+- Deny statements multiply with each other, and the result multiplies with the Allow scope branches (per compiled Allow statement, 1 times 2 for each `StringEqualsIfExists` key through a relation, times the boundary scope branches).
 
 For example, three Deny statements with one `StringEquals` key each give 2 × 2 × 2 = 8 branches; under an Allow scope with 20 branches that is 160, so the request is denied.
 
@@ -939,6 +945,8 @@ IAM Deny statements are compiled into row exclusions instead of being applied to
 - Condition operators outside `EApiPolicyConditionOperator` now throw when a document source returns the document, instead of evaluating to false. A list, object or `null` operand is logged as a warning and fails closed: the key fails for an Allow and holds for a Deny, whose other keys still decide whether it matches. It no longer answers `500`. To check that a `principal.*` or `request.*` value is absent, compare it with `""`, which the evaluator treats the same as a missing value.
 - An Allow statement whose `resource.*` value is `""` or resolves to `null` or `""` is no longer compiled into an equality scope; the statement is unmatched, so without another matching Allow the request is an implicit deny.
 - Row-scoped list Deny patterns that cannot be mapped, such as a prefix pattern that crosses a placeholder or runs over several of them, deny the list with `403`.
+- A `queryPath` through a missing relation is a missing key in the scope too. A Deny `StringEqualsIfExists` on such a path no longer keeps rows whose relation is missing, and an Allow `StringEqualsIfExists` now includes them, as the in-memory evaluator always did. Two Allow keys on one `queryPath` both apply instead of the last one winning.
+- A loaded resource is read through each field's `queryPath`, so an alias such as `resource.operatorId` for `operator.id` matches in `ApiAuthorizationSimulator` and custom code as it does in the scope; it used to read a property named `operatorId`. A `resource.*` key that no field maps fails closed in memory, and a `resourcePath` placeholder that names a field reads its `queryPath`.
 
 From 5.0.0 a securable controller with a plain Nest route, a `@MessagePattern`, `@EventPattern` or `@SubscribeMessage` handler or a handler replaced on the instance without its guards does not start, and neither does an application with a securable controller and no `ApiAuthorizationModule`. Before 5.0.0 such a handler was served with no authorization, or took the identity from the message when it also had `@ApiMethod`, and startup said nothing. Declare an HTTP route with `@ApiRouteCustom` or `@ApiMethod`, move a route or a pattern handler to a controller that is not securable, remove the replacement, and import the module. See [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization).
 
