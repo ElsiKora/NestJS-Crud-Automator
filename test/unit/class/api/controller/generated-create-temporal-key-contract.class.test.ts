@@ -13,6 +13,7 @@ interface ITemporalKeyColumn {
 	isUpdateDate?: boolean;
 	precision?: null | number;
 	propertyName: string;
+	propertyPath?: string;
 	type: string;
 }
 
@@ -155,6 +156,32 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 			ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([{ propertyName: "id", type: "varchar" }, { propertyName: "day", type: "date" }, INSTANT, { ...WALL_CLOCK, propertyName: "until" }]), body);
 
 			expect(body).toEqual({ day: "2024-01-02", id: "2024-01-02T03:04:05", until: null });
+		});
+
+		it("parses a key inside an embedded property by its property path and leaves a top-level property of the same name alone", () => {
+			const body: Record<string, unknown> = { at: "free text", key: { at: "2024-01-02T03:04:05.678Z" } };
+
+			ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([{ ...INSTANT, propertyPath: "key.at" }]), body);
+
+			expect(body.at).toBe("free text");
+			expect((body.key as Record<string, unknown>).at).toBeInstanceOf(Date);
+			expect(((body.key as Record<string, unknown>).at as Date).getTime()).toBe(new Date("2024-01-02T03:04:05.678Z").getTime());
+		});
+
+		it("names a refused key inside an embedded property by its property path", () => {
+			expect(readMessages(() => ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([{ ...INSTANT, propertyPath: "key.at" }]), { key: { at: "2024-01-02T03:04:05" } }))).toEqual([expect.stringMatching(/^key\.at /u)]);
+		});
+
+		it("skips an embedded key whose embedded property the body leaves out", () => {
+			const body: Record<string, unknown> = { name: "row" };
+
+			ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([{ ...INSTANT, propertyPath: "key.at" }]), body);
+
+			expect(body).toEqual({ name: "row" });
+		});
+
+		it("names a refused key inside an embedded property by its property path at startup", () => {
+			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([{ ...INSTANT, precision: 6, propertyPath: "key.at" }]), "Controller", true)).toThrow("date and time primary column key.at of TemporalKeyEntity");
 		});
 
 		it("needs the repository and accepts a missing body", () => {

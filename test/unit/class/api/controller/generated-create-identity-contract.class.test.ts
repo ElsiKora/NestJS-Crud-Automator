@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 interface IIdentityColumn {
 	propertyName: string;
+	propertyPath?: string;
 	transformer?: ValueTransformer;
 	type: string;
 }
@@ -92,6 +93,22 @@ describe("ApiControllerGeneratedCreateIdentityContract", () => {
 			const { repository } = createRepository({ propertyName: "at", type: "timestamptz" }, "postgres", rows);
 
 			await expect(ApiControllerGeneratedCreateIdentityContract.identify(repository, { at: AT })).rejects.toThrow("Generated create result must identify exactly one stored row");
+		});
+
+		it("matches the whole millisecond of a date and time key inside an embedded property, found by its property path", async () => {
+			const { repository } = createRepository({ propertyName: "at", propertyPath: "key.at", type: "timestamptz" }, "postgres");
+			const identity: Record<string, unknown> = (await ApiControllerGeneratedCreateIdentityContract.identify(repository, { key: { at: AT } })) as Record<string, unknown>;
+			const condition: FindOperator<unknown> = (identity.key as Record<string, unknown>).at as FindOperator<unknown>;
+
+			expect(condition).toBeInstanceOf(ApiFunctionBoundOperator);
+			expect(condition.type).toBe("and");
+			expect((condition.value as Array<FindOperator<unknown>>).map((operator: FindOperator<unknown>): unknown => operator.value)).toEqual(["2024-01-02T03:04:05.678Z", "2024-01-02T03:04:05.679Z"]);
+		});
+
+		it("does not take a top-level property for a key of the same name inside an embedded property", async () => {
+			const { repository } = createRepository({ propertyName: "at", propertyPath: "key.at", type: "timestamptz" }, "postgres");
+
+			expect(await ApiControllerGeneratedCreateIdentityContract.identify(repository, { at: "event-1" })).toEqual({ at: "event-1" });
 		});
 	});
 
