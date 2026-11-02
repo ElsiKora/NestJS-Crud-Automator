@@ -25,6 +25,20 @@ class ChildDto {
 	public childValue?: string;
 }
 
+class KeysDto {
+	@Expose()
+	@Transform(({ obj }: { obj: object }): unknown => Object.keys(obj).toSorted().join(","), { toClassOnly: true })
+	public keys?: string;
+
+	@Expose({ name: "title_wire" })
+	public title?: string;
+}
+
+class PlainDto {
+	@Expose()
+	public from?: string;
+}
+
 class ParentDto {
 	@Expose({ name: "child_list" })
 	@Type(() => ChildDto)
@@ -76,13 +90,28 @@ describe("ClassTransformerSourceToExposed", () => {
 		expect(Reflect.get(ClassTransformerSourceToExposed(ParentDto, new Row()) as object, "title_wire")).toBe("fromGetter");
 	});
 
+	it("lets a transform enumerate the full source row as obj, with the exposed names added", () => {
+		const source: Record<string, unknown> = { provider: "email", title: "t" };
+
+		expect(plainToInstance(KeysDto, ClassTransformerSourceToExposed(KeysDto, source), { excludeExtraneousValues: true })).toEqual(Object.assign(new KeysDto(), { keys: "provider,title,title_wire", title: "t" }));
+	});
+
+	it("hands over a source whose renamed property is unset, so its property key is never read as a request key", () => {
+		const source: Record<string, unknown> = { title: undefined };
+		const exposed: unknown = ClassTransformerSourceToExposed(ParentDto, source);
+
+		expect(exposed).not.toBe(source);
+		expect(Object.getPrototypeOf(exposed)).toBe(source);
+		expect(plainToInstance(ParentDto, exposed, { excludeExtraneousValues: true }).title).toBeUndefined();
+	});
+
 	it("maps an array and returns a value with nothing to rename as it is", () => {
 		const plain: { from: string } = { from: "f" };
 
-		expect(ClassTransformerSourceToExposed(ParentDto, [plain])).toEqual([plain]);
-		expect((ClassTransformerSourceToExposed(ParentDto, [plain]) as Array<unknown>)[0]).toBe(plain);
-		expect(ClassTransformerSourceToExposed(ParentDto, "text")).toBe("text");
-		expect(ClassTransformerSourceToExposed(ParentDto, null)).toBeNull();
+		expect(ClassTransformerSourceToExposed(PlainDto, [plain])).toEqual([plain]);
+		expect((ClassTransformerSourceToExposed(PlainDto, [plain]) as Array<unknown>)[0]).toBe(plain);
+		expect(ClassTransformerSourceToExposed(PlainDto, "text")).toBe("text");
+		expect(ClassTransformerSourceToExposed(PlainDto, null)).toBeNull();
 	});
 
 	it("leaves an item of an unknown discriminator subtype as it is", () => {
