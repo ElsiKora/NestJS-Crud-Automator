@@ -3,8 +3,9 @@ import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm";
 
+import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
-import { EFilterOperation } from "@enum/filter";
+import { EFilterOperand, EFilterOperation } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
 import { ApiControllerGetListTransformGetFilterMetadata } from "@utility/api/controller/get-list/transform/get-filter-metadata.utility";
@@ -20,7 +21,7 @@ import { EnumIsValue } from "@utility/enum/is-value.utility";
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {Type<CanActivate>} currentGuard - Optional guard used to mirror generated query DTO visibility.
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
- * @throws {Error} A bad request with `FILTER_NOT_VALID` when a number or uuid filter value is outside the published schema, or when a filter group is incomplete or names a field the route cannot apply
+ * @throws {Error} A bad request with `FILTER_NOT_VALID` when a number or uuid filter value is outside the published schema, or when a filter group is incomplete, carries a value key its operator does not take, or names a field the route cannot apply
  * @template E - The entity type
  */
 export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>): FindOptionsWhere<E> {
@@ -40,20 +41,18 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 		if ((cleanField !== "operator" && cleanField !== "value" && cleanField !== "values") || query[fullKey] === undefined) continue;
 
 		const operation: unknown = query[`${String(key)}[operator]`];
-		const isValuelessOperator: boolean = operation === EFilterOperation.ISNULL || operation === EFilterOperation.NOTNULL;
-		const hasValue: boolean = query[`${String(key)}[value]`] !== undefined;
-		const hasValues: boolean = query[`${String(key)}[values]`] !== undefined;
-		const isComplete: boolean = isValuelessOperator ? !hasValue && !hasValues : hasValue !== hasValues;
 		const metadata: TApiPropertyDescribeProperties | undefined = key ? ApiControllerGetListTransformGetFilterMetadata(entityMetadata, key, currentGuard) : undefined;
 
-		if (!key || !metadata || !EnumIsValue(EFilterOperation, operation) || !isComplete || query[fullKey] === null) {
+		if (!key || !metadata || !EnumIsValue(EFilterOperation, operation) || !isPairedGroup(query, key, operation) || query[fullKey] === null) {
 			throw new BadRequestException("FILTER_NOT_VALID");
 		}
 
 		// The operator of a group with a value is applied from that value's key.
-		if (cleanField === "operator" && !isValuelessOperator) continue;
+		if (cleanField === "operator" && FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation].operand !== EFilterOperand.NONE) continue;
 
-		const condition: unknown = ApiControllerGetListTransformOperation(operation, parseFilterValue(operation, query[fullKey], metadata));
+		// A single `[values]` entry is a list of one, as the generated QUERY DTO reads it.
+		const value: unknown = cleanField === "values" && !Array.isArray(query[fullKey]) ? [query[fullKey]] : query[fullKey];
+		const condition: unknown = ApiControllerGetListTransformOperation(operation, parseFilterValue(operation, value, metadata));
 		const [relationName, nestedPropertyName]: Array<string | undefined> = key.split(".");
 
 		if (relationName && nestedPropertyName) {
@@ -64,6 +63,38 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 	}
 
 	return filter;
+}
+
+/**
+ * Checks a filter group against the operand its operator takes, by the rule the generated QUERY DTO's pairing validator holds.
+ * A valueless operator takes no value, a single-value operator one `[value]`, a membership operator at least one `[values]` entry, and a range operator exactly two.
+ * @param {Record<string, unknown>} query - The query parameters from the HTTP request
+ * @param {string} key - Field of the filter group
+ * @param {EFilterOperation} operation - Filter operation of the group
+ * @returns {boolean} Whether the group carries the value key and the value count its operator takes
+ */
+function isPairedGroup(query: Record<string, unknown>, key: string, operation: EFilterOperation): boolean {
+	const value: unknown = query[`${key}[value]`];
+	const values: unknown = query[`${key}[values]`];
+	const valueCount: number = Array.isArray(values) ? values.length : 1;
+
+	switch (FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation].operand) {
+		case EFilterOperand.NONE: {
+			return value === undefined && values === undefined;
+		}
+
+		case EFilterOperand.PAIR: {
+			return value === undefined && values !== undefined && valueCount === FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT;
+		}
+
+		case EFilterOperand.VALUE: {
+			return value !== undefined && values === undefined && !Array.isArray(value);
+		}
+
+		case EFilterOperand.VALUES: {
+			return value === undefined && values !== undefined && valueCount >= FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT;
+		}
+	}
 }
 
 /**
