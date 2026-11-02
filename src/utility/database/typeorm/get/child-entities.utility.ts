@@ -1,7 +1,7 @@
 import type { Type } from "@nestjs/common";
 import type { TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
 
-import { IsConstructor } from "@utility/is/constructor.utility";
+import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 /**
@@ -10,11 +10,11 @@ import { getMetadataArgsStorage } from "typeorm";
  * @returns {Array<Type<unknown>>} Child entity classes known to TypeORM so far.
  */
 export function DatabaseTypeOrmGetChildEntities(root: unknown): Array<Type<unknown>> {
-	if (!IsConstructor(root)) {
+	if (!IsEntityConstructor(root)) {
 		return [];
 	}
 
 	return getMetadataArgsStorage()
-		.tables.map(({ target, type }: TTypeOrmTableMetadataArguments): Type<unknown> | undefined => (type === "entity-child" && IsConstructor(target) && target.prototype instanceof root ? target : undefined))
+		.tables.map(({ target, type }: TTypeOrmTableMetadataArguments): Type<unknown> | undefined => (type === "entity-child" && IsEntityConstructor(target) && target.prototype instanceof root ? target : undefined))
 		.filter((target: Type<unknown> | undefined): target is Type<unknown> => target !== undefined);
 }

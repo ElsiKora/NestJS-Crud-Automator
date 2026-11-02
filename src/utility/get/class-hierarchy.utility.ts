@@ -1,6 +1,6 @@
 import type { Type } from "@nestjs/common";
 
-import { IsConstructor } from "@utility/is/constructor.utility";
+import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 
 /**
  * Lists a class and its parent classes, nearest first, so TypeORM and Automator metadata declared on a parent is found too.
@@ -11,7 +11,7 @@ export function GetClassHierarchy(target: unknown): Array<Type<unknown>> {
 	const hierarchy: Array<Type<unknown>> = [];
 	let current: unknown = target;
 
-	while (IsConstructor(current) && current !== Function.prototype) {
+	while (IsEntityConstructor(current)) {
 		hierarchy.push(current);
 		current = Object.getPrototypeOf(current);
 	}

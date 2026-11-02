@@ -11,7 +11,7 @@ import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DatabaseTypeOrmGetChildEntities } from "@utility/database/typeorm/get/child-entities.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
-import { IsConstructor } from "@utility/is/constructor.utility";
+import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 const TABLE_INHERITANCE_NUMERIC_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["bigint", "dec", "decimal", "double", "double precision", "fixed", "float", "float4", "float8", "int", "int2", "int4", "int8", "integer", "mediumint", "money", "number", "numeric", "real", "smallint", "tinyint", "unsigned big int"]);
@@ -50,7 +50,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 * @returns {IApiControllerTableInheritancePlan | undefined} Compiled plan, or undefined when no generated read response can be polymorphic.
 	 */
 	public static compile<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): IApiControllerTableInheritancePlan | undefined {
-		const root: Type<unknown> | undefined = IsConstructor(properties.entity) ? properties.entity : undefined;
+		const root: Type<unknown> | undefined = IsEntityConstructor(properties.entity) ? properties.entity : undefined;
 		const inheritance: TTypeOrmInheritanceMetadataArguments | undefined = root ? getMetadataArgsStorage().inheritances.find(({ target }: TTypeOrmInheritanceMetadataArguments): boolean => target === root) : undefined;
 		const hasGeneratedReadResponse: boolean = [EApiRouteType.GET, EApiRouteType.GET_LIST].some((method: EApiRouteType): boolean => properties.routes[method]?.generation?.isEnabled !== false && !properties.routes[method]?.dto?.[EApiDtoType.RESPONSE]);
 
@@ -149,7 +149,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 * @returns {TTypeOrmColumnMetadataArguments | undefined} Column declaration, or undefined when only the inheritance options declare it.
 	 */
 	private static findDiscriminatorColumn(root: Type<unknown>, discriminatorPropertyName: string): TTypeOrmColumnMetadataArguments | undefined {
-		return getMetadataArgsStorage().columns.find(({ propertyName, target }: TTypeOrmColumnMetadataArguments): boolean => propertyName === discriminatorPropertyName && IsConstructor(target) && (target === root || root.prototype instanceof target));
+		return getMetadataArgsStorage().columns.find(({ propertyName, target }: TTypeOrmColumnMetadataArguments): boolean => propertyName === discriminatorPropertyName && IsEntityConstructor(target) && (target === root || root.prototype instanceof target));
 	}
 
 	/**
