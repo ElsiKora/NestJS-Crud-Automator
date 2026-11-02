@@ -16,8 +16,8 @@ Understanding the execution order of subscribers and operations is crucial for i
 7. Service method: create() called
 8. Function subscribers: onBeforeCreate (priority: high → low)
 9. Repository: save() executed
-10. Function subscribers: onAfterCreate (priority: high → low)
-11. Generated response reload through service.get()
+10. Function subscribers: onAfterCreate (priority: high → low); a generated route drops their result and any change to context.result
+11. Generated response reload through service.get() by the key TypeORM saved in step 9
 12. Commit and post-commit lifecycle when the route owns the transaction
 13. Controller transformers (response)
 14. Route subscribers: onAfterCreate (priority: high → low)

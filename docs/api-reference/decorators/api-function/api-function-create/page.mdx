@@ -18,6 +18,7 @@ Decorated methods receive the shape `create(dto: TApiFunctionCreateProperties<E>
 - Executes `onBeforeCreate` subscribers; if a handler returns a DTO, it replaces the incoming body.
 - Persists the entity using `repository.save` or the active transaction manager repository.
 - Executes `onAfterCreate` subscribers with the persisted entity.
+- When a generated CREATE route calls it with the route's body, reports to that route the key TypeORM saved for the inserted row, before `onAfterCreate` runs. The route reads its response through GET by that key, so neither the result of `onAfterCreate` nor a change it makes to `context.result` reaches that response.
 - On errors, runs `onBeforeErrorCreate` or `onAfterErrorCreate` subscribers and rethrows `HttpException` instances or wraps unknown errors in `InternalServerErrorException`.
 
 ## Example
