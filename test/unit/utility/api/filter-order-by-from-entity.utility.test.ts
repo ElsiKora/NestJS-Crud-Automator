@@ -57,6 +57,17 @@ class FilterEntity {
 	public count!: number;
 }
 
+@Entity("filter_unselected_entities")
+class FilterUnselectedEntity {
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({ description: "rank", type: EApiPropertyDescribeType.NUMBER } as TApiPropertyDescribeProperties)
+	public rank!: number;
+
+	@Column({ select: false, type: "int" })
+	@ApiPropertyDescribe({ description: "pin", type: EApiPropertyDescribeType.NUMBER } as TApiPropertyDescribeProperties)
+	public pin!: number;
+}
+
 @Entity("filter_instant_entities")
 class FilterInstantEntity {
 	@Column({ type: "uuid" })
@@ -214,6 +225,12 @@ describe("FilterOrderByFromEntity", () => {
 
 		expect(FilterOrderByFromEntity(VisibilityEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, AdminGuard)).toEqual({ ADMIN_RANK: "adminRank", ADMIN_SCORE: "adminScore", NAME: "name" });
 		expect(FilterOrderByFromEntity(VisibilityEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, UserGuard)).toEqual({ NAME: "name" });
+	});
+
+	it("does not order by a column the database does not select", () => {
+		const metadata = GenerateEntityInformation<FilterUnselectedEntity>(FilterUnselectedEntity as unknown as IApiBaseEntity);
+
+		expect(FilterOrderByFromEntity(FilterUnselectedEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY)).toEqual({ RANK: "rank" });
 	});
 
 	it("maps entity columns to order by filters", () => {
