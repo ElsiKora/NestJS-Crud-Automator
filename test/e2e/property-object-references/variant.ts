@@ -1,5 +1,7 @@
 import type { Type } from "@nestjs/common";
 
+import { ApiProperty } from "@nestjs/swagger";
+
 import { ApiPropertyString, EApiPropertyStringType } from "../../../src/index";
 
 /**
@@ -11,6 +13,19 @@ export function createVariant(name: string): Type<unknown> {
 	const variant: Type<unknown> = Object.defineProperty(class {}, "name", { value: name }) as Type<unknown>;
 
 	ApiPropertyString({ description: "kind", entity: variant, exampleValue: "a", format: EApiPropertyStringType.STRING, maxLength: 16, minLength: 1, pattern: "/^.+$/" } as never)(variant.prototype as object, "kind");
+
+	return variant;
+}
+
+/**
+ * Creates a variant class that only Swagger's own decorator describes, so a generated route references it as it is.
+ * @param {string} name - Class name, which is also the component name.
+ * @returns {Type<unknown>} The variant class.
+ */
+export function createPlainVariant(name: string): Type<unknown> {
+	const variant: Type<unknown> = Object.defineProperty(class {}, "name", { value: name }) as Type<unknown>;
+
+	ApiProperty({ type: String })(variant.prototype as object, "kind");
 
 	return variant;
 }

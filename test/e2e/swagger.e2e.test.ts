@@ -11,6 +11,7 @@ import { Column, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiPropertyObject, ApiRouteCustom, ApiServiceBase, EApiAuthenticationType, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { expectEveryComponentToBeReachable } from "./expect-every-component-to-be-reachable";
 
 type TSwaggerMethod = "delete" | "get" | "patch" | "post" | "put";
 type TSwaggerOperation = NonNullable<NonNullable<OpenAPIObject["paths"][string]>[TSwaggerMethod]>;
@@ -471,6 +472,10 @@ describe("Swagger request DTO documentation (E2E)", () => {
 
 	afterAll(async () => {
 		await app?.close();
+	});
+
+	it("reaches every component from a route", () => {
+		expectEveryComponentToBeReachable(document);
 	});
 
 	it("documents request bodies for plain, ApiMethod, and ApiRouteCustom routes", () => {

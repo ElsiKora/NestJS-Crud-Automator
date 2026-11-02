@@ -4,7 +4,7 @@ import { ApiExtraModels, PickType } from "@nestjs/swagger";
 import { ApiController, ApiPropertyCopy, ApiPropertyObject, ApiRouteCustom, EApiDtoType, EApiRouteType } from "../../../src/index";
 
 import { E2eReferenceGeneratedEntity, E2eReferenceSourceEntity } from "./entity";
-import { createObjectOptions, createUnion } from "./variant";
+import { createObjectOptions, createUnion, createVariant } from "./variant";
 
 const COPY = { dtoType: EApiDtoType.RESPONSE, entity: E2eReferenceSourceEntity, method: EApiRouteType.GET } as const;
 
@@ -89,6 +89,7 @@ const HOSTS = {
 
 const route = (name: keyof typeof HOSTS): MethodDecorator => ApiRouteCustom<E2eReferenceSourceEntity>({ resource: { action: `custom.${name}`, entity: E2eReferenceSourceEntity }, response: { status: HttpStatus.OK, type: HOSTS[name] }, route: { method: RequestMethod.GET, path: name, type: EApiRouteType.GET } });
 
+@ApiExtraModels(createVariant("E2eReferenceConsumerDTO"))
 @ApiController<E2eReferenceSourceEntity>({ entity: E2eReferenceSourceEntity, path: "references", routes: { [EApiRouteType.CREATE]: DISABLED, [EApiRouteType.DELETE]: DISABLED, [EApiRouteType.GET]: DISABLED, [EApiRouteType.GET_LIST]: DISABLED, [EApiRouteType.PARTIAL_UPDATE]: DISABLED, [EApiRouteType.UPDATE]: DISABLED } })
 export class E2eReferenceController {
 	public service!: never;

@@ -6,7 +6,7 @@ import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 
 import { ApiPropertyDescribe, ApiPropertyObject, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../src/index";
 
-import { createObjectOptions, createUnion, createVariant } from "./variant";
+import { createObjectOptions, createPlainVariant, createUnion, createVariant } from "./variant";
 
 const ID_DESCRIBE = { description: "id", exampleValue: "id-1", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING } as const;
 const KIND_DESCRIBE = { description: "kind", exampleValue: "Variant", format: EApiPropertyStringType.STRING, maxLength: 50, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING } as const;
@@ -91,4 +91,8 @@ export class E2eReferenceGeneratedEntity {
 	@Column({ type: "simple-json" })
 	@ApiPropertyDescribe(createDynamicUnion("E2eReferenceGeneratedDynamic") as never)
 	public dynamic!: unknown;
+
+	@Column({ type: "simple-json" })
+	@ApiPropertyDescribe({ dataType: [createPlainVariant("E2eReferencePlainDTO")], description: "plain", type: EApiPropertyDescribeType.OBJECT } as never)
+	public plain!: unknown;
 }

@@ -12,6 +12,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
+import { expectEveryComponentToBeReachable } from "./expect-every-component-to-be-reachable";
 import {
 	E2eToManyAuthorEntity,
 	E2eToManyCommentEntity,
@@ -147,6 +148,10 @@ describe("To-many response relations (E2E)", () => {
 
 	afterAll(async () => {
 		await app?.close();
+	});
+
+	it("reaches every component from a route", () => {
+		expectEveryComponentToBeReachable(document);
 	});
 
 	it("projects OneToMany and ManyToMany into object references on GET", async () => {

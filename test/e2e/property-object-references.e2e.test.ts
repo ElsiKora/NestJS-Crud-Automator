@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
 
+import { expectEveryComponentToBeReachable } from "./expect-every-component-to-be-reachable";
 import { expectEveryReferenceToResolve } from "./expect-every-reference-to-resolve";
 import { E2eReferenceController, E2eReferenceGeneratedController } from "./property-object-references";
 
@@ -31,6 +32,14 @@ describe("component references of object properties (E2E)", () => {
 
 	it("resolves every component reference", () => {
 		expectEveryReferenceToResolve(document);
+	});
+
+	it("reaches every component from a route, except an extra model that a consumer declares", () => {
+		expectEveryComponentToBeReachable(document, ["E2eReferenceConsumerDTO"]);
+	});
+
+	it("keeps a variant that a generated route references as it is", () => {
+		expect(document.components?.schemas).toHaveProperty("E2eReferencePlainDTO");
 	});
 
 	it.each([

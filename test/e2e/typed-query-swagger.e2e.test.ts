@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { EFilterOperation } from "../../src/index";
 import { E2eAppModule } from "./app";
+import { expectEveryComponentToBeReachable } from "./expect-every-component-to-be-reachable";
 import { E2eNarrowTypedQueryController } from "./app/typed-query/narrow";
 
 describe("typed GET_LIST Swagger contract (E2E)", () => {
@@ -30,6 +31,10 @@ describe("typed GET_LIST Swagger contract (E2E)", () => {
 
 	afterAll(async () => {
 		await app?.close();
+	});
+
+	it("reaches every component from a route", () => {
+		expectEveryComponentToBeReachable(document);
 	});
 
 	it("emits deep-object oneOf filters and controller-plan-scoped query schemas", () => {

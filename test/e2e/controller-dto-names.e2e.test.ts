@@ -13,6 +13,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiSubscriberModule, EApiRouteType } from "../../src/index";
+import { expectEveryComponentToBeReachable } from "./expect-every-component-to-be-reachable";
 import { expectEveryReferenceToResolve } from "./expect-every-reference-to-resolve";
 import { E2eDtoNameAdminItemController, E2eDtoNameCopyController, E2eDtoNameCustomItemController, E2eDtoNameItemEntity, E2eDtoNameItemService, E2eDtoNameOwnerEntity, E2eDtoNamePublicItemController, E2eDtoNameRecordController, E2eDtoNameRecordEntity, E2eDtoNameRecordService } from "./controller-dto-names";
 
@@ -188,6 +189,10 @@ describe("generated DTO names with two controllers on one entity (E2E)", () => {
 		expectEveryReferenceToResolve(document);
 	});
 
+	it("reaches every component from a route", () => {
+		expectEveryComponentToBeReachable(document);
+	});
+
 	it("gives each controller its own response component names", () => {
 		const names: Array<string> = ["/admin/dto-name-items/{id}", "/public/dto-name-items/{id}", "/admin/dto-name-items", "/public/dto-name-items"].map((path: string): string => getResponseSchema(path).name);
 
@@ -229,6 +234,10 @@ describe("generated DTO names with one controller on an entity (E2E)", () => {
 
 	it("resolves every component reference", () => {
 		expectEveryReferenceToResolve(document);
+	});
+
+	it("reaches every component from a route", () => {
+		expectEveryComponentToBeReachable(document);
 	});
 
 	it("matches the previous document apart from the generated component names", () => {
@@ -274,6 +283,10 @@ describe("generated DTO names of a custom route next to a generated route (E2E)"
 
 	it("resolves every component reference", () => {
 		expectEveryReferenceToResolve(document);
+	});
+
+	it("reaches every component from a route", () => {
+		expectEveryComponentToBeReachable(document);
 	});
 
 	it("names the custom route DTOs after their handler methods, so they stay apart from each other and from the generated route DTOs", () => {
@@ -350,6 +363,10 @@ describe("generated DTO names of properties copied into hand-written DTOs (E2E)"
 
 	it("resolves every component reference", () => {
 		expectEveryReferenceToResolve(document);
+	});
+
+	it("reaches every component from a route", () => {
+		expectEveryComponentToBeReachable(document);
 	});
 
 	it("names one entity property copied into two properties of one host DTO after each host property", () => {
