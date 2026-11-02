@@ -15,6 +15,7 @@ import { InstanceChecker } from "typeorm";
  * A row the body names by its whole primary key is looked up before the save. The rest is a TypeORM subscriber on the DataSource of the repository, which answers 409 before TypeORM sends any write when the save would update, remove, soft remove or recover a row.
  * TypeORM broadcasts the before events of one save in one synchronous loop before its first write, and the row it was given comes first when it is inserted.
  * The subscriber acts only in the asynchronous context of the save the create function starts, so other saves, also on the same query runner or in the same transaction, are never refused.
+ * A change that an application subscriber or entity listener makes to an existing related object during the before events is outside the guard: TypeORM computes it again afterwards and writes it as an update that broadcasts no before event.
  */
 export class ApiFunctionCreateInsertGuard implements EntitySubscriberInterface {
 	private static readonly INSTANCE: ApiFunctionCreateInsertGuard = new ApiFunctionCreateInsertGuard();

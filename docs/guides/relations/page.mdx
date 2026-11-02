@@ -688,6 +688,8 @@ A create only inserts. A related object that holds only its key, or the same val
 
 Change existing rows through their own UPDATE route. The rule holds for the built-in `create` function, so it covers generated `CREATE` routes, with or without authorization, and direct calls of the service.
 
+The create decides from the changes TypeORM computes for the body. A TypeORM subscriber or entity listener of your application (`beforeInsert`, `@BeforeInsert`) that changes an existing related object during that save, such as `event.entity.owner.name = "x"` on a body that names the owner only by key, is outside the rule: TypeORM computes the change again after those hooks and writes it as an UPDATE that broadcasts no before event, so the create answers `201` and the related row changes. In such hooks change only the row being inserted, and change existing rows through their own UPDATE. A save that such a hook starts is its own save and is not refused either.
+
 ## Migration Notes
 
 ### 5.0.0
