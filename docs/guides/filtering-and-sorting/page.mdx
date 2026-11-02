@@ -141,6 +141,7 @@ Plan rules:
 - `BETWEEN` accepts exactly two repeated `[values]`; membership operators accept 1–100 repeated `[values]`.
 - `orderDirection` is the lowercase `asc` or `desc`, and `orderBy` and `orderDirection` are sent together or not at all.
 - Filter values follow the entity property: number `minimum`, `maximum` and `multipleOf`, and string `minLength`, `maxLength`, `format` and `pattern`. The OpenAPI value schema of each operator branch publishes the same constraints.
+- A value is checked whole, whatever the operator. On a field with a `format` or a full-value `pattern`, a partial operator (`cont`, `excl`, `starts`, `ends` and their case-insensitive forms) holds the fragment to that rule too, so `mail[operator]=cont&mail[value]=exam` on an email field returns `400`.
 - A calendar `date` field (`format: EApiPropertyDateType.DATE`) takes `YYYY-MM-DD` text and is compared as written in every time zone; a time, an offset, or an impossible day returns `400`.
 - A date-time field takes the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ` and a `time` field takes `HH:mm:ss`, the patterns the OpenAPI value schema publishes; other forms return `400`.
 - The operations a field may list come from its `@ApiPropertyDescribe` kind. TypeScript only narrows by what the property's value can carry: a `string` property may be a string, UUID, enum, `date`/`time` or decimal column, so it accepts the operations of all of them, and a `Date` property accepts a string in `defaultCondition` for calendar or time text or a UTC instant. At bootstrap, Automator validates the exact kind, format, nullability, enabled state, and configured operation set before exposing the route.
@@ -167,6 +168,12 @@ Before 5.0.0, a typed route without a host pipe lowercased `orderDirection`, so 
 A typed filter on a calendar `date` column used to turn the value into a JavaScript `Date` at local midnight. Depending on the server time zone and database, `eq 2024-03-01` matched the previous day or no rows. The value is now compared as the calendar text, as on a route without a typed filter, and only `YYYY-MM-DD` is accepted; a time, an offset, or an impossible day returns `400 INVALID_FILTER`. A typed `defaultCondition` on such a field takes calendar text, not a `Date`.
 
 A typed date-time filter used to accept any text `new Date()` could read, so a value without a zone was read in the server time zone. It now accepts only the published UTC instant, as a route without a typed filter does. Typed `time` filters used to return `400 INVALID_FILTER` for every value; they now compare `HH:mm:ss` text as written. A typed config no longer needs a cast to list comparison operations on a `string` property described as a date, time or number column.
+
+A typed partial operator used to skip the field's `format` and `pattern` without a host pipe. `mail[operator]=cont&mail[value]=exam` on an email field now returns `400` either way. Search such a field with `eq` or `in`, or describe it with a pattern that accepts a fragment.
+
+A value transformer on a calendar `date` column used to receive a `Date` from a typed filter. It now receives `YYYY-MM-DD` text in `to`, and one that handles only a `Date` answers `500` instead of `200`. Change it to accept the text. Startup cannot detect this.
+
+A numeric enum filter such as `level[operator]=eq&level[value]=1`, whose member the schema publishes as a number, used to return `400` under a host pipe. It now filters on every route and in every pipe mode. A fractional `multipleOf` used to reject every value, because class-validator read the divisor with `parseInt`; it is now an exact decimal check, and the constraint name stays `isDivisibleBy`.
 
 The same plan emits one OpenAPI deep-object parameter per enabled filter field. Its `oneOf` branches describe the exact operator and `value`, `values`, or nullary operand shape. Disabled fields are omitted from both the generated query DTO contract and OpenAPI.
 
@@ -267,6 +274,8 @@ GET /users?age[operator]=isnull
 GET /users?age[operator]=notnull
 ```
 
+`multipleOf` is read as an exact decimal, in filter values and request bodies alike. With `multipleOf: 0.01`, `0.1` passes and `1.005` returns `400`.
+
 ### Date Operations
 
 Operations for date properties. A date-time property (`format: EApiPropertyDateType.DATE_TIME`, the default) takes a UTC instant in `YYYY-MM-DDTHH:mm:ss.sssZ` form, the pattern its OpenAPI schema publishes:
@@ -300,9 +309,11 @@ GET /posts?deletedAt[operator]=isnull
 GET /posts?deletedAt[operator]=notnull
 ```
 
-A date-time filter value is a UTC instant in the published `YYYY-MM-DDTHH:mm:ss.sssZ` form on every route and every column, `timestamptz`, `timestamp`, `datetime` or MSSQL `datetimeoffset`, so the process zone never picks the instant: send `2024-01-01T10:00:00.000Z`. On every date and time column, a value must be a calendar date or a date-time of a year from 0001 to 9999 that exists in the calendar, so `2024-02-30`, `25:00`, and the year `0000` answer `400 INVALID_FILTER` as well. On a PAGE route without a typed filter, the route validates its QUERY DTO first: a value that DTO rejects, such as `nope`, answers the `ValidationPipe` body, and a value it accepts that fails these rules answers `INVALID_FILTER`.
+A date-time filter value is a UTC instant in the published `YYYY-MM-DDTHH:mm:ss.sssZ` form on every route and every column, `timestamptz`, `timestamp`, `datetime` or MSSQL `datetimeoffset`, so the client always names one instant: send `2024-01-01T10:00:00.000Z`. A `timestamptz` or `datetimeoffset` column compares exactly that instant. A `timestamp` or `datetime` column stores no zone, so TypeORM writes the value in the process zone, and a wall-clock time that a daylight saving change repeats stays ambiguous there. On every date and time column, a value must be a calendar date or a date-time of a year from 0001 to 9999 that exists in the calendar, so `2024-02-30`, `25:00`, and the year `0000` answer `400 INVALID_FILTER` as well. On a PAGE route without a typed filter, the route validates its QUERY DTO first: a value that DTO rejects, such as `nope`, answers the `ValidationPipe` body, and a value it accepts that fails these rules answers `INVALID_FILTER`.
 
 A property described with `format: EApiPropertyDateType.DATE` maps to a calendar `date` column. Its filter values are calendar text in `YYYY-MM-DD` form, compared as written on typed and legacy routes, so the result does not depend on the server time zone. A value with a time or an offset, such as `2024-01-01T00:00:00Z`, a day that does not exist, such as `2024-02-30`, or any other form returns `400` before any SQL runs. The OpenAPI value schema publishes the same `YYYY-MM-DD` pattern.
+
+A TypeORM value transformer on such a column receives this text in `to`, never a `Date`. A transformer that handles only a `Date` fails the read with `500`, so change it to accept `YYYY-MM-DD` text. Startup cannot detect this, so check your `date` column transformers when you upgrade.
 
 ```typescript
 // Calendar date column: compared as the text 2024-01-01 in every time zone
@@ -373,6 +384,8 @@ GET /users?role[operator]=isnull
 // Is not null
 GET /users?role[operator]=notnull
 ```
+
+A numeric enum publishes its members as numbers, so send a member as its number: `level[operator]=eq&level[value]=1`. This works on every route and in every pipe mode. Only the exact text of a member stands for it, so `1.0`, `01`, or the member's name `LOW` returns `400`.
 
 ### UUID Operations
 
