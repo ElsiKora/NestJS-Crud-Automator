@@ -236,7 +236,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toEqual({ details: { propertyName: "parent", reason: "a relation bound by the path must be sent as an object naming its join columns; clear it with parentId: null" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+					expect(response.json()).toEqual({ details: { propertyName: "parent", reason: "a relation over several columns must be sent as an object naming its join columns; clear it with parentId: null" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
 				}
 
 				expect(await children()).toEqual(unchanged);
@@ -283,8 +283,114 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 				expect(await bookings()).toEqual(["B1"]);
 			});
 
+			it.each([["PATCH"], ["PUT"]])("%s with a null relation answers 400, says the relation cannot be cleared and keeps the row", async (method: string) => {
+				await dataSource.query(`INSERT INTO row_path_key_bookings ("tenantId", "at", "id") VALUES ('T1', '${literal(SLOT)}', 'B1')`);
+
+				const response: TResponse = await send(method, `/tenant/T1/booking/${SLOT}/B1`, { slot: null });
+
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toEqual({ details: { propertyName: "slot", reason: "a relation over several columns must be sent as an object naming its join columns; it cannot be cleared, because its columns are in the primary key" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+				}
+
+				expect(await bookings()).toEqual(["B1"]);
+			});
+
 			it.runIf(pipe === "none")("CREATE with a relation instant other than the key the body names answers 400 and adds no row", async () => {
 				expect((await send("POST", "/tenant/T1/booking", { at: "2026-01-01T00:00:00.003Z", id: "B1", slot: { at: SLOT } })).statusCode).toBe(400);
+				expect(await bookings()).toEqual([]);
+			});
+		});
+
+		describe("a relation over several columns on a route the path does not bind", () => {
+			const SLOT: string = "2026-01-01T00:00:00.002Z";
+			const literal = (instant: string): string => (driver === "postgres" ? instant : instant.replace("T", " ").replace("Z", ""));
+			const unchanged: Array<Record<string, unknown>> = [{ id: "C1", name: "child", parentId: "P1", tenantId: "T1" }];
+			const created: Array<Record<string, unknown>> = [...unchanged, { id: "C9", name: "made", parentId: "P2", tenantId: "T1" }];
+
+			beforeEach(async () => {
+				await dataSource.query("DELETE FROM row_path_key_tenant_children");
+				await dataSource.query("DELETE FROM row_path_key_tenant_parents");
+				await dataSource.query(`INSERT INTO row_path_key_tenant_parents ("tenantId", "id", "name") VALUES ('T1', 'P1', 'one'), ('T1', 'P2', 'two'), ('T2', 'P2', 'other')`);
+				await dataSource.query(`INSERT INTO row_path_key_tenant_children ("tenantId", "id", "name", "parentId") VALUES ('T1', 'C1', 'child', 'P1')`);
+				await dataSource.query("DELETE FROM row_path_key_bookings");
+				await dataSource.query("DELETE FROM row_path_key_slots");
+				await dataSource.query(`INSERT INTO row_path_key_slots ("tenantId", "at", "name") VALUES ('T1', '${literal(SLOT)}', 'slot'), ('T2', '${literal(SLOT)}', 'other')`);
+			});
+
+			const children = async (): Promise<Array<Record<string, unknown>>> => await rows("row_path_key_tenant_children", `"tenantId", "id"`);
+			const bookings = async (): Promise<Array<Record<string, unknown>>> => (await rows("row_path_key_bookings", `"id"`)).map((row: Record<string, unknown>) => ({ id: row.id, tenantId: row.tenantId }));
+
+			it.each([
+				["POST", "/pinned-child", { id: "C9", name: "made", parent: { id: "P2", tenantId: "T2" } }],
+				["POST", "/plain-child", { id: "C9", name: "made", parent: { id: "P2", tenantId: "T2" }, tenantId: "T1" }],
+				["PATCH", "/plain-child/C1/T1", { parent: { id: "P2" }, parentId: "P1" }],
+			])("%s %s with %j names another value than the entity's own column, answers 400 and changes no row", async (method: string, url: string, payload: object) => {
+				const response: TResponse = await send(method, url, payload);
+
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toEqual({ details: { propertyName: "parent", reason: "relation must name the same value as the entity's own column" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+				}
+
+				expect(response.body).not.toContain("T2");
+				expect(await children()).toEqual(unchanged);
+			});
+
+			// The generated create body leaves the key columns out, so a whitelisting pipe drops or refuses the row key before the route.
+			it.runIf(pipe === "none" || pipe === "transform").each([
+				["/pinned-child", { id: "C9", name: "made", parent: { id: "P2", tenantId: "T1" } }],
+				["/pinned-child", { id: "C9", name: "made", parent: { id: "P2" } }],
+				["/plain-child", { id: "C9", name: "made", parent: { id: "P2", tenantId: "T1" }, tenantId: "T1" }],
+				["/plain-child", { id: "C9", name: "made", parent: { id: "P2" }, tenantId: "T1" }],
+				["/plain-child", { id: "C9", name: "made", parent: { id: "P2", tenantId: "T1" } }],
+			])("CREATE %s with %j writes the relation through the entity's own columns", async (url: string, payload: object) => {
+				const response: TResponse = await send("POST", url, payload);
+
+				expect(response.statusCode).toBe(201);
+				expect(response.json()).toMatchObject({ id: "C9", name: "made", parentId: "P2", tenantId: "T1" });
+				expect(await children()).toEqual(created);
+			});
+
+			it("PATCH with the relation's own column moves it and keeps the key", async () => {
+				const response: TResponse = await send("PATCH", "/plain-child/C1/T1", { parent: { id: "P2" } });
+
+				expect(response.statusCode).toBe(200);
+				expect(await children()).toEqual([{ id: "C1", name: "child", parentId: "P2", tenantId: "T1" }]);
+			});
+
+			it.each([["PATCH"], ["PUT"]])("%s through a path that leaves the tenant key out keeps the row's tenant and moves the relation", async (method: string) => {
+				const response: TResponse = await send(method, "/child-by-id/C1", { name: "moved", parent: { id: "P2" } });
+
+				expect(response.statusCode).toBe(200);
+				expect(await children()).toEqual([{ id: "C1", name: "moved", parentId: "P2", tenantId: "T1" }]);
+			});
+
+			it.runIf(pipe === "none" || pipe === "transform")("CREATE with the relation instant and tenant writes them as the key", async () => {
+				const response: TResponse = await send("POST", "/plain-booking", { id: "B1", slot: { at: SLOT, tenantId: "T1" } });
+
+				expect(response.statusCode).toBe(201);
+				expect(response.json()).toMatchObject({ at: SLOT, id: "B1", tenantId: "T1" });
+				expect(await bookings()).toEqual([{ id: "B1", tenantId: "T1" }]);
+			});
+
+			it.each([
+				[{ id: "B1", slot: { at: null, tenantId: "T1" }, tenantId: "T1" }, "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ"],
+				[{ at: SLOT, id: "B1", slot: { at: null }, tenantId: "T1" }, "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ"],
+				[{ id: "B1", slot: { at: SLOT, tenantId: "T2" }, tenantId: "T1" }, "relation must name the same value as the entity's own column"],
+				[{ at: "2026-01-01T00:00:00.003Z", id: "B1", slot: { at: SLOT, tenantId: "T1" }, tenantId: "T1" }, "relation must name the same value as the entity's own column"],
+				[{ id: "B1", slot: null, tenantId: "T1" }, "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ"],
+			])("CREATE with %j answers 400 and adds no row", async (payload: object, reason: string) => {
+				const response: TResponse = await send("POST", "/plain-booking", payload);
+
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toMatchObject({ details: { propertyName: "slot", reason } });
+				}
+
 				expect(await bookings()).toEqual([]);
 			});
 		});

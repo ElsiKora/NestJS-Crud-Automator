@@ -8,7 +8,7 @@ import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 
 import type { TRowPathDriver, TRowPathFixture } from "./fixture";
 
-import { ApiController, ApiControllerObservable, ApiPropertyDescribe, ApiRouteCustom, ApiRouteSubscriber, ApiRouteSubscriberBase, ApiService, ApiServiceBase, EApiControllerRelationReferenceShape, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
+import { ApiController, ApiControllerObservable, ApiPropertyDescribe, ApiRouteCustom, ApiRouteSubscriber, ApiRouteSubscriberBase, ApiService, ApiServiceBase, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 
 const TEXT_PROPERTY: Parameters<typeof ApiPropertyDescribe>[0] = { description: "text", exampleValue: "value", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING };
 const UUID_PROPERTY: Parameters<typeof ApiPropertyDescribe>[0] = { description: "id", type: EApiPropertyDescribeType.UUID };
@@ -320,6 +320,36 @@ class RowPathKeyTenantChildController {
 	constructor(public readonly service: RowPathKeyTenantChildService) {}
 }
 
+// The path binds nothing, so the body names the tenant; a transformer pins it on one controller.
+@ApiController<RowPathKeyTenantChildEntity>({ entity: RowPathKeyTenantChildEntity, path: "plain-child", routes: {} })
+class RowPathKeyPlainChildController {
+	constructor(public readonly service: RowPathKeyTenantChildService) {}
+}
+
+@ApiController<RowPathKeyTenantChildEntity>({ entity: RowPathKeyTenantChildEntity, path: "child-by-id", rowPath: { fields: ["id"] }, routes: { [EApiRouteType.CREATE]: { generation: { isEnabled: false } }, [EApiRouteType.GET_LIST]: { generation: { isEnabled: false } } } })
+class RowPathKeyChildByIdController {
+	constructor(public readonly service: RowPathKeyTenantChildService) {}
+}
+
+@ApiController<RowPathKeyTenantChildEntity>({
+	entity: RowPathKeyTenantChildEntity,
+	path: "pinned-child",
+	routes: { [EApiRouteType.CREATE]: { request: { [EApiControllerRequestTarget.BODY]: { transformers: [{ key: "tenantId", shouldSetValueEvenIfMissing: true, type: EApiControllerRequestTransformerType.STATIC, value: "T1" }] } } } },
+})
+class RowPathKeyPinnedChildController {
+	constructor(public readonly service: RowPathKeyTenantChildService) {}
+}
+
+@ApiController<RowPathPostgresKeyBookingEntity>({ entity: RowPathPostgresKeyBookingEntity, path: "plain-booking", routes: {} })
+class RowPathPostgresKeyPlainBookingController {
+	constructor(public readonly service: RowPathPostgresKeyBookingService) {}
+}
+
+@ApiController<RowPathSqliteKeyBookingEntity>({ entity: RowPathSqliteKeyBookingEntity, path: "plain-booking", routes: {} })
+class RowPathSqliteKeyPlainBookingController {
+	constructor(public readonly service: RowPathSqliteKeyBookingService) {}
+}
+
 @ApiControllerObservable()
 @ApiController<RowPathKeyItemEntity>({ entity: RowPathKeyItemEntity, path: "parent/:parentId/item", pathScope: { parameters: [{ field: "parentId", parameter: "parentId" }] }, routes: {} })
 class RowPathKeyItemController {
@@ -370,14 +400,14 @@ const POSTGRES_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPat
 const SQLITE_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathSqliteKeyBookingEntity, RowPathSqliteKeySlotEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathKeyTenantChildEntity, RowPathKeyTenantParentEntity, RowPathSqliteKeyReadingEntity];
 
 @Module({
-	controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyTenantChildController, RowPathPostgresKeyBookingController, RowPathPostgresKeyReadingController],
+	controllers: [RowPathKeyChildByIdController, RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyPinnedChildController, RowPathKeyPlainChildController, RowPathKeyTenantChildController, RowPathPostgresKeyBookingController, RowPathPostgresKeyPlainBookingController, RowPathPostgresKeyReadingController],
 	imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)],
 	providers: [RowPathKeyItemRouteSubscriber, RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathKeyTenantChildService, RowPathKeyTenantParentService, RowPathPostgresKeyBookingService, RowPathPostgresKeyReadingService],
 })
 class RowPathKeyPostgresModule {}
 
 @Module({
-	controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyTenantChildController, RowPathSqliteKeyBookingController, RowPathSqliteKeyReadingController],
+	controllers: [RowPathKeyChildByIdController, RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyPinnedChildController, RowPathKeyPlainChildController, RowPathKeyTenantChildController, RowPathSqliteKeyBookingController, RowPathSqliteKeyPlainBookingController, RowPathSqliteKeyReadingController],
 	imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)],
 	providers: [RowPathKeyItemRouteSubscriber, RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathKeyTenantChildService, RowPathKeyTenantParentService, RowPathSqliteKeyBookingService, RowPathSqliteKeyReadingService],
 })

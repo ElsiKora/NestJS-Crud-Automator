@@ -85,7 +85,10 @@ const FILTER_VALUE_KEY_PATTERN: RegExp = /^(.+)\[values?\]$/u;
 const PATH_MATCH_LIMIT: number = 2;
 const BODY_INSTANT_REJECTION_REASON: string = "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ";
 const BODY_PATH_MISMATCH_REJECTION_REASON: string = "value must be the one the path names";
-const BODY_RELATION_OBJECT_REJECTION_REASON: string = "a relation bound by the path must be sent as an object naming its join columns";
+const BODY_RELATION_CONFLICT_REJECTION_REASON: string = "relation must name the same value as the entity's own column";
+const BODY_RELATION_KEY_CLEAR_REJECTION_REASON: string = "it cannot be cleared, because its columns are in the primary key";
+const BODY_RELATION_LOCKED_CLEAR_REJECTION_REASON: string = "it cannot be cleared, because its columns are in the primary key or bound by the path";
+const BODY_RELATION_OBJECT_REJECTION_REASON: string = "a relation over several columns must be sent as an object naming its join columns";
 const BODY_RELATION_SPLIT_REJECTION_REASON: string = "relation must name each of its own columns, which the entity must declare";
 const BODY_UNADDRESSED_KEY_REJECTION_REASON: string = "key column is not in the path";
 
@@ -250,7 +253,7 @@ export class ApiRouteRuntime {
 
 	/**
 	 * Refuses a CREATE body whose date and time key column is not the canonical UTC millisecond string, which is the only form the route can read the row back by.
-	 * The key is checked wherever the body sets it: as the column itself, and inside a relation that joins it, whose value the save writes into the key. A key the path binds is compared with the path instead.
+	 * The key is checked wherever the body sets it: as the column itself, and inside a relation that joins it, whose value the save writes into the key. A null relation would set the key to null, so it is refused as well. A key the path binds is compared with the path instead.
 	 * The body is read as the client sent it, because a pipe may already have turned the string into a `Date`.
 	 * @param {Repository<IApiBaseEntity>} repository - Repository of the entity.
 	 * @param {unknown} sentBody - The body as the client sent it.
@@ -280,11 +283,11 @@ export class ApiRouteRuntime {
 
 				if (this.isPlainRecord(relationValue)) {
 					value = referencedName ? relationValue[referencedName] : undefined;
-				} else if (relation.joinColumns.length === 1) {
+				} else if (relationValue === null || relation.joinColumns.length === 1) {
 					value = relationValue;
 				}
 
-				if (value !== undefined && value !== null && !this.isCanonicalInstant(value)) {
+				if (value !== undefined && !this.isCanonicalInstant(value)) {
 					throw this.createBodyParameterException(relation.propertyName, BODY_INSTANT_REJECTION_REASON);
 				}
 			}
@@ -293,7 +296,7 @@ export class ApiRouteRuntime {
 
 	/**
 	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
-	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all. A relation over several columns that joins such a field must be an object, because null or a single value would also set the field; its other join columns clear it.
+	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all. A relation over several columns names such a field only inside its object; any other value is refused by the split.
 	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
 	 * @param {ReadonlyArray<Record<string, unknown>>} bodies - The body as the client sent it and as the route will write it.
 	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
@@ -318,11 +321,8 @@ export class ApiRouteRuntime {
 						continue;
 					}
 
-					// A relation over several columns names the addressed one only inside its object, so anything else would set that column too.
 					if (relation.joinColumns.length > 1 && !this.isPlainRecord(relationValue)) {
-						const clearingColumns: Array<string> = relation.joinColumns.filter((column: TTypeOrmColumnMetadata): boolean => !column.isVirtual && !Object.hasOwn(pathValues, column.propertyName) && !unaddressedFields.includes(column.propertyName)).map((column: TTypeOrmColumnMetadata): string => `${column.propertyName}: null`);
-
-						throw this.createBodyParameterException(relation.propertyName, clearingColumns.length > 0 ? `${BODY_RELATION_OBJECT_REJECTION_REASON}; clear it with ${clearingColumns.join(", ")}` : BODY_RELATION_OBJECT_REJECTION_REASON);
+						continue;
 					}
 
 					const referencedName: string | undefined = joinColumn.referencedColumn?.propertyName;
@@ -1142,6 +1142,24 @@ export class ApiRouteRuntime {
 	}
 
 	/**
+	 * Builds the reason that refuses a relation over several columns sent as something other than an object. It names the entity's own columns that clear the relation, which are the declared join columns that are neither key columns nor bound by the path.
+	 * @param {RelationMetadata} relation - Relation the body names.
+	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
+	 * @param {ReadonlyArray<string>} lockedKeyFields - Key columns a write to one row keeps.
+	 * @returns {string} The reason, with how to clear the relation or why it cannot be cleared.
+	 */
+	private static resolveRelationObjectReason(relation: RelationMetadata, pathValues: Record<string, unknown>, lockedKeyFields: ReadonlyArray<string>): string {
+		const isKeyColumn = (column: TTypeOrmColumnMetadata): boolean => column.isPrimary || lockedKeyFields.includes(column.propertyName);
+		const clearingColumns: Array<string> = relation.joinColumns.filter((column: TTypeOrmColumnMetadata): boolean => !column.isVirtual && !isKeyColumn(column) && !Object.hasOwn(pathValues, column.propertyName)).map((column: TTypeOrmColumnMetadata): string => `${column.propertyName}: null`);
+
+		if (clearingColumns.length > 0) {
+			return `${BODY_RELATION_OBJECT_REJECTION_REASON}; clear it with ${clearingColumns.join(", ")}`;
+		}
+
+		return `${BODY_RELATION_OBJECT_REJECTION_REASON}; ${relation.joinColumns.every((column: TTypeOrmColumnMetadata): boolean => isKeyColumn(column)) ? BODY_RELATION_KEY_CLEAR_REJECTION_REASON : BODY_RELATION_LOCKED_CLEAR_REJECTION_REASON}`;
+	}
+
+	/**
 	 * Builds the where clause a route path addresses. Date and time values of a composite or bound route must name one exact instant, which a plain single-column key route leaves to the database as before.
 	 * @template E - Entity type owned by the route.
 	 * @template R - Generated route type.
@@ -1172,7 +1190,7 @@ export class ApiRouteRuntime {
 
 	/**
 	 * Checks a generated write body against its path and returns the body the route writes.
-	 * The checks run in order: on CREATE every date and time key the body sets must be canonical, then every value the body names for a field the path addresses must be the path's, then the copy is split.
+	 * The checks run in order: on CREATE every date and time key the body sets must be canonical, then every value the body names for a field the path addresses must be the path's, then the copy is split, so every relation over several columns agrees with the entity's own columns.
 	 * The request body stays as the client sent it.
 	 * @template E - Entity type owned by the route.
 	 * @template R - Generated route type.
@@ -1200,7 +1218,7 @@ export class ApiRouteRuntime {
 			relations,
 		);
 
-		return this.splitWriteBody(targets.body, pathValues, relations);
+		return this.splitWriteBody(targets.body, rawBody, pathValues, options.method === EApiRouteType.CREATE ? [] : pathPlan.primaryFields, relations);
 	}
 
 	/**
@@ -1244,49 +1262,90 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Copies the body the route writes. A field the path addresses leaves it, because a key the save reads from the body would make it insert another row.
-	 * A relation that joins such a field leaves with it, and its other join columns are written as the entity's own columns, since the save reads every join column from a relation it is given. One the entity does not declare, the relation does not name, or the body sets to another value cannot be told apart and answers `400`.
+	 * Copies the body the route writes. A field the path addresses leaves it, because a key the save reads from the body would make it insert another row, and so does a relation over one column that joins such a field.
+	 * A relation over several columns leaves it on every write, and its join columns are written as the entity's own columns, because the save reads every join column from a relation it is given and would otherwise write the relation's value over the entity's own. The entity's own value decides: the path's for a bound column, otherwise the body's as the route will write it after transformers, or as the client sent it when a pipe dropped it; a relation that names another one answers `400`, and a join column with no own value takes the relation's. A key column of a write to one row keeps the row's value, since the route never changes the key.
+	 * The relation is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. A relation over several columns that is not an object answers `400` unless it is null and the entity sets none of its columns; null then clears the relation as the save would. A relation whose join columns the entity does not declare is left to the save, which has no own column to compare with.
 	 * @param {unknown} body - The body as the route will write it.
+	 * @param {unknown} rawBody - The body as the client sent it.
 	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
+	 * @param {ReadonlyArray<string>} lockedKeyFields - Key columns a write to one row keeps; empty on CREATE.
 	 * @param {ReadonlyArray<RelationMetadata>} relations - Relations of the entity.
 	 * @returns {Record<string, unknown>} The body the route writes, with the prototype of the given one.
-	 * @throws {BadRequestException} When a relation cannot be split into the entity's own columns.
+	 * @throws {BadRequestException} When a relation disagrees with the entity's own columns or cannot be split into them.
 	 */
-	private static splitWriteBody(body: unknown, pathValues: Record<string, unknown>, relations: ReadonlyArray<RelationMetadata>): Record<string, unknown> {
+	private static splitWriteBody(body: unknown, rawBody: unknown, pathValues: Record<string, unknown>, lockedKeyFields: ReadonlyArray<string>, relations: ReadonlyArray<RelationMetadata>): Record<string, unknown> {
 		const writeBody: Record<string, unknown> = this.isPlainRecord(body) ? Object.assign(Object.create(Object.getPrototypeOf(body) as null | object) as Record<string, unknown>, body) : {};
+		const rawRecord: Record<string, unknown> = this.isPlainRecord(rawBody) ? rawBody : {};
+
+		// The path decides a bound column, then the body as the route writes it; a column a pipe dropped is read as the client sent it, so dropping it cannot hide a disagreement.
+		const readOwnValue = (column: TTypeOrmColumnMetadata): unknown => {
+			if (Object.hasOwn(pathValues, column.propertyName)) {
+				return pathValues[column.propertyName];
+			}
+
+			return writeBody[column.propertyName] === undefined ? rawRecord[column.propertyName] : writeBody[column.propertyName];
+		};
 
 		for (const field of Object.keys(pathValues)) {
 			Reflect.deleteProperty(writeBody, field);
+		}
 
-			for (const relation of relations) {
-				const joinColumn: TTypeOrmColumnMetadata | undefined = relation.joinColumns.find((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field);
-				const relationValue: unknown = writeBody[relation.propertyName];
+		for (const relation of relations) {
+			const values: Array<unknown> = [writeBody[relation.propertyName], rawRecord[relation.propertyName]].filter((value: unknown): boolean => value !== undefined);
+			const declaredColumns: Array<TTypeOrmColumnMetadata> = relation.joinColumns.filter((column: TTypeOrmColumnMetadata): boolean => !column.isVirtual);
 
-				if (!joinColumn || relationValue === undefined) {
-					continue;
-				}
-
-				Reflect.deleteProperty(writeBody, relation.propertyName);
-
-				if (relation.joinColumns.length === 1 || !this.isPlainRecord(relationValue)) {
-					continue;
-				}
-
-				for (const otherColumn of relation.joinColumns) {
-					const otherReferencedName: string | undefined = otherColumn.referencedColumn?.propertyName;
-					const otherValue: unknown = otherReferencedName ? relationValue[otherReferencedName] : undefined;
-
-					if (Object.hasOwn(pathValues, otherColumn.propertyName)) {
-						continue;
-					}
-
-					if (otherColumn.isVirtual || otherValue === undefined || (writeBody[otherColumn.propertyName] !== undefined && !this.isSameWriteValue(writeBody[otherColumn.propertyName], otherValue))) {
-						throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_SPLIT_REJECTION_REASON);
-					}
-
-					writeBody[otherColumn.propertyName] = otherValue;
-				}
+			if (values.length === 0) {
+				continue;
 			}
+
+			if (relation.joinColumns.length === 1) {
+				if (relation.joinColumns.some((column: TTypeOrmColumnMetadata): boolean => Object.hasOwn(pathValues, column.propertyName))) {
+					Reflect.deleteProperty(writeBody, relation.propertyName);
+				}
+
+				continue;
+			}
+
+			if (declaredColumns.length === 0) {
+				continue;
+			}
+
+			if (!values.every((value: unknown): boolean => this.isPlainRecord(value))) {
+				if (values.every((value: unknown): boolean => value === null) && declaredColumns.every((column: TTypeOrmColumnMetadata): boolean => readOwnValue(column) === undefined)) {
+					continue;
+				}
+
+				throw this.createBodyParameterException(relation.propertyName, this.resolveRelationObjectReason(relation, pathValues, lockedKeyFields));
+			}
+
+			if (declaredColumns.length < relation.joinColumns.length) {
+				throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_SPLIT_REJECTION_REASON);
+			}
+
+			for (const column of relation.joinColumns) {
+				const referencedName: string | undefined = column.referencedColumn?.propertyName;
+				const components: Array<unknown> = (values as Array<Record<string, unknown>>).map((value: Record<string, unknown>): unknown => (referencedName ? value[referencedName] : undefined));
+				const ownValue: unknown = readOwnValue(column);
+				const expected: unknown = ownValue === undefined ? components.find((candidate: unknown): boolean => candidate !== undefined) : ownValue;
+
+				if (components.some((component: unknown): boolean => component !== undefined && !this.isSameWriteValue(expected, component))) {
+					throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_CONFLICT_REJECTION_REASON);
+				}
+
+				if (Object.hasOwn(pathValues, column.propertyName) || writeBody[column.propertyName] !== undefined || lockedKeyFields.includes(column.propertyName)) {
+					continue;
+				}
+
+				const component: unknown = components.find((candidate: unknown): boolean => candidate !== undefined);
+
+				if (component === undefined) {
+					throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_SPLIT_REJECTION_REASON);
+				}
+
+				writeBody[column.propertyName] = component;
+			}
+
+			Reflect.deleteProperty(writeBody, relation.propertyName);
 		}
 
 		return writeBody;
