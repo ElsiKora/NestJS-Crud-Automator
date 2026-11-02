@@ -452,15 +452,7 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 
 	it("builds no rule for a route with no path parameter, so it costs nothing per request", () => {
 		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "noParameter", pathParameters: [], resourcePath: "custom-rule/item" })).toBeUndefined();
-		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, isListRoute: true, methodName: "noDtoNamed", pathParameters: [], resourcePath: "custom-rule/{id}" })).toBeUndefined();
-	});
-
-	it("fails at startup on an IAM route that does not list and names a resourcePath placeholder its path lacks, because the placeholder would render as * and miss every Deny on a value", () => {
-		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "notList", pathParameters: [], resourcePath: "custom-rule/{id}" })).toThrow('Controller "CustomRuleController" method "notList" names "{id}" in its IAM resourcePath, which is not a path parameter of the route, and a route that does not list renders it as "*", so no Deny on a value of it matches');
-	});
-
-	it("keeps a list route whose resourcePath placeholder is not a path parameter, because a list maps it to row exclusions", () => {
-		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, isListRoute: true, methodName: "list", pathParameters: [], resourcePath: "custom-rule/{tenant}/{id}" })).not.toThrow();
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDtoNamed", pathParameters: [], resourcePath: "custom-rule/{id}" })).toBeUndefined();
 	});
 
 	it.each([

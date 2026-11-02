@@ -1,4 +1,5 @@
 import type { IApiAuthorizationModuleOptions } from "@interface/class/api/authorization";
+import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiRouteRuntimeProperties } from "@interface/decorator/api";
 import type { Type } from "@nestjs/common";
@@ -21,13 +22,14 @@ import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod, Va
 import { addLeadingSlash, METHOD_METADATA, MODULE_PATH, PATH_METADATA, stripEndSlash, VERSION_METADATA } from "@nestjs/common/internal";
 import { ApplicationConfig, DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
 import { ApiControllerGetMethodName } from "@utility/api/controller/get/method-name.utility";
+import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity/plan/get.utility";
 import { ApiControllerParametersAssertComparableColumns, ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersDtoGet } from "@utility/api/controller/parameters/dto";
 import { ApiControllerParametersAssertHandlerArguments } from "@utility/api/controller/parameters/handler-arguments.utility";
 import { ApiControllerParametersReadPath } from "@utility/api/controller/parameters/read-path.utility";
+import { ApiControllerParametersAssertResourcePathPlaceholders } from "@utility/api/controller/parameters/resource-path.utility";
 import { ApiControllerParametersAssertValidationPipePackages, ApiControllerParametersReadValidationPipes } from "@utility/api/controller/parameters/validation-pipe.utility";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
-import { AuthorizationIsListRoute } from "@utility/authorization/is-list-route.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { getMetadataStorage } from "class-validator";
@@ -101,15 +103,16 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	 * - a wildcard in any part of the path fails startup, because its value has no name a PARAMETERS DTO can describe;
 	 * - a generated route must describe every path parameter in its generated PARAMETERS DTO;
 	 * - a custom route, IAM or HOOKS, gets the rule of its PARAMETERS DTO, which must describe every path parameter, with a column type on a HOOKS route;
+	 * - an IAM route, generated or custom, that neither lists nor creates must carry each resource path placeholder as a path parameter;
 	 * - a handler argument or a `@UsePipes` pipe that converts a path value by another rule fails startup.
 	 * The parameters of each route are recorded, so the guard refuses a request that carries another one. The rule is built and kept for this controller class: a handler inherited from a base class is shared with its other subclasses, whose resource paths may differ.
 	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller, which names its module.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
 	 * @param {string | undefined} resourcePath - IAM resource path of the controller, or undefined when the controller has no IAM resource definition.
-	 * @param {string | undefined} policyNamespace - IAM policy namespace of the controller, which names its `list` action.
+	 * @param {string | undefined} policyNamespace - IAM policy namespace of the controller, which names its `list` and `create` actions.
 	 * @returns {void}
-	 * @throws {Error} When a path part has a wildcard, a path parameter has no PARAMETERS DTO that describes it, the DTO cannot give authorization the text of a path value, a placeholder that is a path parameter is not copied from an entity column, a path parameter holds a decimal column, or a handler argument or pipe converts a path value by another rule.
+	 * @throws {Error} When a path part has a wildcard, a path parameter has no PARAMETERS DTO that describes it, the DTO cannot give authorization the text of a path value, a placeholder that is a path parameter is not copied from an entity column, an IAM route that neither lists nor creates lacks a placeholder in its path, a path parameter holds a decimal column, or a handler argument or pipe converts a path value by another rule.
 	 */
 	private applyRouteParameterRules(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string | undefined, policyNamespace: string | undefined): void {
 		for (const [methodName, handler] of this.collectMethods(metatype)) {
@@ -140,17 +143,24 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 				this.queueValidationPipeProbes(controllerWrapper, metatype, handler, route);
 			}
 
+			const mode: EApiAuthorizationMode = metadata.security?.authorization?.mode ?? defaultMode;
+
+			if (mode === EApiAuthorizationMode.IAM && resourcePath !== undefined) {
+				// The guard also gives IAM the value of a generated GET identity parameter under the entity field it names.
+				const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanGet(handler);
+				const authorizedParameters: Array<string> = identityPlan && pathParameters.includes(identityPlan.parameter) ? [...pathParameters, identityPlan.field] : pathParameters;
+
+				ApiControllerParametersAssertResourcePathPlaceholders({ action: `${policyNamespace ?? ""}:${metadata.resource.action}`, pathParameters: authorizedParameters, policyNamespace, resourcePath, route, routeType: metadata.route.type });
+			}
+
 			if (generatedRule || this.isGeneratedRoute(metatype, methodName, handler, metadata)) {
 				continue;
 			}
-
-			const mode: EApiAuthorizationMode = metadata.security?.authorization?.mode ?? defaultMode;
 
 			const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({
 				controller: metatype,
 				dto: routeDto,
 				isColumnTypeRequired: mode === EApiAuthorizationMode.HOOKS,
-				isListRoute: AuthorizationIsListRoute(metadata.route.type, `${policyNamespace ?? ""}:${metadata.resource.action}`, policyNamespace),
 				methodName,
 				pathParameters,
 				resourcePath: mode === EApiAuthorizationMode.IAM ? resourcePath : undefined,
@@ -342,7 +352,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Tells whether a handler is a route `@ApiController` generates: it carries the name of its route type, that route is not disabled, and `@ApiRouteCustom` did not declare it. Such a route without a path parameter has no PARAMETERS rule, and its route type decides how IAM reads its resource path.
+	 * Tells whether a handler is a route `@ApiController` generates: it carries the name of its route type, that route is not disabled, and `@ApiRouteCustom` did not declare it. Such a route carries its own PARAMETERS rule, or none without a path parameter, so no custom rule is built for it.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {string} methodName - Handler name.
 	 * @param {object} handler - Handler function.
