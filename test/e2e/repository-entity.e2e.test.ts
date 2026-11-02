@@ -83,6 +83,13 @@ describe("Repository of a controller entity (E2E)", () => {
 				await application.close();
 			}
 		});
+		it("a mock repository without metadata from overrideProvider", async () => {
+			const Mocked = createEntity("repository_entity_mocked", "RepositoryEntityMockedDoc");
+			const service = createService(Mocked);
+			const module = createModule([createController(Mocked, service, "RepositoryEntityMockedController", "repository-entity-mocked")], [service], [Mocked]);
+
+			await expect(boot([TypeOrmModule.forRoot(memory([Mocked])), module], (builder) => builder.overrideProvider(getRepositoryToken(Mocked)).useValue({ find: vi.fn() }) as never)).rejects.toThrowError('Controller "RepositoryEntityMockedController" of entity "RepositoryEntityMockedDoc": service.repository is not a usable TypeORM repository because its metadata is not TypeORM entity metadata.');
+		});
 	});
 
 	describe("allowed", () => {
@@ -127,15 +134,6 @@ describe("Repository of a controller entity (E2E)", () => {
 			const module = createModule([createController(Named, service, "RepositoryEntityNamedController", "repository-entity-named")], [service], [Named], "second");
 
 			await expectList([TypeOrmModule.forRoot(memory([])), TypeOrmModule.forRoot(memory([Named], "second")), module], "repository-entity-named");
-		});
-
-		it("a mock repository without metadata from overrideProvider", async () => {
-			const Mocked = createEntity("repository_entity_mocked", "RepositoryEntityMockedDoc");
-			const service = createService(Mocked);
-			const module = createModule([createController(Mocked, service, "RepositoryEntityMockedController", "repository-entity-mocked")], [service], [Mocked]);
-			const { application } = await boot([TypeOrmModule.forRoot(memory([Mocked])), module], (builder) => builder.overrideProvider(getRepositoryToken(Mocked)).useValue({ find: vi.fn() }) as never);
-
-			running.push(application);
 		});
 
 		it("@InjectRepository through a service subclass", async () => {

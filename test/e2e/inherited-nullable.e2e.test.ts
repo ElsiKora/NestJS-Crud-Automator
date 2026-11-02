@@ -28,7 +28,8 @@ describe.each([
 		container = isPostgres ? await new PostgreSqlContainer("postgres:17-alpine").start() : undefined;
 		const entities: Array<new () => unknown> = [E2eInheritedNullableItemEntity];
 		const moduleReference = await Test.createTestingModule({
-			controllers: [E2eInheritedNullableItemController, E2eInheritedNullableCursorItemController],
+			// A CURSOR route fails startup on a database other than PostgreSQL.
+			controllers: [E2eInheritedNullableItemController, ...(isPostgres ? [E2eInheritedNullableCursorItemController] : [])],
 			imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 			providers: [E2eInheritedNullableItemService],
 		}).compile();

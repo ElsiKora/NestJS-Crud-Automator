@@ -113,7 +113,8 @@ describe.each([
 		beforeAll(async () => {
 			const entities: Array<new () => unknown> = [E2eListScalarAccountEntity, E2eListScalarKeyEntity];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eListScalarCreateKeyController, E2eListScalarDefaultKeyController, E2eListScalarManualKeyController, E2eListScalarPageKeyController, E2eListScalarCursorKeyController],
+				// A CURSOR route fails startup on a database other than PostgreSQL.
+				controllers: [E2eListScalarCreateKeyController, E2eListScalarDefaultKeyController, E2eListScalarManualKeyController, E2eListScalarPageKeyController, ...(isPostgres ? [E2eListScalarCursorKeyController] : [])],
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListScalarKeyService],
 			}).compile();
