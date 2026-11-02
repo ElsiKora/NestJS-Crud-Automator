@@ -1,6 +1,7 @@
 import type { ExecutionContext } from "@nestjs/common";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
+import { ApiAuthorizationParametersRuleRegistry } from "@class/api/authorization/parameters-rule-registry.class";
 import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/authorization";
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
@@ -59,7 +60,7 @@ const defineRouteMetadata = (handler: () => void, action: string, routeType?: EA
 describe("ApiAuthorizationGuard", () => {
 	it("allows access when controller is not securable", async () => {
 		const runtime = { evaluate: vi.fn() };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function get() {};
 		const controller = class {};
 		const request = {};
@@ -73,7 +74,7 @@ describe("ApiAuthorizationGuard", () => {
 
 	it("throws when securable controller does not declare authorization metadata", async () => {
 		const runtime = { evaluate: vi.fn() };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function get() {};
 		const controller = class {};
 		const request = {};
@@ -86,7 +87,7 @@ describe("ApiAuthorizationGuard", () => {
 
 	it("throws when a securable handler does not declare ApiMethod authorization metadata", async () => {
 		const runtime = { evaluate: vi.fn() };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function publish() {};
 		const controller = class {};
 		const request = {};
@@ -125,7 +126,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function get() {};
 		const controller = class {};
 		const request: Record<string, unknown> = {};
@@ -169,7 +170,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function get() {};
 		const controller = class {};
 		const request: Record<string, unknown> = {};
@@ -215,7 +216,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function partialUpdate() {};
 		const controller = class {};
 		const request: Record<string, unknown> = {
@@ -293,7 +294,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function get() {};
 		const controller = class {};
 		const rawParameters = { gameId: "entity-1", ownerId: "owner-1" };
@@ -352,7 +353,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 
 		class AliasedBaseController {
 			public get(): void {}
@@ -449,7 +450,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function publish() {};
 		const controller = class {};
 		const request: Record<string, unknown> = {
@@ -502,7 +503,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never);
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function partialUpdate() {};
 		const controller = class {};
 		const request: Record<string, unknown> = {

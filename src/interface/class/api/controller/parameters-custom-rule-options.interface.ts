@@ -1,7 +1,7 @@
 import type { Type } from "@nestjs/common";
 
 export interface IApiControllerParametersCustomRuleOptions {
-	controllerName: string;
+	controller: Type<unknown>;
 	dto: Type<unknown> | undefined;
 	methodName: string;
 	pathParameters: ReadonlyArray<string>;

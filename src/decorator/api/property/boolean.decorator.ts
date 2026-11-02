@@ -14,7 +14,7 @@ import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
-import { Exclude } from "class-transformer";
+import { Exclude, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, Validate, ValidateIf } from "class-validator";
 
 /**
@@ -24,13 +24,12 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, Validate
  * This decorator handles boolean properties with support for:
  * - Single boolean values or arrays of booleans
  * - Response/Request specific decorators
- * - Intelligent type conversion from various input types to boolean
+ * - Strict conversion of request text to boolean
  * - Array validation with min/max items
  * - Nullable values
  *
- * The decorator provides smart type conversion that handles string values ('true'/'false', '1'/'0'),
- * number values (0/non-zero), and proper boolean values. This makes it robust when working with
- * form data and query parameters.
+ * A request value is checked exactly as the client sent it, whatever the `@Expose` name and host pipe options:
+ * only `true` and `false`, as booleans or as that exact text, are accepted; `1`, `0`, `no`, `TRUE`, and numbers are rejected.
  * @param {TApiPropertyBooleanProperties} properties - Configuration options for the boolean property
  * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-boolean | API Reference - ApiPropertyBoolean}
@@ -222,7 +221,7 @@ function buildResponseDecorators(properties: TApiPropertyBooleanProperties): Arr
 
 /**
  * Builds decorators for type transformation from request text to boolean.
- * Only `true` and `false`, as booleans or as that exact text, are converted; any other value is kept for `IsBoolean` to reject, so `1`, `no`, and `TRUE` return `400`, with or without implicit conversion in the host pipe.
+ * Only `true` and `false`, as booleans or as that exact text, are converted; any other value is kept for `IsBoolean` to reject, so `1`, `no`, and `TRUE` return `400`, whatever the `@Expose` name of the property and the conversion options of the host pipe.
  * @param {TApiPropertyBooleanProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} An array of type transformation decorators
  * @private
@@ -232,25 +231,24 @@ function buildTransformDecorators(properties: TApiPropertyBooleanProperties): Ar
 		return [];
 	}
 
-	// The request value is read from the source object: under `enableImplicitConversion` the transformer receives `Boolean(value)`, which is true for any non-empty text, such as "false".
+	// `Type(() => Object)` keeps the sent value: without it `enableImplicitConversion` hands the transformer `Boolean(value)`, which is true for any non-empty text, such as "false".
 	if (properties.isArray) {
 		return [
+			Type(() => Object),
 			ClassTransformerAutomatorTransform(
-				({ key, obj, value }: { key: string; obj: Record<string, unknown>; value: unknown }): unknown => {
-					const rawValue: unknown = Object.hasOwn(obj, key) ? obj[key] : value;
-
-					if (rawValue === null || rawValue === undefined) {
-						return rawValue;
+				({ value }: { value: unknown }): unknown => {
+					if (value === null || value === undefined) {
+						return value;
 					}
 
-					return Array.isArray(rawValue) ? rawValue.map((item: unknown): unknown => parseBooleanValue(item)) : [parseBooleanValue(rawValue)];
+					return Array.isArray(value) ? value.map((item: unknown): unknown => parseBooleanValue(item)) : [parseBooleanValue(value)];
 				},
 				{ toClassOnly: true },
 			),
 		];
 	}
 
-	return [ClassTransformerAutomatorTransform(({ key, obj, value }: { key: string; obj: Record<string, unknown>; value: unknown }): unknown => parseBooleanValue(Object.hasOwn(obj, key) ? obj[key] : value), { toClassOnly: true })];
+	return [Type(() => Object), ClassTransformerAutomatorTransform(({ value }: { value: unknown }): unknown => parseBooleanValue(value), { toClassOnly: true })];
 }
 
 /**

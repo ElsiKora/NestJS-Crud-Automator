@@ -31,7 +31,7 @@ import random from "lodash/random.js";
  * - Response/Request specific decorators
  * - Min/max value constraints
  * - Multiple-of validation
- * - Automatic transformation from string to number
+ * - Strict transformation of request text to number: the value is checked exactly as the client sent it, whatever the `@Expose` name and host pipe options
  * - Range validation
  *
  * The decorator can automatically generate an example value within the specified range
@@ -198,7 +198,8 @@ function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<
 			}
 		}
 
-		decorators.push(Type(() => Number));
+		// `Type(() => Object)` keeps the sent value: `Type(() => Number)` or `enableImplicitConversion` would turn "016" into 16 and `true` into 1 before the transformer could reject them.
+		decorators.push(Type(() => Object));
 	}
 
 	return decorators;
@@ -318,7 +319,7 @@ function buildResponseDecorators(properties: TApiPropertyNumberProperties): Arra
 
 /**
  * Builds decorators for type transformation from string to number.
- * Handles both single values and arrays with appropriate transformers; an array property wraps a single value into a one-item array first.
+ * The transformer receives the value the client sent, under any `@Expose` name and host pipe options, and converts only canonical number text.
  * @param {TApiPropertyNumberProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} An array of type transformation decorators
  * @private
@@ -327,18 +328,16 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 	const decorators: Array<PropertyDecorator> = [];
 
 	if (!properties.isResponse) {
-		// The raw source value is read because `Type(() => Number)` has already converted `value`, and `Number("016")` would hide the non-canonical text.
 		if (properties.isArray) {
 			decorators.push(
 				ClassTransformerAutomatorTransform(
-					({ key, obj, value }: { key: string; obj: Record<string, unknown>; value: Array<unknown> | null | undefined }) => {
-						const rawValue: unknown = obj[key];
-
-						if (value === undefined || value === null || !Array.isArray(rawValue)) {
+					({ value }: { value: unknown }): unknown => {
+						// A value that is not a list is kept for `IsArray` to reject.
+						if (!Array.isArray(value)) {
 							return value;
 						}
 
-						return rawValue.map((item: unknown): unknown => parseNumberValue(properties.format, item));
+						return value.map((item: unknown): unknown => parseNumberValue(properties.format, item));
 					},
 					{ toClassOnly: true },
 				),
@@ -346,15 +345,13 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 		} else {
 			decorators.push(
 				ClassTransformerAutomatorTransform(
-					({ key, obj, value }: { key: string; obj: Record<string, unknown>; value: null | number | string | undefined }) => {
+					({ value }: { value: unknown }): unknown => {
 						if (value === undefined || value === null) {
 							return value;
 						}
 
-						const rawValue: unknown = obj[key] ?? value;
-
 						// A single value given as a list, such as `{ n: ["007"] }` or `?n=1&n=2`, is kept as the list for the validator to reject.
-						return Array.isArray(rawValue) ? rawValue : parseNumberValue(properties.format, rawValue);
+						return Array.isArray(value) ? value : parseNumberValue(properties.format, value);
 					},
 					{ toClassOnly: true },
 				),
@@ -392,12 +389,12 @@ function getFormat(properties: TApiPropertyNumberProperties): string {
  * Converts one request value to a number. Integer text is accepted only in canonical decimal form, so `016`, `0x10`, `16.0` and `1e3` become `NaN` and fail `IsInt`.
  * @param {EApiPropertyNumberType} format - Described number format.
  * @param {unknown} value - Raw request value.
- * @returns {unknown} The converted number, or the value itself when it is not a string.
+ * @returns {unknown} The converted number, or the value itself when it is not a string, so a boolean or an object fails the number validators.
  * @private
  */
 function parseNumberValue(format: EApiPropertyNumberType, value: unknown): unknown {
 	if (typeof value !== "string") {
-		return typeof value === "number" ? value : Number(value);
+		return value;
 	}
 
 	return format === EApiPropertyNumberType.INTEGER ? NumberParseCanonicalInteger(value) : Number(value);

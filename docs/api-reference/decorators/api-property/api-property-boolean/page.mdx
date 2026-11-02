@@ -23,7 +23,7 @@ Applies Swagger metadata, validation decorators, and serialization logic for boo
 
 - Adds `@ApiProperty` metadata with boolean schema details.
 - Applies `IsBoolean` (with `{ each: true }` for arrays) and optional `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, `ArrayNotEmpty`.
-- Uses `class-transformer` `Transform` to convert `true`, `false`, the exact text `"true"` and `"false"`, and arrays of those into booleans. Any other value, such as `"1"`, `"0"`, `"no"`, `"TRUE"`, or a number, is left for `IsBoolean` to reject with `400`. The transform reads the value sent in the request, so a host pipe with `enableImplicitConversion` does not turn `"false"` or `"no"` into `true`. Before 5.0.0 `"1"`, `"0"`, and numbers were converted, and any other text became `true`.
+- Uses `class-transformer` `Transform` to convert `true`, `false`, the exact text `"true"` and `"false"`, and arrays of those into booleans. Any other value, such as `"1"`, `"0"`, `"no"`, `"TRUE"`, or a number, is left for `IsBoolean` to reject with `400`. A request property also carries `Type(() => Object)`, so the transform receives exactly the value the client sent, whatever the `@Expose` name of the property: a host pipe with `enableImplicitConversion` does not turn `"false"` or `"no"` into `true`. Before 5.0.0 `"1"`, `"0"`, and numbers were converted, and any other text became `true`.
 - Preserves missing optional values as `undefined`/`null` instead of coercing them to `false` or `[false]`.
 - Handles `isResponse` differently by adding `ApiResponseProperty` and skipping request validators.
 

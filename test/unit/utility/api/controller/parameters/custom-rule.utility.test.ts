@@ -52,7 +52,7 @@ class CustomRuleOtherController {}
 
 describe("ApiControllerParametersBuildCustomRule", () => {
 	it("checks a described path value that the resource path does not name, so a policy condition on it sees canonical text", async () => {
-		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controllerName: CustomRuleController.name, dto: CustomRuleParametersDto, methodName: "conditionOnly", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "conditionOnly", pathParameters: ["id"], resourcePath: "custom-rule/item" });
 
 		expect(rule).toBeDefined();
 		await expect(ApiControllerParametersValidate(rule!, { id: "16" } as never)).resolves.toEqual({ id: 16 });
@@ -60,18 +60,18 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 	});
 
 	it("builds no rule when no path parameter is described or named", () => {
-		expect(ApiControllerParametersBuildCustomRule({ controllerName: CustomRuleController.name, dto: CustomRuleUndescribedParametersDto, methodName: "undescribed", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeUndefined();
-		expect(ApiControllerParametersBuildCustomRule({ controllerName: CustomRuleController.name, dto: undefined, methodName: "noDto", pathParameters: [], resourcePath: "custom-rule/{id}" })).toBeUndefined();
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "undescribed", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeUndefined();
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDto", pathParameters: [], resourcePath: "custom-rule/{id}" })).toBeUndefined();
 	});
 
 	it("rejects a resource path placeholder that names an undescribed path parameter", () => {
-		expect(() => ApiControllerParametersBuildCustomRule({ controllerName: CustomRuleController.name, dto: CustomRuleUndescribedParametersDto, methodName: "named", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toThrow('Controller "CustomRuleController" method "named" names the path parameter "id"');
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "named", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toThrow('Controller "CustomRuleController" method "named" names the path parameter "id"');
 	});
 
 	it("builds the rule once for each controller class and method", () => {
-		const first: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controllerName: CustomRuleController.name, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
-		const second: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controllerName: CustomRuleController.name, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
-		const other: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controllerName: CustomRuleOtherController.name, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
+		const first: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
+		const second: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
+		const other: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleOtherController, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
 
 		expect(second).toBe(first);
 		expect(other).not.toBe(first);

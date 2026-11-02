@@ -43,8 +43,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		@Inject(AUTHORIZATION_MODULE_OPTIONS_TOKEN)
 		@Optional()
 		private readonly moduleOptions: IApiAuthorizationModuleOptions = {},
-		@Optional()
-		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry = new ApiAuthorizationParametersRuleRegistry(),
+		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry,
 	) {}
 
 	public onApplicationBootstrap(): void {
@@ -64,7 +63,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Registers the path value rule of each IAM custom route whose resource path names one of its path parameters, so the guard validates that value and renders its canonical text.
+	 * Registers the path value rule of each IAM custom route that has a path parameter its PARAMETERS DTO describes or its resource path names, so the guard validates that value and renders its canonical text for the resource string and policy conditions.
 	 * The rule is built and kept for this controller class: a handler inherited from a base class is shared with its other subclasses, whose resource paths may differ.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
@@ -75,11 +74,9 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	private applyCustomRouteParameterRules(metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string): void {
 		const controllerPathParameters: Array<string> = this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, metatype));
 
-		for (const methodName of this.collectMethodNames(metatype)) {
-			const handler: unknown = (metatype.prototype as Record<string, unknown>)[methodName];
-
+		for (const [methodName, handler] of this.collectMethods(metatype)) {
 			// A generated route carries its own rule, built from the controller entity when the controller is declared.
-			if (typeof handler !== "function" || ApiControllerParametersDtoGet(handler)) {
+			if (ApiControllerParametersDtoGet(handler)) {
 				continue;
 			}
 
@@ -93,7 +90,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			const dto: unknown = (runtimeProperties?.dto as Partial<Record<EApiDtoType, unknown>> | undefined)?.[EApiDtoType.PARAMETERS];
 
 			const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({
-				controllerName: metatype.name,
+				controller: metatype,
 				dto: typeof dto === "function" ? (dto as Type<unknown>) : undefined,
 				methodName,
 				pathParameters: [...controllerPathParameters, ...this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, handler))],
@@ -231,22 +228,31 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Lists the method names of a controller class, own and inherited, so a route declared on a base class is checked for each controller that serves it.
+	 * Lists the methods of a controller class, own and inherited, so a route declared on a base class is checked for each controller that serves it.
+	 * Each name is read from its property descriptor, nearest class first, so an override hides the base method and an accessor is skipped without running it.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
-	 * @returns {Array<string>} Method names, without `constructor`.
+	 * @returns {Map<string, (...arguments_: Array<unknown>) => unknown>} Handlers by method name, without `constructor`.
 	 */
-	private collectMethodNames(metatype: new (...arguments_: Array<unknown>) => unknown): Array<string> {
-		const methodNames: Set<string> = new Set<string>();
+	private collectMethods(metatype: new (...arguments_: Array<unknown>) => unknown): Map<string, (...arguments_: Array<unknown>) => unknown> {
+		const methods: Map<string, (...arguments_: Array<unknown>) => unknown> = new Map<string, (...arguments_: Array<unknown>) => unknown>();
+		const seenNames: Set<string> = new Set<string>();
 
 		for (let prototype: null | object = metatype.prototype as object; prototype && prototype !== Object.prototype; prototype = Object.getPrototypeOf(prototype) as null | object) {
 			for (const name of Object.getOwnPropertyNames(prototype)) {
-				if (name !== "constructor") {
-					methodNames.add(name);
+				if (name === "constructor" || seenNames.has(name)) {
+					continue;
+				}
+
+				seenNames.add(name);
+				const value: unknown = Object.getOwnPropertyDescriptor(prototype, name)?.value;
+
+				if (typeof value === "function") {
+					methods.set(name, value as (...arguments_: Array<unknown>) => unknown);
 				}
 			}
 		}
 
-		return [...methodNames];
+		return methods;
 	}
 
 	/**

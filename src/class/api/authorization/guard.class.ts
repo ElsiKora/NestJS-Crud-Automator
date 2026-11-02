@@ -13,7 +13,7 @@ import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/author
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiPolicyEffect } from "@enum/class/authorization";
 import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Optional } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
@@ -29,8 +29,7 @@ const authorizationGuardLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuth
 export class ApiAuthorizationGuard implements CanActivate {
 	public constructor(
 		private readonly runtime: ApiAuthorizationRuntime,
-		@Optional()
-		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry = new ApiAuthorizationParametersRuleRegistry(),
+		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry,
 	) {}
 
 	public async canActivate(context: ExecutionContext): Promise<boolean> {
