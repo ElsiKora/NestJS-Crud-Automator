@@ -56,3 +56,43 @@ export class E2eRelationReferenceScalarCodePostController {
 export class E2eRelationReferenceObjectCodePostController {
 	public constructor(@Inject(E2eRelationReferenceObjectCodePostService) public readonly service: E2eRelationReferenceObjectCodePostService) {}
 }
+
+/**
+ * Builds GET and GET_LIST routes for a controller that shares its entity with another controller.
+ * @param {object} include - Relations the routes load.
+ * @param {EApiControllerRelationReferenceShape} shape - Response reference shape.
+ * @param {string} key - Response reference key.
+ * @returns {object} Controller routes.
+ */
+const buildReadRoutes = (include: object, shape: EApiControllerRelationReferenceShape, key: string): object => {
+	const relations: object = { response: { load: { include }, reference: { key, shape } } };
+
+	return {
+		[EApiRouteType.CREATE]: DISABLED,
+		[EApiRouteType.DELETE]: DISABLED,
+		[EApiRouteType.GET]: { relations },
+		[EApiRouteType.GET_LIST]: { relations },
+		[EApiRouteType.PARTIAL_UPDATE]: DISABLED,
+		[EApiRouteType.UPDATE]: DISABLED,
+	};
+};
+
+@ApiController<E2eRelationReferenceObjectCodePostEntity>({
+	entity: E2eRelationReferenceObjectCodePostEntity,
+	name: "E2eRelationReferenceTwoObjectPosts",
+	path: "relation-reference-two-object-posts",
+	routes: buildReadRoutes({ author: true }, EApiControllerRelationReferenceShape.OBJECT, "code"),
+} as never)
+export class E2eRelationReferenceTwoObjectController {
+	public constructor(@Inject(E2eRelationReferenceObjectCodePostService) public readonly service: E2eRelationReferenceObjectCodePostService) {}
+}
+
+@ApiController<E2eRelationReferenceObjectCodePostEntity>({
+	entity: E2eRelationReferenceObjectCodePostEntity,
+	name: "E2eRelationReferenceTwoScalarPosts",
+	path: "relation-reference-two-scalar-posts",
+	routes: buildReadRoutes({ editor: true, tags: true }, EApiControllerRelationReferenceShape.SCALAR, "id"),
+} as never)
+export class E2eRelationReferenceTwoScalarController {
+	public constructor(@Inject(E2eRelationReferenceObjectCodePostService) public readonly service: E2eRelationReferenceObjectCodePostService) {}
+}

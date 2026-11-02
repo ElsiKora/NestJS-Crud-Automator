@@ -24,6 +24,8 @@ import {
 	E2eRelationReferenceScalarIdPostEntity,
 	E2eRelationReferenceScalarIdPostService,
 	E2eRelationReferenceTagEntity,
+	E2eRelationReferenceTwoObjectController,
+	E2eRelationReferenceTwoScalarController,
 } from "./relation-reference-dto";
 
 const AUTHOR_FIRST: string = "11111111-1111-4111-8111-111111111111";
@@ -78,6 +80,34 @@ const SHAPE_CASES: ReadonlyArray<IShapeCase> = [
 		reference: (_id: string, code: string): unknown => ({ code }),
 		referenceSchema: { properties: { code: { type: "string" } }, required: ["code"] },
 		title: "OBJECT with key code",
+	},
+];
+
+interface ITwoControllerCase {
+	/** Relations the route never sends. */
+	absent: ReadonlyArray<string>;
+	/** Wire values of the post with the rows, by property. */
+	full: Record<string, unknown>;
+	path: string;
+	prefix: string;
+	/** Relations the route always sends. */
+	required: ReadonlyArray<string>;
+}
+
+const TWO_CONTROLLER_CASES: ReadonlyArray<ITwoControllerCase> = [
+	{
+		absent: ["editor", "reader", "tags"],
+		full: { author: { code: "author-first" }, reviewer: null },
+		path: "relation-reference-two-object-posts",
+		prefix: "E2eRelationReferenceTwoObject",
+		required: ["author", "reviewer"],
+	},
+	{
+		absent: ["author", "reader"],
+		full: { editor: AUTHOR_SECOND, reviewer: null, tags: expect.arrayContaining([TAG_FIRST, TAG_SECOND]) },
+		path: "relation-reference-two-scalar-posts",
+		prefix: "E2eRelationReferenceTwoScalar",
+		required: ["editor", "reviewer", "tags"],
 	},
 ];
 
@@ -222,7 +252,7 @@ describe("Response relation reference DTOs (E2E)", () => {
 
 	beforeAll(async () => {
 		const moduleReference = await Test.createTestingModule({
-			controllers: [E2eRelationReferenceObjectCodePostController, E2eRelationReferenceScalarCodePostController, E2eRelationReferenceScalarIdPostController],
+			controllers: [E2eRelationReferenceObjectCodePostController, E2eRelationReferenceScalarCodePostController, E2eRelationReferenceScalarIdPostController, E2eRelationReferenceTwoObjectController, E2eRelationReferenceTwoScalarController],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: ":memory:",
@@ -353,6 +383,72 @@ describe("Response relation reference DTOs (E2E)", () => {
 			expect(body.editor).toEqual(method === "post" ? reference(AUTHOR_FIRST, "author-first") : reference(AUTHOR_SECOND, "author-second"));
 			expect(Object.keys(body)).toContain("reviewer");
 			expectWireMatchesSchema(getResponseSchema(path, method === "post", method), body, `${verb} response`);
+		});
+	});
+
+	describe("two controllers with different includes on one entity", () => {
+		const getComponent = (name: string): TSwaggerSchemaObject => {
+			const component: TSwaggerComponentSchema | undefined = document.components?.schemas?.[name];
+
+			expect(component, `component ${name}`).toBeDefined();
+
+			return component as TSwaggerSchemaObject;
+		};
+
+		it("resolves every reference of the document", () => {
+			const references: Array<string> = [...JSON.stringify(document).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] as string);
+
+			expect(references.length).toBeGreaterThan(0);
+			expect(references.filter((name: string): boolean => !document.components?.schemas?.[name])).toEqual([]);
+		});
+
+		it("describes one relation as each controller sends it, under the name of that controller", () => {
+			const objectAuthor: TSwaggerSchemaObject = getComponent("E2eRelationReferenceTwoObjectGetResponseAuthorDTO");
+			const scalarAuthor: TSwaggerSchemaObject = getComponent("E2eRelationReferenceTwoScalarGetResponseAuthorDTO");
+
+			expect(Object.keys(objectAuthor.properties ?? {})).toEqual(["code"]);
+			expect(Object.keys(scalarAuthor.properties ?? {})).toEqual(["id"]);
+			expect(getComponent("E2eRelationReferenceTwoObjectGetResponseEditorDTO").properties).toHaveProperty("id");
+			expect(resolveSchema(getComponent("E2eRelationReferenceTwoScalarGetResponseDTO").properties?.editor as TSwaggerComponentSchema)).toMatchObject({ format: "uuid", type: "string" });
+		});
+
+		describe.each(TWO_CONTROLLER_CASES)("$prefix", ({ absent, full, path, prefix, required }: ITwoControllerCase) => {
+			it.each([
+				["GET", false, "GetResponseDTO"],
+				["GET_LIST", true, "GetListPageDTO"],
+			] as const)("names the %s response after the controller", (_route: string, isList: boolean, suffix: string) => {
+				expect(JSON.stringify(getResponseSchema(path, isList))).toContain(`#/components/schemas/${prefix}${suffix}`);
+			});
+
+			describe.each([
+				["GET", false],
+				["GET_LIST", true],
+			] as const)("%s", (_route: string, isList: boolean) => {
+				it("sends only the relations of this controller, and they match its schema", async () => {
+					const { body, posts } = await read(path, isList);
+					const post: IPostWire | undefined = posts.find((candidate: IPostWire): boolean => candidate.id === POST_FULL);
+
+					expect(post).toMatchObject(full);
+					expectWireMatchesSchema(getResponseSchema(path, isList), body, "response");
+
+					for (const candidate of posts) {
+						for (const property of absent) {
+							expect(Object.keys(candidate), `${property} of post ${candidate.id}`).not.toContain(property);
+						}
+					}
+				});
+
+				it("requires a relation only if the route always sends it", () => {
+					const schema: TSwaggerSchemaObject = getItemSchema(path, isList);
+
+					expect(schema.required).toEqual(expect.arrayContaining([...required]));
+
+					for (const property of absent) {
+						expect(schema.required, property).not.toContain(property);
+						expect(schema.properties, property).toHaveProperty(property);
+					}
+				});
+			});
 		});
 	});
 });
