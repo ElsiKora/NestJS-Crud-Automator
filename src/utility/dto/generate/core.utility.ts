@@ -1,7 +1,7 @@
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiControllerPropertiesRouteBaseRelationsResponse } from "@interface/decorator/api";
-import type { IApiEntity } from "@interface/entity";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { ObjectLiteral } from "typeorm";
@@ -21,7 +21,8 @@ import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
 import { DtoGenerateGetListItemsResponse, DtoGenerateGetListNumericEnumValueDecorator, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
-import { DtoGetRelationResponseMetadata } from "@utility/dto/get/relation-response-metadata.utility";
+import { DtoGetRelationRequestMetadata } from "@utility/dto/get/relation/request-metadata.utility";
+import { DtoGetRelationResponseMetadata } from "@utility/dto/get/relation/response-metadata.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.utility";
 import { DtoSchemaNameGetRouteOrigin } from "@utility/dto/schema-name/route-origin.utility";
@@ -52,6 +53,7 @@ const dtoGenerateCache: WeakMap<ObjectLiteral, Map<string, Type<unknown>>> = new
  * @param {string} [routeName] - PascalCase handler method name of a custom route; it replaces the route type in the generated names.
  * @param {ReadonlyArray<Type<unknown>> | Type<unknown>} [listResponseDto] - Manual or item-config list response DTO of a GET_LIST route, or the response variants of a custom one, which limit the generated QUERY DTO's orderBy enum.
  * @param {IApiControllerPropertiesRouteBaseRelationsResponse<E>} [responseRelations] - Response relation config of the route, which shapes the relation properties of a RESPONSE DTO.
+ * @param {ReadonlyArray<string>} [pathFields] - Entity properties the path of the route binds, which a relation in a BODY DTO cannot name.
  * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
  * @throws {Error} When primary key metadata is missing
  * @template E - The entity type
@@ -69,6 +71,7 @@ export function DtoGenerate<E>(
 	routeName?: string,
 	listResponseDto?: ReadonlyArray<Type<unknown>> | Type<unknown>,
 	responseRelations?: IApiControllerPropertiesRouteBaseRelationsResponse<E>,
+	pathFields?: ReadonlyArray<string>,
 ): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
@@ -78,6 +81,7 @@ export function DtoGenerate<E>(
 	const isCursorGetListResponse: boolean = isGetListResponse && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
 
 	const isResponse: boolean = dtoType === EApiDtoType.RESPONSE;
+	const isBody: boolean = dtoType === EApiDtoType.BODY;
 
 	const cacheKey: string = DtoGenerateCacheKey({
 		controllerName: schemaPrefix,
@@ -87,6 +91,7 @@ export function DtoGenerate<E>(
 		guard: currentGuard,
 		listResponseDto,
 		method,
+		pathFields: isBody ? pathFields : undefined,
 		queryPlanSignature: isCursorGetListResponse ? EApiControllerGetListQueryPaginationMode.CURSOR : queryPlan?.signature,
 		responseRelations: isResponse ? responseRelations : undefined,
 		responseVariantName,
@@ -119,19 +124,27 @@ export function DtoGenerate<E>(
 	// A generated update writes a to-many relation as the full new set, so its body never declares one.
 	const isUpdateBody: boolean = (method === EApiRouteType.PARTIAL_UPDATE || method === EApiRouteType.UPDATE) && dtoType === EApiDtoType.BODY;
 
+	// A write to one row is addressed by its key, so a relation in its body cannot name a key column either.
+	const lockedFields: ReadonlyArray<string> = [...(pathFields ?? []), ...(isUpdateBody ? entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary).map((column: IApiEntityColumn<E>): string => String(column.name)) : [])];
+
 	for (const column of entityMetadata.columns) {
 		if (isUpdateBody && (column.type === "one-to-many" || column.type === "many-to-many")) {
 			continue;
 		}
 
 		if (column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] && DtoIsPropertyShouldBeMarked(method, dtoType, column.name as string, column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties, column.isPrimary, currentGuard)) {
-			const metadata: TApiPropertyDescribeProperties = column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties;
+			const describeMetadata: TApiPropertyDescribeProperties = column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties;
+			let metadata: TApiPropertyDescribeProperties | undefined = describeMetadata;
 
-			markedProperties.push({
-				isPrimary: column.isPrimary,
-				metadata: isResponse && column.relation ? DtoGetRelationResponseMetadata(entity, entityMetadata, column, metadata, method, dtoNameBase, routeOrigin, responseRelations) : metadata,
-				name: column.name,
-			});
+			if (isResponse && column.relation) {
+				metadata = DtoGetRelationResponseMetadata(entity, entityMetadata, column, describeMetadata, method, dtoNameBase, routeOrigin, responseRelations);
+			} else if (isBody && column.relation) {
+				metadata = DtoGetRelationRequestMetadata(entity, entityMetadata, column, describeMetadata, method, dtoNameBase, routeOrigin, lockedFields);
+			}
+
+			if (metadata) {
+				markedProperties.push({ isPrimary: column.isPrimary, metadata, name: column.name });
+			}
 		}
 	}
 

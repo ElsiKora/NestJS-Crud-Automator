@@ -11,6 +11,7 @@ export interface IDtoGenerateCacheKey {
 	guard?: Type<CanActivate>;
 	listResponseDto?: ReadonlyArray<Type<unknown>> | Type<unknown>;
 	method: EApiRouteType;
+	pathFields?: ReadonlyArray<string>;
 	queryPlanSignature?: string;
 	responseRelations?: IApiControllerPropertiesRouteBaseRelationsResponse<unknown>;
 	responseVariantName?: string;

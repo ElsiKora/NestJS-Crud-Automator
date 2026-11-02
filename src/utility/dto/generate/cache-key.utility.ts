@@ -6,7 +6,7 @@ import { DtoGenerateCacheClassIdentifier } from "@utility/dto/generate/cache-cla
 const symbolCacheIdentifiers: Map<symbol, number> = new Map<symbol, number>();
 
 /**
- * Generates a unique cache key for DTO instances based on controller, entity class, route, DTO type, guard class, manual list response class, config, normalized query plan, response variant, custom route name, and response relation config.
+ * Generates a unique cache key for DTO instances based on controller, entity class, route, DTO type, guard class, manual list response class, config, normalized query plan, response variant, custom route name, fields the path binds, and response relation config.
  * Two entity, guard, or validator classes that share a name get different keys.
  * @param {IDtoGenerateCacheKey} key - The key object containing entity class, method, DTO type, guard class, and DTO config
  * @returns {string} A unique string key for caching DTO instances
@@ -24,9 +24,11 @@ export function DtoGenerateCacheKey(key: IDtoGenerateCacheKey): string {
 
 	const routeKey: string = key.routeName ? `${variantKey}_route_${key.routeName}` : variantKey;
 
+	const pathKey: string = key.pathFields && key.pathFields.length > 0 ? `${routeKey}_path_${JSON.stringify(key.pathFields)}` : routeKey;
+
 	const responseInclude: object | undefined = key.responseRelations?.load?.include;
 
-	return responseInclude && Object.keys(responseInclude).length > 0 ? `${routeKey}_relations_${JSON.stringify({ include: responseInclude, reference: key.responseRelations?.reference })}` : routeKey;
+	return responseInclude && Object.keys(responseInclude).length > 0 ? `${pathKey}_relations_${JSON.stringify({ include: responseInclude, reference: key.responseRelations?.reference })}` : pathKey;
 }
 
 /**

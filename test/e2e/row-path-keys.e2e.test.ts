@@ -7,6 +7,7 @@ import type { DataSource } from "typeorm";
 import { ValidationPipe } from "@nestjs/common";
 import { APP_PIPE } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { getDataSourceToken, TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
@@ -175,40 +176,152 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 
 			const children = async (): Promise<Array<Record<string, unknown>>> => await rows("row_path_key_tenant_children", `"id"`);
 
-			// A host pipe checks the relation against its generated reference form first, which these keys do not take.
-			it.runIf(pipe === "none").each([[{ id: "P2", tenantId: "T1" }], [{ id: "P2" }]])("CREATE with the relation %j keeps its own column", async (parent: object) => {
+			const unchanged: Array<Record<string, unknown>> = [{ id: "C1", name: "child", parentId: "P1", tenantId: "T1" }];
+
+			// The generated create body leaves the key columns out, so a whitelisting pipe drops or refuses the row key before the route.
+			it.runIf(pipe === "none" || pipe === "transform").each([[{ id: "P2", tenantId: "T1" }], [{ id: "P2" }]])("CREATE with the relation %j keeps its own column", async (parent: object) => {
 				const response: TResponse = await send("POST", "/tenant/T1/child", { id: "C2", name: "made", parent });
 
 				expect(response.statusCode).toBe(201);
-				expect(await children()).toEqual([
-					{ id: "C1", name: "child", parentId: "P1", tenantId: "T1" },
-					{ id: "C2", name: "made", parentId: "P2", tenantId: "T1" },
-				]);
+				expect(await children()).toEqual([...unchanged, { id: "C2", name: "made", parentId: "P2", tenantId: "T1" }]);
 			});
 
-			it.runIf(pipe === "none").each([["PATCH"], ["PUT"]])("%s with the relation keeps its own column and moves it", async (method: string) => {
-				const response: TResponse = await send(method, "/tenant/T1/child/C1", { name: "moved", parent: { id: "P2", tenantId: "T1" } });
+			it.each([["PATCH"], ["PUT"]])('%s with the relation {"id":"P2"} keeps its own column and moves it', async (method: string) => {
+				const response: TResponse = await send(method, "/tenant/T1/child/C1", { name: "moved", parent: { id: "P2" } });
 
 				expect(response.statusCode).toBe(200);
 				expect(await children()).toEqual([{ id: "C1", name: "moved", parentId: "P2", tenantId: "T1" }]);
 			});
 
+			// The published relation leaves the bound column out, so a pipe that refuses unknown properties refuses it even when it is equal.
+			it.each([["PATCH"], ["PUT"]])("%s with the relation that also names the bound column the path names moves it", async (method: string) => {
+				const response: TResponse = await send(method, "/tenant/T1/child/C1", { name: "moved", parent: { id: "P2", tenantId: "T1" } });
+
+				expect(response.statusCode).toBe(equalKeyStatus);
+				expect(await children()).toEqual(pipe === "forbid" ? unchanged : [{ id: "C1", name: "moved", parentId: "P2", tenantId: "T1" }]);
+			});
+
+			it("PATCH with the own column set to null clears the relation and keeps the bound column", async () => {
+				const response: TResponse = await send("PATCH", "/tenant/T1/child/C1", { parentId: null });
+
+				expect(response.statusCode).toBe(200);
+				expect(await children()).toEqual([{ id: "C1", name: "child", parentId: null, tenantId: "T1" }]);
+			});
+
 			it.runIf(pipe === "none")("CREATE with a relation that names another own column than the body answers 400 and adds no row", async () => {
 				expect((await send("POST", "/tenant/T1/child", { id: "C2", name: "made", parent: { id: "P2" }, parentId: "P1" })).statusCode).toBe(400);
-				expect(await children()).toHaveLength(1);
+				expect(await children()).toEqual(unchanged);
 			});
 
 			it.each([
 				["POST", "/tenant/T1/child", { id: "C2", name: "made", parent: { id: "P2", tenantId: "T2" } }],
-				["POST", "/tenant/T1/child", { id: "C2", name: "made", parent: "P2" }],
 				["PATCH", "/tenant/T1/child/C1", { parent: { id: "P2", tenantId: "T2" } }],
-				["PUT", "/tenant/T1/child/C1", { name: "moved", parent: "P2" }],
 			])("%s %s with %j answers 400 and changes no row", async (method: string, url: string, payload: object) => {
 				const response: TResponse = await send(method, url, payload);
 
 				expect(response.statusCode).toBe(400);
 				expect(response.body).not.toContain("T2");
-				expect(await children()).toEqual([{ id: "C1", name: "child", parentId: "P1", tenantId: "T1" }]);
+				expect(await children()).toEqual(unchanged);
+			});
+
+			it.each([
+				["POST", "/tenant/T1/child", { id: "C2", name: "made", parent: "P2" }],
+				["POST", "/tenant/T1/child", { id: "C2", name: "made", parent: null }],
+				["PATCH", "/tenant/T1/child/C1", { parent: null }],
+				["PATCH", "/tenant/T1/child/C1", { parent: ["P2", "T1"] }],
+				["PUT", "/tenant/T1/child/C1", { name: "moved", parent: "P2" }],
+			])("%s %s with %j answers 400, says how to clear the relation and changes no row", async (method: string, url: string, payload: object) => {
+				const response: TResponse = await send(method, url, payload);
+
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toEqual({ details: { propertyName: "parent", reason: "a relation bound by the path must be sent as an object naming its join columns; clear it with parentId: null" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+				}
+
+				expect(await children()).toEqual(unchanged);
+			});
+		});
+
+		describe("a relation over the bound column and a date and time key column", () => {
+			const SLOT: string = "2026-01-01T00:00:00.002Z";
+			const literal = (instant: string): string => (driver === "postgres" ? instant : instant.replace("T", " ").replace("Z", ""));
+
+			beforeEach(async () => {
+				await dataSource.query("DELETE FROM row_path_key_bookings");
+				await dataSource.query("DELETE FROM row_path_key_slots");
+				await dataSource.query(`INSERT INTO row_path_key_slots ("tenantId", "at", "name") VALUES ('T1', '${literal(SLOT)}', 'slot')`);
+			});
+
+			const bookings = async (): Promise<Array<unknown>> => (await rows("row_path_key_bookings", `"id"`)).map((row: Record<string, unknown>) => row.id);
+
+			it.each([[Date.parse(SLOT)], ["2026-01-01T03:00:00.002+03:00"], ["2026-01-01T00:00:00Z"], ["2026-01-01 00:00:00.002"], ["2026-01-01T00:00:00.0020Z"], [[SLOT]]])("CREATE with the relation instant %j answers 400 and adds no row", async (at: unknown) => {
+				const response: TResponse = await send("POST", "/tenant/T1/booking", { id: "B1", slot: { at } });
+
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toEqual({ details: { propertyName: "slot", reason: "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+				}
+
+				expect(await bookings()).toEqual([]);
+			});
+
+			it.runIf(pipe === "none")("CREATE with the relation instant and the bound column answers 400 for a non-canonical instant and adds no row", async () => {
+				const response: TResponse = await send("POST", "/tenant/T1/booking", { id: "B1", slot: { at: Date.parse(SLOT), tenantId: "T1" } });
+
+				expect(response.statusCode).toBe(400);
+				expect(await bookings()).toEqual([]);
+			});
+
+			// The generated create body leaves the key columns out, so a whitelisting pipe drops or refuses the row key before the route.
+			it.runIf(pipe === "none" || pipe === "transform").each([[{ id: "B1", slot: { at: SLOT } }], [{ at: SLOT, id: "B1", slot: { at: SLOT } }]])("CREATE with %j writes the slot instant as the key", async (payload: object) => {
+				const response: TResponse = await send("POST", "/tenant/T1/booking", payload);
+
+				expect(response.statusCode).toBe(201);
+				expect(response.json()).toMatchObject({ at: SLOT, id: "B1", tenantId: "T1" });
+				expect(await bookings()).toEqual(["B1"]);
+			});
+
+			it.runIf(pipe === "none")("CREATE with a relation instant other than the key the body names answers 400 and adds no row", async () => {
+				expect((await send("POST", "/tenant/T1/booking", { at: "2026-01-01T00:00:00.003Z", id: "B1", slot: { at: SLOT } })).statusCode).toBe(400);
+				expect(await bookings()).toEqual([]);
+			});
+		});
+
+		describe.runIf(pipe === "none")("the published body of a relation over several columns", () => {
+			let schemas: Record<string, { properties?: Record<string, Record<string, unknown>>; required?: Array<string> }>;
+
+			beforeAll(() => {
+				schemas = SwaggerModule.createDocument(app, new DocumentBuilder().build()).components?.schemas as typeof schemas;
+			});
+
+			const relationSchema = (dto: string, property: string): { properties?: Record<string, Record<string, unknown>>; required?: Array<string> } => {
+				const reference: string = String(schemas[dto]?.properties?.[property]?.$ref ?? (schemas[dto]?.properties?.[property]?.allOf as Array<Record<string, unknown>> | undefined)?.[0]?.$ref);
+
+				return schemas[reference.replace("#/components/schemas/", "")] ?? {};
+			};
+
+			it.each([["RowPathKeyTenantChildCreateBodyDTO"], ["RowPathKeyTenantChildPartialUpdateBodyDTO"], ["RowPathKeyTenantChildUpdateBodyDTO"]])("%s publishes the relation as an object with its own join column only", (dto: string) => {
+				const parent = relationSchema(dto, "parent");
+
+				expect(Object.keys(parent.properties ?? {})).toEqual(["id"]);
+				expect(parent.properties?.id).toMatchObject({ type: "string" });
+				expect(parent.required).toEqual(["id"]);
+			});
+
+			it("the create body publishes the relation instant as a date and time", () => {
+				const slot = relationSchema(driver === "postgres" ? "RowPathPostgresKeyBookingCreateBodyDTO" : "RowPathSqliteKeyBookingCreateBodyDTO", "slot");
+
+				expect(Object.keys(slot.properties ?? {})).toEqual(["at"]);
+				expect(slot.properties?.at).toMatchObject({ format: "date-time", type: "string" });
+			});
+
+			it("an update body leaves out a relation whose every join column the path or the key fixes", () => {
+				const prefix: string = driver === "postgres" ? "RowPathPostgresKeyBooking" : "RowPathSqliteKeyBooking";
+
+				expect(schemas[`${prefix}PartialUpdateBodyDTO`]?.properties?.slot).toBeUndefined();
+				expect(schemas[`${prefix}UpdateBodyDTO`]?.properties?.slot).toBeUndefined();
 			});
 		});
 

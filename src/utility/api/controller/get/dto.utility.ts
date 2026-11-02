@@ -97,7 +97,9 @@ export function ApiControllerGetDtoWithPathPlan<E extends IApiBaseEntity, R exte
 	// The path carries a bound field, so a generated body leaves it out.
 	const dtoEntity: IApiEntity<E> = dtoType === EApiDtoTypeValue.BODY && scopeParameters.length > 0 ? { ...entity, columns: entity.columns.filter((column: IApiEntityColumn<E>): boolean => !scopeParameters.some((mapping: IApiControllerPathPlanParameter): boolean => mapping.field === String(column.name))) } : entity;
 
-	return DtoGenerate(properties.entity, dtoEntity, method, dtoType, schemaPrefix, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan, undefined, routeName, listResponseDto, dtoType === EApiDtoTypeValue.RESPONSE ? routeConfig.relations?.response : undefined);
+	const pathFields: ReadonlyArray<string> | undefined = dtoType === EApiDtoTypeValue.BODY && pathPlan ? ApiControllerPathRouteParameters(pathPlan, method).map(({ field }: IApiControllerPathPlanParameter): string => field) : undefined;
+
+	return DtoGenerate(properties.entity, dtoEntity, method, dtoType, schemaPrefix, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan, undefined, routeName, listResponseDto, dtoType === EApiDtoTypeValue.RESPONSE ? routeConfig.relations?.response : undefined, pathFields);
 }
 
 /**

@@ -97,8 +97,85 @@ export class RowPathKeyTenantChildEntity {
 	public parent?: null | Relation<RowPathKeyTenantParentEntity>;
 
 	@Column({ nullable: true, type: "varchar" })
-	@ApiPropertyDescribe(TEXT_PROPERTY)
+	@ApiPropertyDescribe({ ...TEXT_PROPERTY, isNullable: true })
 	public parentId?: null | string;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public tenantId!: string;
+}
+
+// A slot is keyed by its tenant and instant, and a booking joins it over both, so the relation carries a key instant of the booking.
+@Entity("row_path_key_slots")
+export class RowPathPostgresKeySlotEntity {
+	@PrimaryColumn({ precision: 3, type: "timestamptz" })
+	@ApiPropertyDescribe(RECORDED_AT_PROPERTY)
+	public at!: Date;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public tenantId!: string;
+}
+
+@Entity("row_path_key_slots")
+export class RowPathSqliteKeySlotEntity {
+	@PrimaryColumn({ type: "datetime" })
+	@ApiPropertyDescribe(RECORDED_AT_PROPERTY)
+	public at!: Date;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public tenantId!: string;
+}
+
+@Entity("row_path_key_bookings")
+export class RowPathPostgresKeyBookingEntity {
+	@PrimaryColumn({ precision: 3, type: "timestamptz" })
+	@ApiPropertyDescribe(RECORDED_AT_PROPERTY)
+	public at!: Date;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@ApiPropertyDescribe(RELATION_PROPERTY)
+	@JoinColumn([
+		{ name: "tenantId", referencedColumnName: "tenantId" },
+		{ name: "at", referencedColumnName: "at" },
+	])
+	@ManyToOne(() => RowPathPostgresKeySlotEntity, { nullable: true })
+	public slot?: null | Relation<RowPathPostgresKeySlotEntity>;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public tenantId!: string;
+}
+
+@Entity("row_path_key_bookings")
+export class RowPathSqliteKeyBookingEntity {
+	@PrimaryColumn({ type: "datetime" })
+	@ApiPropertyDescribe(RECORDED_AT_PROPERTY)
+	public at!: Date;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@ApiPropertyDescribe(RELATION_PROPERTY)
+	@JoinColumn([
+		{ name: "tenantId", referencedColumnName: "tenantId" },
+		{ name: "at", referencedColumnName: "at" },
+	])
+	@ManyToOne(() => RowPathSqliteKeySlotEntity, { nullable: true })
+	public slot?: null | Relation<RowPathSqliteKeySlotEntity>;
 
 	@PrimaryColumn({ type: "varchar" })
 	@ApiPropertyDescribe(TEXT_PROPERTY)
@@ -195,6 +272,30 @@ class RowPathKeyTenantChildService extends ApiServiceBase<RowPathKeyTenantChildE
 	public readonly repository!: Repository<RowPathKeyTenantChildEntity>;
 }
 
+@Injectable()
+@ApiService({ entity: RowPathPostgresKeyBookingEntity })
+class RowPathPostgresKeyBookingService extends ApiServiceBase<RowPathPostgresKeyBookingEntity> {
+	@InjectRepository(RowPathPostgresKeyBookingEntity)
+	public readonly repository!: Repository<RowPathPostgresKeyBookingEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: RowPathSqliteKeyBookingEntity })
+class RowPathSqliteKeyBookingService extends ApiServiceBase<RowPathSqliteKeyBookingEntity> {
+	@InjectRepository(RowPathSqliteKeyBookingEntity)
+	public readonly repository!: Repository<RowPathSqliteKeyBookingEntity>;
+}
+
+@ApiController<RowPathPostgresKeyBookingEntity>({ entity: RowPathPostgresKeyBookingEntity, path: "tenant/:tenantId/booking", pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] }, routes: {} })
+class RowPathPostgresKeyBookingController {
+	constructor(public readonly service: RowPathPostgresKeyBookingService) {}
+}
+
+@ApiController<RowPathSqliteKeyBookingEntity>({ entity: RowPathSqliteKeyBookingEntity, path: "tenant/:tenantId/booking", pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] }, routes: {} })
+class RowPathSqliteKeyBookingController {
+	constructor(public readonly service: RowPathSqliteKeyBookingService) {}
+}
+
 // Keeps the body each route subscriber sees after a write, as the request and the subscriber data carry it.
 @Injectable()
 @ApiRouteSubscriber({ entity: RowPathKeyItemEntity, priority: 1 })
@@ -265,13 +366,21 @@ class RowPathSqliteKeyReadingController {
 	}
 }
 
-const POSTGRES_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathKeyTenantChildEntity, RowPathKeyTenantParentEntity, RowPathPostgresKeyReadingEntity];
-const SQLITE_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathKeyTenantChildEntity, RowPathKeyTenantParentEntity, RowPathSqliteKeyReadingEntity];
+const POSTGRES_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathPostgresKeyBookingEntity, RowPathPostgresKeySlotEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathKeyTenantChildEntity, RowPathKeyTenantParentEntity, RowPathPostgresKeyReadingEntity];
+const SQLITE_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathSqliteKeyBookingEntity, RowPathSqliteKeySlotEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathKeyTenantChildEntity, RowPathKeyTenantParentEntity, RowPathSqliteKeyReadingEntity];
 
-@Module({ controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyTenantChildController, RowPathPostgresKeyReadingController], imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)], providers: [RowPathKeyItemRouteSubscriber, RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathKeyTenantChildService, RowPathKeyTenantParentService, RowPathPostgresKeyReadingService] })
+@Module({
+	controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyTenantChildController, RowPathPostgresKeyBookingController, RowPathPostgresKeyReadingController],
+	imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)],
+	providers: [RowPathKeyItemRouteSubscriber, RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathKeyTenantChildService, RowPathKeyTenantParentService, RowPathPostgresKeyBookingService, RowPathPostgresKeyReadingService],
+})
 class RowPathKeyPostgresModule {}
 
-@Module({ controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyTenantChildController, RowPathSqliteKeyReadingController], imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)], providers: [RowPathKeyItemRouteSubscriber, RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathKeyTenantChildService, RowPathKeyTenantParentService, RowPathSqliteKeyReadingService] })
+@Module({
+	controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyTenantChildController, RowPathSqliteKeyBookingController, RowPathSqliteKeyReadingController],
+	imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)],
+	providers: [RowPathKeyItemRouteSubscriber, RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathKeyTenantChildService, RowPathKeyTenantParentService, RowPathSqliteKeyBookingService, RowPathSqliteKeyReadingService],
+})
 class RowPathKeySqliteModule {}
 
 export const ROW_PATH_KEY_FIXTURES: Record<TRowPathDriver, TRowPathFixture> = {

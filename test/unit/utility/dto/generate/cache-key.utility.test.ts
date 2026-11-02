@@ -119,4 +119,11 @@ describe("DtoGenerateCacheKey", () => {
 		expect(key(first)).not.toBe(key(second));
 		expect(key(first)).toBe(key(first));
 	});
+	it("keys body DTOs apart by the fields the path binds", () => {
+		const base = { controllerName: "Tenant", dtoType: EApiDtoType.BODY, entity: TestEntity, method: EApiRouteType.CREATE };
+
+		expect(DtoGenerateCacheKey({ ...base, pathFields: ["tenantId"] })).not.toBe(DtoGenerateCacheKey(base));
+		expect(DtoGenerateCacheKey({ ...base, pathFields: ["tenantId"] })).not.toBe(DtoGenerateCacheKey({ ...base, pathFields: ["ownerId"] }));
+		expect(DtoGenerateCacheKey({ ...base, pathFields: [] })).toBe(DtoGenerateCacheKey(base));
+	});
 });
