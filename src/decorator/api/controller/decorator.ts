@@ -8,6 +8,7 @@ import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/c
 import { EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerFactory } from "@factory/api-controller.factory";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
+import { ApiControllerAssertRouteCursorDataSource } from "@utility/api/controller/assert/route-cursor-data-source.utility";
 import { ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert/route-relation-loads.utility";
 import { DatabaseTypeOrmGetRepositoryGap } from "@utility/database/typeorm/get/repository-gap.utility";
 import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
@@ -66,7 +67,7 @@ export const ApiController =
 			}
 
 			/**
-			 * Validates the service repository and the route relation loads against the initialized data source, then runs the controller's own hook.
+			 * Validates the service repository, the route relation loads, and a CURSOR route's database contract against the initialized data source, then runs the controller's own hook.
 			 * @returns {Promise<void>} Resolves when the controller bootstrap finished
 			 */
 			public async onApplicationBootstrap(): Promise<void> {
@@ -83,6 +84,8 @@ export const ApiController =
 				for (const routeType of Object.values(EApiRouteType)) {
 					ApiControllerAssertRouteRelationLoads(repository as Repository<E>, options.routes[routeType], `Controller "${target.name}" route "${routeType}"`);
 				}
+
+				ApiControllerAssertRouteCursorDataSource(Object.getPrototypeOf(this) as object, repository as Repository<E>, options.routes[EApiRouteType.GET_LIST], `Controller "${target.name}" route "${EApiRouteType.GET_LIST}"`);
 
 				const controllerHook: (() => unknown) | undefined = (target.prototype as { onApplicationBootstrap?: () => unknown }).onApplicationBootstrap;
 

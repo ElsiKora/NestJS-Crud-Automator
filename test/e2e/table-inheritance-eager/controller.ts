@@ -69,14 +69,15 @@ function createController(name: string, options: object, isScoped: boolean): Typ
 	}[name] as Type<{ service: IntegrationDetailService }>;
 
 	Inject(IntegrationDetailService)(controller.prototype as object, "service");
-	ApiController<IntegrationDetailEntity>({ ...(isScoped && { authorization: integrationDetailAuthorization }), ...options } as never)(controller);
+	// Register the class ApiController returns: it carries the bootstrap checks.
+	const decorated: Type<{ service: IntegrationDetailService }> = ApiController<IntegrationDetailEntity>({ ...(isScoped && { authorization: integrationDetailAuthorization }), ...options } as never)(controller) as Type<{ service: IntegrationDetailService }>;
 
 	if (isScoped) {
-		ApiControllerSecurable()(controller);
-		ApiControllerObservable()(controller);
+		ApiControllerSecurable()(decorated);
+		ApiControllerObservable()(decorated);
 	}
 
-	return controller;
+	return decorated;
 }
 
 /**

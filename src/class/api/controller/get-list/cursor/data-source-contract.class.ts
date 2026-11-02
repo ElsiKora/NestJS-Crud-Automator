@@ -215,7 +215,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 		const driverStorage: Readonly<Record<string, ReadonlySet<string>>> | undefined = driverType ? EXACT_STORAGE_TYPES_BY_DRIVER[driverType] : undefined;
 
 		if (!driverType || !driverStorage) {
-			throw ErrorException("CURSOR GET_LIST requires a supported exact active database storage contract");
+			throw ErrorException(`CURSOR GET_LIST supports only PostgreSQL; the active driver is "${driverType ?? "unknown"}"`);
 		}
 
 		if (driverType === "postgres" && this.isPostgresBinaryMode(repository)) {

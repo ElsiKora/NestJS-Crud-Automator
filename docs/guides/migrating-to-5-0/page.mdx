@@ -311,6 +311,10 @@ Every `@ApiController` fails at application bootstrap unless `service.repository
 
 A plain-object repository mock or a mocked service in a test now fails at bootstrap. Provide a real repository of an in-memory DataSource and stub its methods instead. See [Testing: Migration Notes](/docs/nestjs-crud-automator/guides/testing#migration-notes).
 
+## CURSOR Routes Checked At Bootstrap
+
+A CURSOR GET_LIST route on a database other than PostgreSQL, or with an order field whose storage CURSOR cannot prove, fails at application bootstrap with an error that names the route and the active driver. Before 5.0.0, the application started and every request to the route answered `500`. Switch such a route to PAGE. See [Pagination: Migration Notes](/docs/nestjs-crud-automator/guides/pagination#migration-notes).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

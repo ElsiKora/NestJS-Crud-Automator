@@ -62,14 +62,15 @@ function createController(name: string, options: object, isScoped: boolean): Typ
 	Inject(E2eEagerAuthorService)(controller.prototype as object, "authorService");
 	Inject(E2eEagerCommentService)(controller.prototype as object, "commentsService");
 	Inject(E2eEagerTagService)(controller.prototype as object, "tagsService");
-	ApiController<E2eEagerPostEntity>({ ...(isScoped && { authorization: { defaultMode: EApiAuthorizationMode.HOOKS } }), ...options } as never)(controller);
+	// Register the class ApiController returns: it carries the bootstrap checks.
+	const decorated: Type<{ service: E2eEagerPostService }> = ApiController<E2eEagerPostEntity>({ ...(isScoped && { authorization: { defaultMode: EApiAuthorizationMode.HOOKS } }), ...options } as never)(controller) as Type<{ service: E2eEagerPostService }>;
 
 	if (isScoped) {
-		ApiControllerSecurable()(controller);
-		ApiControllerObservable()(controller);
+		ApiControllerSecurable()(decorated);
+		ApiControllerObservable()(decorated);
 	}
 
-	return controller;
+	return decorated;
 }
 
 /**

@@ -174,7 +174,7 @@ The token is reversible and contains the typed effective-order values. Automator
 
 ### Protected Order Values
 
-Every potential default, client-selected, or tie-breaker field must survive the database, entity, and response pipelines as the same exact raw scalar value. CURSOR therefore requires a selected, persisted, non-null direct column with compatible `ApiPropertyDescribe` metadata and rejects TypeORM value transformers, array values, and accessor-backed fields. It also rejects entity `@AfterLoad` listeners at bootstrap and fails before query I/O when an active TypeORM subscriber with `afterLoad` can apply to the cursor entity. These hooks could otherwise rewrite a protected tuple after the database comparison. Automator snapshots each active subscriber's `listenTo()` target once; subscriber implementations are trusted TypeORM extension code, so `listenTo()` must be deterministic.
+Every potential default, client-selected, or tie-breaker field must survive the database, entity, and response pipelines as the same exact raw scalar value. CURSOR therefore requires a selected, persisted, non-null direct column with compatible `ApiPropertyDescribe` metadata and rejects TypeORM value transformers, array values, and accessor-backed fields. It also rejects entity `@AfterLoad` listeners at bootstrap, and fails at bootstrap and again before query I/O when an active TypeORM subscriber with `afterLoad` can apply to the cursor entity. These hooks could otherwise rewrite a protected tuple after the database comparison. Automator snapshots each active subscriber's `listenTo()` target once; subscriber implementations are trusted TypeORM extension code, so `listenTo()` must be deterministic.
 
 CURSOR v1 deliberately supports only PostgreSQL with the standard text result parsers. The complete supported order-storage matrix is:
 
@@ -199,7 +199,7 @@ A stored value outside those years, BC values included, is served normally while
 
 A `timestamptz` field can be client-sortable through `fields`, and it is also available through `defaultOrder` and `tieBreakers`.
 
-PostgreSQL binary mode, custom `extra.types` parser configuration, every other PostgreSQL storage type, and every other database driver fail closed before CURSOR query I/O. This restriction applies only to protected CURSOR order/tie-breaker fields. It does not change PAGE behavior or PAGE's existing driver support.
+PostgreSQL binary mode, custom `extra.types` parser configuration, every other PostgreSQL storage type, and every other database driver fail at application bootstrap, with an error that names the route and the active driver, and again before CURSOR query I/O. This restriction applies only to protected CURSOR order/tie-breaker fields. It does not change PAGE behavior or PAGE's existing driver support.
 
 Sub-millisecond temporal, general text, floating-point, and string-enum storage domains are deferred rather than transitionally supported. Any future expansion must be a separate slice rewritten from the current source, choose an exact database/type/parser matrix, and prove the public endpoint against real PostgreSQL E2E. Recovery object `202e2eab` contains superseded design evidence only and must not be restored wholesale.
 
@@ -328,7 +328,9 @@ In 5.0.0, PostgreSQL and CockroachDB reads of temporal keys and `timestamptz` fi
 - A client filter value on a date or time column that is not a calendar date or a date-time of a year from 0001 to 9999, such as `2024-02-30T10:00:00Z`, `2024-03-01T25:00:00Z`, or `0000-01-01T00:00:00Z`, now answers `400 INVALID_FILTER` on every GET_LIST route instead of a server error or a shifted date.
 - `timestamptz`, `timestamp with time zone`, and `uuid` columns are orderable: generated PAGE `orderBy` values now include those fields, and a CURSOR route can enable a `timestamptz` field that meets the cursor storage rules as a client order field. Exclude a field from ordering with `useAsOrderByFilter: false` in its `ApiPropertyDescribe` GET_LIST query properties. A CURSOR route that enables a primary key component as a client order field now fails with `CURSOR GET_LIST primary key "id" may appear only as the final tie-breakers` instead of `GET_LIST order field "id" is not an enabled direct scalar path`.
 
-From 5.0.0, an `@ApiController` whose `service.repository` is not a TypeORM repository fails at application bootstrap with `Controller "UserController": service has no TypeORM repository`, also when every generated route is disabled. A repository from a second installed copy of TypeORM counts. Inject the entity repository as `public repository` in the service constructor.
+From 5.0.0, a CURSOR route on a database other than PostgreSQL fails at application bootstrap instead of answering `500` on every request: `Controller "PostController" route "getList": CURSOR GET_LIST supports only PostgreSQL; the active driver is "mysql"`. Binary mode, custom `extra.types`, an unsupported storage type, and an applicable `afterLoad` subscriber fail at bootstrap the same way. Use PAGE on those databases.
+
+Every controller also checks its service repository at bootstrap; see [Testing: Migration Notes](/docs/nestjs-crud-automator/guides/testing#migration-notes).
 
 ## Next Steps
 
