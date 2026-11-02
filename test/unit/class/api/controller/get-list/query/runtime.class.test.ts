@@ -16,6 +16,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { ApiProperty } from "@nestjs/swagger";
 import { EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
@@ -1304,6 +1305,19 @@ describe("typed GET_LIST query plan and runtime", () => {
 	it("accepts statically proven CURSOR item and flat wrapper DTOs", () => {
 		expect(() => compileCursorPlan({ fields: { rank: { isEnabled: true } }, responseDto: { itemType: CursorCustomItemDto } })).not.toThrow();
 		expect(() => compileCursorPlan({ fields: { rank: { isEnabled: true } }, responseDto: CursorCustomResponseDto })).not.toThrow();
+	});
+
+	it("reads a custom CURSOR item DTO without evaluating a lazy property type, which may name a class that does not exist yet", () => {
+		class CursorCustomLazyNestedItemDto extends CursorCustomItemDto {
+			@ApiProperty({
+				type: (): never => {
+					throw new Error("The lazy property type was evaluated");
+				},
+			})
+			public nested!: unknown;
+		}
+
+		expect(() => compileCursorPlan({ fields: { rank: { isEnabled: true } }, responseDto: { itemType: CursorCustomLazyNestedItemDto } })).not.toThrow();
 	});
 
 	it.each([
