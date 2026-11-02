@@ -8,6 +8,7 @@ import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/ap
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -134,7 +135,7 @@ export function ApiPropertyString(properties: TApiPropertyStringProperties): Pro
 				entity: resolvedEntity,
 			};
 
-			validateOptions(normalizedProperties);
+			validateOptions(normalizedProperties, target, propertyKey);
 			RegisterManualDtoPropertyMetadata(target, propertyKey, {
 				apply: ApiPropertyString(normalizedProperties),
 				decorator: EManualDtoPropertyMetadataDecorator.STRING,
@@ -662,11 +663,13 @@ function buildStringValidationDecorators(properties: TApiPropertyStringPropertie
  * - Example value length validation against min/max constraints
  * - Regular expression pattern validity
  * @param {TApiPropertyStringProperties} properties - The property configuration to validate
+ * @param {object} target - Decorated DTO prototype, or the class of a static property, named in the error.
+ * @param {string | symbol} propertyKey - Decorated property key, named in the error.
  * @returns {void}
  * @throws {Error} If the configuration is invalid with detailed error messages
  * @private
  */
-function validateOptions(properties: TApiPropertyStringProperties): void {
+function validateOptions(properties: TApiPropertyStringProperties, target: object, propertyKey: string | symbol): void {
 	const errors: Array<string> = [];
 
 	if ((!properties.isResponse && (!properties.exampleValue || !properties.pattern)) || (properties.exampleValue && properties.pattern)) {
@@ -724,23 +727,7 @@ function validateOptions(properties: TApiPropertyStringProperties): void {
 		errors.push("Example length is greater than 'maxLength': " + properties.exampleValue);
 	}
 
-	if (properties.isArray === true) {
-		if (properties.minItems > properties.maxItems) {
-			errors.push("'minItems' is greater than 'maxItems'");
-		}
-
-		if (properties.minItems < 0) {
-			errors.push("'minItems' is less than 0");
-		}
-
-		if (properties.maxItems < 0) {
-			errors.push("'maxItems' is less than 0");
-		}
-
-		if (properties.isUniqueItems && properties.maxItems <= 1) {
-			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
-		}
-	}
+	errors.push(...ApiPropertyGetArrayOptionsErrors(properties, target, propertyKey));
 
 	if (errors.length > 0) {
 		throw ErrorException(`ApiPropertyString error: ${errors.join("\n")}`);

@@ -9,6 +9,7 @@ import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-pr
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
 import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator-validate-config.utility";
+import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerateContextualManualDto } from "@utility/dto/generate/manual-child.utility";
@@ -325,17 +326,6 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 }
 
 /**
- * Names the class a property decorator was applied to.
- * @param {object} target - DTO prototype, or the class itself for a static property.
- * @returns {string} The class name, or a placeholder for an anonymous class.
- */
-function getTargetClassName(target: object): string {
-	const owner: { name: string } = typeof target === "function" ? target : target.constructor;
-
-	return owner.name || "<anonymous class>";
-}
-
-/**
  * Checks whether object property options use explicit class-based discriminator variants.
  * @param {TApiPropertyObjectProperties} properties - Object property options.
  * @returns {boolean} Whether properties contain class-based discriminator variants.
@@ -435,53 +425,7 @@ function validateOptions(properties: TApiPropertyObjectProperties, target: objec
 		errors.push("Array property must be 'shouldValidateNested'");
 	}
 
-	// Anything but `true` skips the checks below, while a truthy value still builds an array property.
-	if (properties.isArray !== undefined && typeof properties.isArray !== "boolean") {
-		errors.push("'isArray' must be a boolean");
-	}
-
-	if (properties.isArray === true) {
-		// A response array may leave out its bounds; each check runs on the bounds it declares.
-		const { isUniqueItems, maxItems, minItems }: { isUniqueItems?: boolean; maxItems?: number; minItems?: number } = properties;
-
-		if (properties.isResponse !== true) {
-			// The types require all three on a request array, but JavaScript or `any` can still leave one out, and the validators would then reject every value.
-			const missingBounds: Array<string> = Object.entries({ isUniqueItems, maxItems, minItems })
-				.filter(([, bound]: [string, boolean | number | undefined]): boolean => bound === undefined)
-				.map(([name]: [string, boolean | number | undefined]): string => `'${name}'`);
-
-			if (missingBounds.length > 0) {
-				errors.push(`Request array property '${getTargetClassName(target)}.${String(propertyKey)}' must declare ${missingBounds.join(", ")}, or be marked 'isResponse: true' if it is response-only`);
-			}
-		}
-
-		// JavaScript or `any` can pass any value, and `Number(process.env.X)` with X unset is NaN; such a bound would reject every value too.
-		for (const [name, bound] of Object.entries({ maxItems, minItems })) {
-			if (bound !== undefined && !Number.isInteger(bound)) {
-				errors.push(`'${name}' must be a non-negative integer`);
-			}
-		}
-
-		if (isUniqueItems !== undefined && typeof isUniqueItems !== "boolean") {
-			errors.push("'isUniqueItems' must be a boolean");
-		}
-
-		if (minItems !== undefined && maxItems !== undefined && minItems > maxItems) {
-			errors.push("'minItems' is greater than 'maxItems'");
-		}
-
-		if (minItems !== undefined && minItems < 0) {
-			errors.push("'minItems' is less than 0");
-		}
-
-		if (maxItems !== undefined && maxItems < 0) {
-			errors.push("'maxItems' is less than 0");
-		}
-
-		if (isUniqueItems && maxItems !== undefined && maxItems <= 1) {
-			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
-		}
-	}
+	errors.push(...ApiPropertyGetArrayOptionsErrors(properties, target, propertyKey));
 
 	if (errors.length > 0) {
 		throw ErrorException(`ApiPropertyObject error: ${errors.join("\n")}`);

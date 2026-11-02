@@ -9,6 +9,7 @@ import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/ap
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -64,7 +65,7 @@ export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): Propert
 			const normalizedProperties: TApiPropertyUuidProperties = { ...properties, entity: resolvedEntity };
 			const uuidExample: string = randomUUID();
 
-			validateOptions(normalizedProperties);
+			validateOptions(normalizedProperties, target, propertyKey);
 			RegisterManualDtoPropertyMetadata(target, propertyKey, {
 				apply: ApiPropertyUUID(normalizedProperties),
 				decorator: EManualDtoPropertyMetadataDecorator.UUID,
@@ -229,30 +230,14 @@ function buildResponseDecorators(properties: TApiPropertyUuidProperties): Array<
  * Checks for logical consistency in array options including min/max items,
  * unique items constraints, and other validation rules.
  * @param {TApiPropertyUuidProperties} properties - The property configuration to validate
+ * @param {object} target - Decorated DTO prototype, or the class of a static property, named in the error.
+ * @param {string | symbol} propertyKey - Decorated property key, named in the error.
  * @returns {void}
  * @throws {Error} If the configuration is invalid
  * @private
  */
-function validateOptions(properties: TApiPropertyUuidProperties): void {
-	const errors: Array<string> = [];
-
-	if (properties.isArray === true) {
-		if (properties.minItems > properties.maxItems) {
-			errors.push("'minItems' is greater than 'maxItems'");
-		}
-
-		if (properties.minItems < 0) {
-			errors.push("'minItems' is less than 0");
-		}
-
-		if (properties.maxItems < 0) {
-			errors.push("'maxItems' is less than 0");
-		}
-
-		if (properties.isUniqueItems && properties.maxItems <= 1) {
-			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
-		}
-	}
+function validateOptions(properties: TApiPropertyUuidProperties, target: object, propertyKey: string | symbol): void {
+	const errors: Array<string> = ApiPropertyGetArrayOptionsErrors(properties, target, propertyKey);
 
 	if (errors.length > 0) {
 		throw ErrorException(`ApiPropertyUUID error: ${errors.join("\n")}`);

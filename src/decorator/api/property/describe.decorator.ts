@@ -75,6 +75,9 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
  *   type: EApiPropertyDescribeType.RELATION,
  *   description: 'User posts',
  *   isArray: true,
+ *   isUniqueItems: true,
+ *   maxItems: 100,
+ *   minItems: 0,
  *   relationMetadata: {
  *     relationType: 'one-to-many',
  *     entity: Post,

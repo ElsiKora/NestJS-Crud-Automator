@@ -7,6 +7,7 @@ import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType 
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -75,7 +76,7 @@ export function ApiPropertyDate(properties: TApiPropertyDateProperties): Propert
 		WithResolvedPropertyEntity(properties.entity, "ApiPropertyDate", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
 			const normalizedProperties: TApiPropertyDateProperties = { ...properties, entity: resolvedEntity };
 
-			validateOptions(normalizedProperties);
+			validateOptions(normalizedProperties, target, propertyKey);
 			RegisterManualDtoPropertyMetadata(target, propertyKey, {
 				apply: ApiPropertyDate(normalizedProperties),
 				decorator: EManualDtoPropertyMetadataDecorator.DATE,
@@ -382,30 +383,14 @@ function getPattern(format: EApiPropertyDateType): string {
  * Checks for logical consistency in array options including min/max items,
  * unique items constraints, and other validation rules.
  * @param {TApiPropertyDateProperties} properties - The property configuration to validate
+ * @param {object} target - Decorated DTO prototype, or the class of a static property, named in the error.
+ * @param {string | symbol} propertyKey - Decorated property key, named in the error.
  * @returns {void}
  * @throws {Error} If the configuration is invalid with detailed error messages
  * @private
  */
-function validateOptions(properties: TApiPropertyDateProperties): void {
-	const errors: Array<string> = [];
-
-	if (properties.isArray === true) {
-		if (properties.minItems > properties.maxItems) {
-			errors.push("'minItems' is greater than 'maxItems'");
-		}
-
-		if (properties.minItems < 0) {
-			errors.push("'minItems' is less than 0");
-		}
-
-		if (properties.maxItems < 0) {
-			errors.push("'maxItems' is less than 0");
-		}
-
-		if (properties.isUniqueItems && properties.maxItems <= 1) {
-			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
-		}
-	}
+function validateOptions(properties: TApiPropertyDateProperties, target: object, propertyKey: string | symbol): void {
+	const errors: Array<string> = ApiPropertyGetArrayOptionsErrors(properties, target, propertyKey);
 
 	if (errors.length > 0) {
 		throw ErrorException(`ApiPropertyDate error: ${errors.join("\n")}`);
