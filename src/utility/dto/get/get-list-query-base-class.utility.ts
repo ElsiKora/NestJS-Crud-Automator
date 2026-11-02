@@ -130,7 +130,8 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 	}
 
 	if (hasClientOrderFields) {
-		Validate(AllOrNoneOfListedPropertiesValidator, ["orderBy", "orderDirection"])(BaseQueryDTO.prototype, "object");
+		// class-validator drops an inherited validator on a property the derived class also validates, and the generated DTO validates "object", so the pair check has a property of its own.
+		Validate(AllOrNoneOfListedPropertiesValidator, ["orderBy", "orderDirection"], { message: "INVALID_ORDER" })(BaseQueryDTO.prototype, "orderPair");
 	} else {
 		// An empty orderBy enum is not valid OpenAPI, so the route documents no order and refuses any it receives.
 		for (const property of ["orderBy", "orderDirection"] as const) {
