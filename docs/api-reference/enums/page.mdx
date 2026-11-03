@@ -460,7 +460,7 @@ enum EApiFunctionTransactionMode {
 - `MANDATORY` requires an active transaction.
 - `NONE` requires no active transaction.
 
-Generated routes use the enum under `routes[routeType].transaction.mode`. Omitted route configuration behaves as `SUPPORTS` and does not open a route transaction, except for a [generated `CREATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-create), which always runs in one.
+Generated routes use the enum under `routes[routeType].transaction.mode`. Omitted route configuration behaves as `SUPPORTS` and does not open a route transaction, except for a [generated `CREATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-create), which always runs in one, and a [scoped `UPDATE` or `PARTIAL_UPDATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-update).
 
 ### EApiFunctionTransactionOutcome
 

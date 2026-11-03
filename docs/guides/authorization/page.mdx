@@ -689,7 +689,7 @@ A boolean column is one TypeORM types as `boolean`, `bool` or `bit` (the SQL Ser
 Generated routes evaluate IAM once, before the resource is loaded. A matched Deny statement (its action, resource, and non-resource keys hold) then behaves as follows:
 
 - **No `resource.*` keys** — the whole request is denied with `403`.
-- **`resource.*` keys that all compile** — the Deny becomes a row exclusion: its condition is negated and ANDed with the Allow scope. Lists omit excluded rows, and `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` of an excluded row answer `404`, exactly like a row outside an Allow scope.
+- **`resource.*` keys that all compile** — the Deny becomes a row exclusion: its condition is negated and ANDed with the Allow scope. Lists omit excluded rows, and `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` of an excluded row answer `404`, exactly like a row outside an Allow scope. On `UPDATE` and `PARTIAL_UPDATE` the exclusion also applies to the row after the write: a body that moves a row into the excluded state answers `403` and is rolled back (see [Scoped UPDATE](#scoped-update)).
 - **Any `resource.*` key that cannot compile** (another operator, a non-filterable or unmapped field, a `queryPath` TypeORM cannot resolve to a column, an unresolved `${...}` variable, a value that resolves to `null` or `""`, a list, object or `null` value, a value other than `true` or `false` on a boolean column) — the whole request is denied with `403`.
 - **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule. A Deny whose `Resource` names a concrete row, such as `gameport:admin:item/item-1`, is not applied on `CREATE`: the request is evaluated against the collection resource, so that pattern does not match and the row is created. To refuse a value on `CREATE`, use an Allow scope instead (see [Scoped CREATE](#scoped-create)).
 
@@ -748,6 +748,8 @@ const document = {
 
 // GET_LIST scope: operatorId = principal operator AND (status <> 'archived' OR status IS NULL)
 ```
+
+The same condition applies to the row after an update. With this document, `PATCH { "status": "archived" }` on an active row answers `403` and the row stays active, because the updated row would fall outside the scope (see [Scoped UPDATE](#scoped-update)). To let a client archive a row, give the change its own custom action, such as `update.archive` (`admin:item:update.archive`), with a policy statement of its own, instead of a generated `PATCH` whose scope excludes the result.
 
 ### Row-scoped Deny on lists
 
@@ -822,6 +824,30 @@ Keep these limits in mind:
 - **A joined outer owner decides the commit.** Under an active `ApiFunctionTransactionScope` or another outer owner, the `403` propagates and the outer owner rolls back when the error reaches it. If the outer callback catches the refusal and completes, the outer owner commits and the out-of-scope row stays. Do not swallow this error unless the outer work must not commit it.
 - **A generated `CREATE` holds its connection for the whole request.** The route transaction keeps one pool connection from the write until the commit. A subscriber that reads through an injected `Repository` instead of `DATA.repository` asks the pool for a second connection. When concurrent `CREATE` requests hold every connection, those reads wait for each other. node-postgres waits for a connection without limit by default (`connectionTimeoutMillis: 0`), so the requests hang forever. Read through `DATA.repository`, which uses the transaction's connection; otherwise make the pool larger than the number of concurrent `CREATE` requests, and set `extra.connectionTimeoutMillis` on PostgreSQL so that a wait fails with `500` instead of hanging.
 - **Function subscribers run before the decision.** Function `onAfterCreate` subscribers run before the reload, on the same manager, so on a `403` they have already finished. They may observe through `DATA.repository` a row that is rolled back. The rollback undoes only what they wrote through that repository. A write through an injected `Repository` uses another connection and stays committed, and an email, a queue message, or a call to another service stays done. Side effects outside the transaction belong in `onAfterCommit`, which runs only after the row is committed, while `onAfterRollback` reports the refusal. Route `onAfterCreate` subscribers do not run on a refusal. When the route owns the transaction, they run after the commit; when it joins an outer owner, they run before that owner commits, so the outer work can still roll the row back.
+
+## Scoped UPDATE
+
+A generated `UPDATE` or `PARTIAL_UPDATE` is scoped when its decision carries a non-empty `scope.where`, from a HOOKS `rule.scope`, an IAM Allow scope, or an IAM Deny exclusion. The scope applies twice, both times in the database:
+
+- **The old row** — the write addresses the row by its key and the scope. A row outside the scope answers `404`, as before, and nothing is written.
+- **The row after the write** — the route reloads the row by the same key and scope inside the same transaction, after the write and before the commit. A row that the body moved out of the scope rolls back and answers `403`, so a body cannot move a row to another tenant or into a state a Deny excludes. A row that stays inside the scope commits and the route answers `200`.
+
+One rule covers both, the one `CREATE` uses: the stored row must match `decision.scope.where`. There is no separate post-write scope and no opt-out. A field that the scope compares can still change, as long as the new value is also inside the scope. A change that has to leave the scope, such as archiving a row under a Deny on `resource.status = "archived"`, needs its own custom action with its own policy statement, such as `update.archive`.
+
+Only the reload's own miss becomes `403`. The old row's `404`, a `404` from request relation hydration or from `service.update`, and every other error keep their status. An `onBeforeGet` subscriber that narrows the reload causes such a miss as well.
+
+| Route `transaction.mode` | Scoped `UPDATE` and `PARTIAL_UPDATE`                               |
+| ------------------------ | ------------------------------------------------------------------ |
+| omitted, `SUPPORTS`      | Opens a `ROUTE` transaction, or joins an active Automator owner    |
+| `REQUIRED`               | Opens a `ROUTE` transaction, or joins an active Automator owner    |
+| `MANDATORY`              | Joins the required active owner                                    |
+| `NONE`                   | Answers `500` before the write, because nothing could roll it back |
+
+The `UPDATE` and `GET` service functions run inside that transaction, so function `SUPPORTS` and `REQUIRED` join it instead of committing before the reload. A function configured as `NONE` on that path rejects the active transaction: the route answers `500` and writes nothing. The scope is known only per request, so these refusals happen at request time, not at startup.
+
+A non-scoped `UPDATE` or `PARTIAL_UPDATE`, including an IAM Allow without conditions and a scope of `{}`, opens no route transaction under omitted config or `SUPPORTS` and behaves as before. A scoped one sends the same reads, write, and reload, inside one transaction.
+
+The limits of [Scoped CREATE](#scoped-create) apply here too: the rollback needs a transactional engine, a joined outer owner that catches the `403` and completes commits the moved row, and function `onAfterUpdate` subscribers run before the reload, so only what they wrote through `DATA.repository` rolls back. Side effects outside the database belong in `onAfterCommit`. Route `onAfterUpdate` subscribers do not run on a refusal.
 
 ## Decision Trace, Audit, and Simulator
 
@@ -1008,5 +1034,12 @@ In 5.0.0, generated `CREATE` refuses a row outside the decision scope instead of
 - A `CREATE` that loses a race with a deadlock or a snapshot error now answers `409` and leaves no row. Clients can send the request again.
 - A `CREATE` whose body names the key of an existing row, or would change one through a cascade or a `OneToMany` item, now answers `409` with `{ENTITY}_DUPLICATE_KEY` and changes nothing, scoped or not. It used to answer `201`, or `403` after the write under a scope, and the row of another tenant could move into the caller's scope. Send UPDATE or PARTIAL_UPDATE to change a row.
 - On the SQLite family, every transaction the Automator opens now waits for the previous one per `DataSource`, because all queries share one connection and a rollback would otherwise remove the rows of concurrent requests. Reads and writes outside those transactions can still land inside an open one.
+
+In 5.0.2, generated `UPDATE` and `PARTIAL_UPDATE` check the row after the write against the decision scope (see [Scoped UPDATE](#scoped-update)):
+
+- A body that moves a row out of the scope now answers `403` and is rolled back. It used to answer `404` after the write, and under omitted config or `SUPPORTS`, or with an `UPDATE` function configured as `REQUIRED`, the moved row stayed committed, even in another tenant. Clients that handled `404` for such a body must handle `403`. The `404` for an old row outside the scope is unchanged.
+- A state change that leaves the scope is refused the same way. A Deny on `resource.status = "archived"` for `update` now also refuses `PATCH { "status": "archived" }` on an active row with `403`. Move such changes to a custom action, such as `update.archive`, with a statement of its own.
+- A scoped `UPDATE` or `PARTIAL_UPDATE` under omitted config or `SUPPORTS` now runs in a `ROUTE` transaction. Its function subscribers receive `eventManager`, `onAfterCommit` and `onAfterRollback` now run, and an `UPDATE` function configured as `REQUIRED` joins this transaction. Non-scoped updates are unchanged.
+- A scoped `UPDATE` or `PARTIAL_UPDATE` on a route configured as `NONE`, or with an `UPDATE` or `GET` function configured as `NONE`, now answers `500` and writes nothing. Use `SUPPORTS` or `REQUIRED` for routes that carry a scope.
 
 See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

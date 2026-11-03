@@ -108,7 +108,7 @@ Omitted route keys are generated with default configuration. There is no custom-
 
 Generated route transaction rules:
 
-- Omitted `transaction` and `SUPPORTS` open no route transaction and preserve the legacy route boundary. The exception is every generated CREATE, scoped or not, which opens a `ROUTE` owner when none exists, rejects `NONE` at startup, and answers `403` after a rollback when the scoped reload misses the row.
+- Omitted `transaction` and `SUPPORTS` open no route transaction and preserve the legacy route boundary. The exception is every generated CREATE, scoped or not, which opens a `ROUTE` owner when none exists, rejects `NONE` at startup, and answers `403` after a rollback when the scoped reload misses the row. A scoped UPDATE or PARTIAL_UPDATE opens a `ROUTE` owner the same way, answers `403` after a rollback when the body moved the row out of the scope, and answers `500` under `NONE` before the write; a non-scoped one opens no route transaction.
 - `REQUIRED` opens a `ROUTE` owner when none exists; `MANDATORY` requires an active owner; `NONE` rejects one.
 - Request transformation and validation stay outside a route-owned transaction.
 - Request relation hydration, generated service execution, and response relation reload share the active manager.

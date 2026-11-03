@@ -424,8 +424,10 @@ export class ApiRouteRuntime {
 			const service: ApiServiceBase<E> = options.controller.service;
 			const updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, options.properties.entity);
 			const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
+			const scopeWhere: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
+			const isScopedWrite: boolean = scopeWhere !== undefined && Object.keys(scopeWhere).length > 0;
 
-			return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<E> => await this.executeGeneratedUpdateOperation(options, writeTargets, authorizationDecision, routeConfig, markAfterBoundary, service, updateFunction, getFunction, eventManager));
+			return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<E> => await this.executeGeneratedUpdateOperation(options, writeTargets, authorizationDecision, routeConfig, markAfterBoundary, service, updateFunction, getFunction, eventManager, isScopedWrite), isScopedWrite);
 		}
 
 		switch (method) {
@@ -782,7 +784,7 @@ export class ApiRouteRuntime {
 			throw ErrorException("ApiRoute generated transaction mode MANDATORY requires an active transaction");
 		}
 
-		// A create stays uncommitted until its reload confirms the stored row, so SUPPORTS has to own a transaction here.
+		// A create, or a scoped update, stays uncommitted until its reload confirms the stored row, so SUPPORTS has to own a transaction here.
 		if ((mode === EApiFunctionTransactionMode.REQUIRED || (mode === EApiFunctionTransactionMode.SUPPORTS && isTransactionRequired)) && !activeEventManager) {
 			const repository: Repository<E> | undefined = options.controller.service.repository;
 
@@ -803,7 +805,7 @@ export class ApiRouteRuntime {
 		}
 
 		if (isTransactionRequired && !activeEventManager) {
-			throw ErrorException("ApiRoute generated transaction mode cannot run a create without a transaction");
+			throw ErrorException(`ApiRoute generated transaction mode cannot run a ${options.method === EApiRouteType.CREATE ? "create" : "scoped update"} without a transaction`);
 		}
 
 		return await callback(activeEventManager);
@@ -819,6 +821,7 @@ export class ApiRouteRuntime {
 		updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E>,
 		getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E>,
 		eventManager: EntityManager | undefined,
+		isScopedWrite: boolean,
 	): Promise<E> {
 		const responseLoad: IApiControllerPropertiesRouteBaseRelationsResponseLoad<E> | undefined = routeConfig.relations?.response?.load;
 
@@ -836,7 +839,18 @@ export class ApiRouteRuntime {
 			where: updateCriteria,
 		};
 
-		return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => await Reflect.apply(getFunction, service, [requestProperties]));
+		// The reload reads through the same scope as the write, so a body that moved the row out of it misses here; inside the scoped write's transaction that miss rolls the update back.
+		return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => {
+			try {
+				return await Reflect.apply(getFunction, service, [requestProperties]);
+			} catch (error) {
+				if (isScopedWrite && ApiControllerGeneratedReadScopeStorage.isReadMissed(requestProperties)) {
+					throw new ForbiddenException();
+				}
+
+				throw error;
+			}
+		});
 	}
 
 	private static async executeRequestTargets<E extends IApiBaseEntity>(metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, request: IApiRouteRuntimeHttpRequest<E>, contextData: IApiRouteRuntimeContextData<E>): Promise<void> {
