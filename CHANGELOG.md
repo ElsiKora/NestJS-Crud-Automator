@@ -1,3 +1,10 @@
+## [5.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.0.0...v5.0.1) (2026-11-03)
+
+### Bug Fixes
+
+- **route:** accept a described uuid, integer or string as an iam placeholder ([aae2d92](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/aae2d92931fb9bb05e0b365c9fc258a7434f9061))
+- **route:** refuse a body or query uuid that is not lower-case ([3b99100](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3b991004a82b02b71558c4e7f4e1762d59783876))
+
 # [5.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.7.0...v5.0.0) (2026-11-03)
 
 ### Bug Fixes
