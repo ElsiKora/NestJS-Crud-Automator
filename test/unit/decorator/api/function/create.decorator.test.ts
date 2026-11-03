@@ -98,7 +98,7 @@ describe("ApiFunctionCreate", () => {
 
 	it("reports the saved row to a generated create before after subscribers replace the result", async () => {
 		const repository = {
-			metadata: { getEntityIdMap: vi.fn((entity: Partial<CreateEntity>) => ({ id: entity.id })) },
+			metadata: { primaryColumns: [{ createValueMap: (value: unknown) => ({ id: value }), getEntityValue: (entity: Partial<CreateEntity>) => entity.id }] },
 			save: vi.fn(async (value: Partial<CreateEntity>) => ({ id: "stored", ...value })),
 		} as unknown as Repository<CreateEntity>;
 		const service = new CreateService(repository);

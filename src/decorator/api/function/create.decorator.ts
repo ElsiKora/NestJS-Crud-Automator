@@ -148,7 +148,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 		// A create only inserts: a save that would change a row that already exists answers 409 before it writes.
 		const result: E = await ApiFunctionCreateInsertGuard.save(repository, properties, entity);
 		// A generated route reads its response by the key TypeORM saved, taken before a function subscriber can replace or change the result.
-		reportInsertedKey?.(repository.metadata.getEntityIdMap(result));
+		reportInsertedKey?.(ApiFunctionCreateInsertGuard.readKey(repository.metadata, result));
 		const entityInstance: E = new entity();
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>> = {

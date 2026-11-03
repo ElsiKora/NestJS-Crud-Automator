@@ -2,7 +2,7 @@ import type { AsyncLocalStorage } from "node:async_hooks";
 
 import type { IApiFunctionCreateInsertGuardSave } from "@interface/class/api/function/create-insert-guard";
 import type { TApiEntityReference } from "@type/api-entity-reference.type";
-import type { DataSource, DeepPartial, EntitySubscriberInterface, FindOptionsWhere, InsertEvent, ObjectLiteral, RecoverEvent, RemoveEvent, Repository, SoftRemoveEvent, UpdateEvent } from "typeorm";
+import type { DataSource, DeepPartial, EntityMetadata, EntitySubscriberInterface, FindOptionsWhere, InsertEvent, ObjectLiteral, RecoverEvent, RemoveEvent, Repository, SoftRemoveEvent, UpdateEvent } from "typeorm";
 
 import { AsyncLocalStorage as NodeAsyncLocalStorage } from "node:async_hooks";
 
@@ -12,7 +12,7 @@ import { InstanceChecker } from "typeorm";
 /**
  * Keeps the save of a create function to inserts, so a create never changes a row that already exists.
  * TypeORM `save` updates a row whose primary key it finds, a cascaded related row whose columns differ, and an existing to-many row it links to the new row.
- * A row the body names by its whole primary key is looked up before the save. The rest is a TypeORM subscriber on the DataSource of the repository, which answers 409 before TypeORM sends any write when the save would update, remove, soft remove or recover a row.
+ * A row the body names by its whole primary key is looked up before the save, by the value TypeORM writes into each key column. The rest is a TypeORM subscriber on the DataSource of the repository, which answers 409 before TypeORM sends any write when the save would update, remove, soft remove or recover a row.
  * TypeORM broadcasts the before events of one save in one synchronous loop before its first write, and the row it was given comes first when it is inserted.
  * The subscriber acts only in the asynchronous context of the save the create function starts, so other saves, also on the same query runner or in the same transaction, are never refused.
  * A change that an application subscriber or entity listener makes to an existing related object during the before events is outside the guard: TypeORM computes it again afterwards and writes it as an update that broadcasts no before event.
@@ -22,6 +22,33 @@ export class ApiFunctionCreateInsertGuard implements EntitySubscriberInterface {
 
 	// The save of a create function, in the asynchronous context of that save only.
 	private static readonly STORAGE: AsyncLocalStorage<IApiFunctionCreateInsertGuardSave> = new NodeAsyncLocalStorage<IApiFunctionCreateInsertGuardSave>();
+
+	/**
+	 * Reads the whole primary key of a row as the find condition of its key columns.
+	 * Each key column is matched with the value TypeORM writes into it, which the find runs through the column transformer as the write does.
+	 * A key column that a relation also joins takes that value from the related object when the row holds one, and from its own property otherwise.
+	 * TypeORM `getEntityIdMap` returns the whole related object for such a column instead, which no database compares with a column value.
+	 * @template E The entity type
+	 * @param {EntityMetadata} metadata - Metadata of the entity
+	 * @param {DeepPartial<E>} row - Row to read, as a create function saves it or as TypeORM returns it
+	 * @returns {FindOptionsWhere<E> | undefined} The condition, or undefined when a key column has no value
+	 */
+	public static readKey<E extends ObjectLiteral>(metadata: EntityMetadata, row: DeepPartial<E>): FindOptionsWhere<E> | undefined {
+		const key: Record<string, unknown> = {};
+
+		for (const column of metadata.primaryColumns) {
+			const value: unknown = column.getEntityValue(row as ObjectLiteral);
+
+			if (value === undefined || value === null) {
+				return undefined;
+			}
+
+			// A column inside an embedded property sits under that property, as in the entity.
+			this.mergeKey(key, column.createValueMap(value));
+		}
+
+		return key as FindOptionsWhere<E>;
+	}
 
 	/**
 	 * Saves the row of a create function and refuses the save when it would change a row that already exists.
@@ -41,7 +68,8 @@ export class ApiFunctionCreateInsertGuard implements EntitySubscriberInterface {
 		}
 
 		this.register(dataSource);
-		const key: FindOptionsWhere<E> | undefined = repository.metadata.getEntityIdMap(properties) as FindOptionsWhere<E> | undefined;
+		// Without a value for each key column, the save alone decides.
+		const key: FindOptionsWhere<E> | undefined = this.readKey(repository.metadata, properties);
 
 		if (key && (await this.isStored(repository, key))) {
 			throw ErrorDuplicateKeyException(entity);
@@ -59,6 +87,15 @@ export class ApiFunctionCreateInsertGuard implements EntitySubscriberInterface {
 	}
 
 	/**
+	 * Tells whether a value is a level of embedded properties that `createValueMap` built, and not a column value such as a `Date`.
+	 * @param {unknown} value - Value of the key
+	 * @returns {boolean} Whether the value is a plain object
+	 */
+	private static isLevel(value: unknown): value is Record<string, unknown> {
+		return typeof value === "object" && value !== null && Object.getPrototypeOf(value) === Object.prototype;
+	}
+
+	/**
 	 * Tells whether a row with the key is stored, soft deleted rows included.
 	 * @template E The entity type
 	 * @param {Repository<E>} repository - Repository the create function saves through
@@ -68,6 +105,23 @@ export class ApiFunctionCreateInsertGuard implements EntitySubscriberInterface {
 	private static async isStored<E extends ObjectLiteral>(repository: Repository<E>, key: FindOptionsWhere<E>): Promise<boolean> {
 		// A soft deleted row still holds its key, and TypeORM would update it.
 		return await repository.exists({ where: key, withDeleted: true });
+	}
+
+	/**
+	 * Adds the condition of one key column to the key, merging the embedded properties both hold.
+	 * @param {Record<string, unknown>} key - Condition built so far, changed in place
+	 * @param {Record<string, unknown>} condition - Condition of one key column
+	 */
+	private static mergeKey(key: Record<string, unknown>, condition: Record<string, unknown>): void {
+		for (const [name, value] of Object.entries(condition)) {
+			const current: unknown = key[name];
+
+			if (this.isLevel(current) && this.isLevel(value)) {
+				this.mergeKey(current, value);
+			} else {
+				key[name] = value;
+			}
+		}
 	}
 
 	/**

@@ -2,9 +2,9 @@ import type { EntitySubscriberInterface, InsertEvent, Repository } from "typeorm
 
 import { ApiFunctionCreateInsertGuard } from "@class/api/function/create-insert-guard.class";
 import { ConflictException } from "@nestjs/common";
-import { CreateGuardChildEntity, CreateGuardCounterEntity, CreateGuardItemEntity, CreateGuardOwnerEntity, CreateGuardTagEntity } from "@test/unit/class/api/function/fixture/create-insert-guard.entity";
+import { CreateGuardBindingEntity, CreateGuardChildEntity, CreateGuardCounterEntity, CreateGuardIdentityEntity, CreateGuardItemEntity, CreateGuardOwnerEntity, CreateGuardSlotEntity, CreateGuardTagEntity, ECreateGuardKind } from "@test/unit/class/api/function/fixture/create-insert-guard.entity";
 import { DataSource } from "typeorm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Counts every create of an item in an existing counter row, through a save of its own that the subscriber starts.
 class CreateGuardCounterSubscriber implements EntitySubscriberInterface<CreateGuardItemEntity> {
@@ -134,5 +134,100 @@ describe("ApiFunctionCreateInsertGuard", () => {
 		await ApiFunctionCreateInsertGuard.save(items, { id: "item-3", name: "New" }, CreateGuardItemEntity);
 
 		expect(dataSource.subscribers.filter((subscriber: unknown): boolean => subscriber instanceof ApiFunctionCreateInsertGuard)).toHaveLength(1);
+	});
+});
+
+describe("ApiFunctionCreateInsertGuard keys", () => {
+	let dataSource: DataSource;
+	let bindings: Repository<CreateGuardBindingEntity>;
+	let slots: Repository<CreateGuardSlotEntity>;
+
+	const readBindings = async (): Promise<Array<Record<string, unknown>>> => (await bindings.find({ order: { sourceId: "ASC" }, withDeleted: true })).map((row: CreateGuardBindingEntity): Record<string, unknown> => ({ isDeleted: Boolean(row.deletedAt), kind: row.kind, label: row.label, sourceId: row.sourceId }));
+
+	const expectRefused = async <E extends object>(repository: Repository<E>, properties: object, message: string, read: () => Promise<unknown>): Promise<void> => {
+		const before: unknown = await read();
+		const failure: unknown = await ApiFunctionCreateInsertGuard.save(repository, properties as never, repository.target as never).catch((error: unknown): unknown => error);
+
+		expect(failure).toBeInstanceOf(ConflictException);
+		expect((failure as ConflictException).getResponse()).toEqual({ details: { type: "UNIQUE_VIOLATION" }, error: "Conflict", message, statusCode: 409 });
+		expect(await read()).toEqual(before);
+	};
+
+	beforeEach(async () => {
+		dataSource = new DataSource({ database: ":memory:", entities: [CreateGuardBindingEntity, CreateGuardIdentityEntity, CreateGuardSlotEntity], synchronize: true, type: "better-sqlite3" });
+		await dataSource.initialize();
+		bindings = dataSource.getRepository(CreateGuardBindingEntity);
+		slots = dataSource.getRepository(CreateGuardSlotEntity);
+		await dataSource.getRepository(CreateGuardIdentityEntity).save([
+			{ kind: ECreateGuardKind.ACCOUNT, name: "Stored", sourceId: "s-1" },
+			{ kind: ECreateGuardKind.DEVICE, name: "Removed", sourceId: "s-2" },
+			{ kind: ECreateGuardKind.ACCOUNT, name: "New", sourceId: "s-3" },
+		]);
+		await bindings.save([
+			{ kind: ECreateGuardKind.ACCOUNT, label: "Stored", sourceId: "s-1" },
+			{ kind: ECreateGuardKind.DEVICE, label: "Removed", sourceId: "s-2" },
+		]);
+		await bindings.softDelete({ kind: ECreateGuardKind.DEVICE, sourceId: "s-2" });
+		await slots.save({ key: { code: "abc", region: "eu" }, name: "Stored", tenantId: "t-1" });
+	});
+
+	afterEach(async () => {
+		await dataSource.destroy();
+	});
+
+	it.each([
+		["the key columns", { kind: ECreateGuardKind.ACCOUNT, label: "New", sourceId: "s-3" }],
+		["only the relation that joins them", { identity: { kind: ECreateGuardKind.ACCOUNT, sourceId: "s-3" }, label: "New" }],
+		["the key columns and the relation", { identity: { kind: ECreateGuardKind.ACCOUNT, name: "New", sourceId: "s-3" }, kind: ECreateGuardKind.ACCOUNT, label: "New", sourceId: "s-3" }],
+	])("reads the value of each key column a relation also joins from %s", (_name: string, row: object) => {
+		expect(ApiFunctionCreateInsertGuard.readKey(bindings.metadata, row)).toEqual({ kind: ECreateGuardKind.ACCOUNT, sourceId: "s-3" });
+	});
+
+	it("reads a key column of the relation the row holds, which TypeORM writes, over its own property", () => {
+		expect(ApiFunctionCreateInsertGuard.readKey(bindings.metadata, { identity: { kind: ECreateGuardKind.DEVICE, sourceId: "s-2" }, kind: ECreateGuardKind.ACCOUNT, sourceId: "s-3" })).toEqual({ kind: ECreateGuardKind.DEVICE, sourceId: "s-2" });
+	});
+
+	it("reads a key inside an embedded property under that property, before the column transformer", () => {
+		expect(ApiFunctionCreateInsertGuard.readKey(slots.metadata, { key: { code: "ABC", region: "eu" }, name: "Slot", tenantId: "t-1" })).toEqual({ key: { code: "ABC", region: "eu" }, tenantId: "t-1" });
+	});
+
+	it.each([
+		["a key column", { kind: ECreateGuardKind.ACCOUNT, label: "New" }],
+		["a key column set to null", { kind: ECreateGuardKind.ACCOUNT, label: "New", sourceId: null }],
+		["a key column of the relation", { identity: { kind: ECreateGuardKind.ACCOUNT }, label: "New" }],
+	])("reads no key when the row misses %s", (_name: string, row: object) => {
+		expect(ApiFunctionCreateInsertGuard.readKey(bindings.metadata, row)).toBeUndefined();
+	});
+
+	it("looks a key up by the scalar value of each column when a relation joins the key columns", async () => {
+		const exists = vi.spyOn(bindings, "exists");
+
+		await ApiFunctionCreateInsertGuard.save(bindings, { identity: { kind: ECreateGuardKind.ACCOUNT, sourceId: "s-3" }, label: "New" }, CreateGuardBindingEntity);
+
+		expect(exists).toHaveBeenCalledWith({ where: { kind: ECreateGuardKind.ACCOUNT, sourceId: "s-3" }, withDeleted: true });
+		expect(await readBindings()).toEqual([
+			{ isDeleted: false, kind: ECreateGuardKind.ACCOUNT, label: "Stored", sourceId: "s-1" },
+			{ isDeleted: true, kind: ECreateGuardKind.DEVICE, label: "Removed", sourceId: "s-2" },
+			{ isDeleted: false, kind: ECreateGuardKind.ACCOUNT, label: "New", sourceId: "s-3" },
+		]);
+	});
+
+	it.each([
+		["the key columns of a stored row", { kind: ECreateGuardKind.ACCOUNT, label: "Changed", sourceId: "s-1" }],
+		["the relation to a stored row", { identity: { kind: ECreateGuardKind.ACCOUNT, sourceId: "s-1" }, label: "Changed" }],
+		["the key columns and the relation to a stored row", { identity: { kind: ECreateGuardKind.ACCOUNT, sourceId: "s-1" }, kind: ECreateGuardKind.ACCOUNT, label: "Changed", sourceId: "s-1" }],
+		["the relation to a soft deleted row", { identity: { kind: ECreateGuardKind.DEVICE, sourceId: "s-2" }, label: "Changed" }],
+	])("refuses a row named by %s before any write", async (_name: string, properties: object) => {
+		await expectRefused(bindings, properties, "CREATEGUARDBINDINGENTITY_DUPLICATE_KEY", readBindings);
+	});
+
+	it("refuses an embedded key that the column transformer makes the stored one", async () => {
+		await expectRefused(slots, { key: { code: "ABC", region: "eu" }, name: "Changed", tenantId: "t-1" }, "CREATEGUARDSLOTENTITY_DUPLICATE_KEY", async (): Promise<unknown> => await slots.find({ order: { tenantId: "ASC" } }));
+	});
+
+	it("inserts an embedded key that differs from the stored one", async () => {
+		await ApiFunctionCreateInsertGuard.save(slots, { key: { code: "ABC", region: "us" }, name: "New", tenantId: "t-1" }, CreateGuardSlotEntity);
+
+		expect(await slots.count()).toBe(2);
 	});
 });
