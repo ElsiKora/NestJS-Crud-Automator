@@ -4,13 +4,15 @@ import "reflect-metadata";
 
 import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
+import { ApiPropertyDate } from "@decorator/api/property/date.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
-import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersValidate } from "@utility/api/controller/parameters/validate.utility";
+import { ApiRequestValidationGetErrors } from "@utility/api/request-validation-get-errors.utility";
 import { ApiPropertyBoolean } from "@decorator/api/property/boolean.decorator";
 import { Exclude, Expose, Transform, TransformationType, Type } from "class-transformer";
 import { IsBoolean, IsDate, IsDefined, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, ValidateNested } from "class-validator";
@@ -305,6 +307,21 @@ class CustomRuleForeignEntityNameParametersDto {
 	public id!: string;
 }
 
+class CustomRulePlainStringParametersDto {
+	@ApiPropertyString({ description: "id", entity: CustomRuleItemEntity, exampleValue: "alpha", format: EApiPropertyStringType.STRING, isRequired: true, maxLength: 50, minLength: 1, pattern: "/^.+$/" })
+	public id!: string;
+}
+
+class CustomRuleDoubleParametersDto {
+	@ApiPropertyNumber({ description: "id", entity: CustomRuleItemEntity, exampleValue: 1.5, format: EApiPropertyNumberType.DOUBLE, isRequired: true, maximum: 1000, minimum: 0, multipleOf: 0.5 })
+	public id!: number;
+}
+
+class CustomRuleDateParametersDto {
+	@ApiPropertyDate({ description: "id", entity: CustomRuleItemEntity, format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, isRequired: true } as never)
+	public id!: Date;
+}
+
 @Entity("custom_rule_keys")
 class CustomRuleKeyEntity {
 	@PrimaryColumn({ precision: 10, scale: 2, type: "decimal" })
@@ -496,9 +513,49 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		await expect(ApiControllerParametersValidate(rule!, { id: "016" } as never)).rejects.toThrow();
 	});
 
-	it("names the rule a scalar described placeholder misses, since the DTO does describe it", () => {
-		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleDescribedParametersDto, methodName: "scalarNamed", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toThrow("must copy that value from an entity column with ApiPropertyCopy");
-		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleDescribedParametersDto, methodName: "scalarNamed", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).not.toThrow("does not describe");
+	it.each([
+		["an integer ApiPropertyNumber", CustomRuleDescribedParametersDto],
+		["an ApiPropertyUUID of an entity it cannot copy", CustomRuleForeignEntityNameParametersDto],
+		["an ApiPropertyString", CustomRulePlainStringParametersDto],
+		["an ApiPropertyString of UUID format", CustomRuleStringUuidParametersDto],
+	])("builds the rule of a resource path placeholder described by %s", (_name: string, dto: new () => unknown) => {
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "described", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toBeDefined();
+	});
+
+	it.each([
+		["a double ApiPropertyNumber", CustomRuleDoubleParametersDto],
+		["an ApiPropertyDate", CustomRuleDateParametersDto],
+		["an ApiPropertyBoolean", CustomRuleBooleanParametersDto],
+		["a bare validator", CustomRuleBareUuidParametersDto],
+	])("fails at startup on a resource path placeholder described by %s, naming both sources it accepts", (_name: string, dto: new () => unknown) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "described", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toThrow(
+			'Controller "CustomRuleController" method "described" names the path parameter "id" in its IAM resourcePath, so its PARAMETERS DTO must either copy that value from a scalar entity column with ApiPropertyCopy, or describe it with ApiPropertyUUID, an integer ApiPropertyNumber or ApiPropertyString, and it does neither',
+		);
+	});
+
+	it("refuses a described integer placeholder in another spelling than its canonical one", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleDescribedParametersDto, methodName: "described", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
+
+		await expect(ApiControllerParametersValidate(rule!, { id: "16" } as never)).resolves.toEqual({ id: 16 });
+
+		for (const id of ["016", "1.6e1", "0x10", "+16"]) {
+			await expect(ApiControllerParametersValidate(rule!, { id } as never)).rejects.toThrow(ApiRequestValidationException);
+		}
+	});
+
+	it("refuses a described UUID placeholder that is not lower-case as not canonical, and keeps the lower-case one", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleForeignEntityNameParametersDto, methodName: "described", pathParameters: ["id"], resourcePath: "config-data/{id}" });
+		const id: string = "550e8400-e29b-41d4-a716-446655440000";
+		const refusal: unknown = await ApiControllerParametersValidate(rule!, { id: id.toUpperCase() } as never).catch((error: unknown): unknown => error);
+
+		await expect(ApiControllerParametersValidate(rule!, { id } as never)).resolves.toEqual({ id });
+		expect(ApiRequestValidationGetErrors(refusal)?.map((error) => ({ constraints: Object.keys(error.constraints ?? {}), property: error.property }))).toEqual([{ constraints: ["pathParameterNotCanonical"], property: "id" }]);
+	});
+
+	it("gives a policy a described string placeholder as sent", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRulePlainStringParametersDto, methodName: "described", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
+
+		await expect(ApiControllerParametersValidate(rule!, { id: "Alpha" } as never)).resolves.toEqual({ id: "Alpha" });
 	});
 
 	it("accepts a placeholder whose copied property is renamed to the path parameter", () => {
@@ -656,10 +713,6 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 
 	it("tells a DTO whose Transform reads the converted value how to reach the sent text", () => {
 		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleBooleanTransformParametersDto, methodName: "booleanTransform", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("read the sent text from obj[key]");
-	});
-
-	it("fails at startup on a described UUID that a resource path names without an entity column", () => {
-		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleForeignEntityNameParametersDto, methodName: "foreignName", pathParameters: ["id"], resourcePath: "config-data/{id}" })).toThrow("must copy that value from an entity column");
 	});
 
 	it.each([

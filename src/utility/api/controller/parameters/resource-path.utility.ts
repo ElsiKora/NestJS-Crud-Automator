@@ -24,7 +24,7 @@ export function ApiControllerParametersAssertResourcePathPlaceholders(options: I
 
 		if (!parameters.has(parameter)) {
 			throw ErrorException(
-				`${options.route} names "{${parameter}}" in its IAM resourcePath, which is not a path parameter of the route, and a route that neither lists nor creates renders it as "*", so no Deny on a value of it matches: serve the route with @ApiRouteCustom under the path parameter "${parameter}" copied with ApiPropertyCopy, authorize it in HOOKS mode, or declare it as a list with route.type GET_LIST, whose handler must apply decision.scope.where to its query and whose IAM action becomes "<policyNamespace>:list", so a separate action such as "export" is granted and denied as list`,
+				`${options.route} names "{${parameter}}" in its IAM resourcePath, which is not a path parameter of the route, and a route that neither lists nor creates renders it as "*", so no Deny on a value of it matches: serve the route with @ApiRouteCustom under the path parameter "${parameter}" copied with ApiPropertyCopy or described with ApiPropertyUUID, an integer ApiPropertyNumber or ApiPropertyString, authorize it in HOOKS mode, or declare it as a list with route.type GET_LIST, whose handler must apply decision.scope.where to its query and whose IAM action becomes "<policyNamespace>:list", so a separate action such as "export" is granted and denied as list`,
 			);
 		}
 	}

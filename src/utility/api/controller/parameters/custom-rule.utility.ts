@@ -5,8 +5,10 @@ import type { IApiControllerParametersRule } from "@interface/class/api/controll
 import type { IApiControllerParametersSource } from "@interface/class/api/controller/parameters-source.interface";
 import type { IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-property-metadata.type";
 
-import { EApiPropertyDescribeType } from "@enum/decorator/api";
+import { EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
 import { ClassTransformerReadLimits } from "@utility/class-transformer/read-limits.utility";
@@ -50,7 +52,7 @@ export function ApiControllerParametersAssertComparableColumns(rule: IApiControl
  * A resource path placeholder that is not a path parameter is checked for every IAM route by `ApiControllerParametersAssertResourcePathPlaceholders`.
  * @param {IApiControllerParametersCustomRuleOptions} options - Route description: the controller class and the handler name for the error message, the PARAMETERS DTO, the path parameter names of the whole route path, whether each needs a column type, and the IAM resource path of the controller, if any.
  * @returns {IApiControllerParametersRule | undefined} The rule, or undefined when the route has no path parameter, so such a route costs nothing per request.
- * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, or no column type where one is required, when the DTO cannot give a handler the value a policy saw, or when a resource path placeholder that is a path parameter is not copied from an entity column.
+ * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, or no column type where one is required, when the DTO cannot give a handler the value a policy saw, or when a resource path placeholder that is a path parameter is neither copied from a scalar entity column nor described as a UUID, an integer or a string.
  */
 export function ApiControllerParametersBuildCustomRule(options: IApiControllerParametersCustomRuleOptions): IApiControllerParametersRule | undefined {
 	const route: string = `Controller "${options.controller.name}" method "${options.methodName}"`;
@@ -85,8 +87,8 @@ export function ApiControllerParametersBuildCustomRule(options: IApiControllerPa
 	for (const placeholder of (options.resourcePath ?? "").matchAll(/\{([\w.-]+)\}/g)) {
 		const parameter: string = placeholder[1] ?? "";
 
-		if (parameters.has(parameter) && !isColumnCopy(options.dto, routeDtoProperties?.get(parameter) ?? parameter)) {
-			throw ErrorException(`${route} names the path parameter "${parameter}" in its IAM resourcePath, so its PARAMETERS DTO must copy that value from an entity column with ApiPropertyCopy, and it does not`);
+		if (parameters.has(parameter) && !isPlaceholderSource(options.dto, routeDtoProperties?.get(parameter) ?? parameter)) {
+			throw ErrorException(`${route} names the path parameter "${parameter}" in its IAM resourcePath, so its PARAMETERS DTO must either copy that value from a scalar entity column with ApiPropertyCopy, or describe it with ApiPropertyUUID, an integer ApiPropertyNumber or ApiPropertyString, and it does neither`);
 		}
 	}
 
@@ -286,18 +288,6 @@ function isBooleanProperty(dto: { prototype: object }, validationMetadata: Array
 }
 
 /**
- * Tells whether a DTO property copies a scalar entity column.
- * @param {{ prototype: object } | undefined} dto - PARAMETERS DTO of the route.
- * @param {string} property - Property name.
- * @returns {boolean} Whether the property was declared with `ApiPropertyCopy` from a scalar column.
- */
-function isColumnCopy(dto: { prototype: object } | undefined, property: string): boolean {
-	const source: IApiControllerParametersSource | undefined = dto ? (Reflect.getMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, dto.prototype, property) as IApiControllerParametersSource | undefined) : undefined;
-
-	return source !== undefined && source.metadata.type !== EApiPropertyDescribeType.OBJECT && source.metadata.type !== EApiPropertyDescribeType.RELATION && !("isArray" in source.metadata && source.metadata.isArray === true);
-}
-
-/**
  * Tells whether class-transformer converts a property of a DTO from the request, which states how the DTO reads it.
  * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
  * @param {string} property - DTO property.
@@ -307,6 +297,38 @@ function isConverted(dto: Type<unknown>, property: string): boolean {
 	const storage: ReturnType<typeof ClassTransformerGetStorage> = ClassTransformerGetStorage(dto.prototype as object, property);
 
 	return storage.findTransformMetadatas(dto, property, TransformationType.PLAIN_TO_CLASS).length > 0 || storage.findTypeMetadata(dto, property) !== undefined;
+}
+
+/**
+ * Tells whether a DTO property can fill an IAM resource path placeholder: its value must have one canonical text, which the route checks before a policy compares it.
+ * A copy of a scalar entity column qualifies, and so does a scalar `ApiPropertyUUID`, `ApiPropertyNumber` of integer format or `ApiPropertyString`, for a key whose entity cannot be copied, such as a dynamic one.
+ * A UUID must then be sent in lower case and an integer in canonical decimal form; a string reaches the policy as sent.
+ * @param {{ prototype: object } | undefined} dto - PARAMETERS DTO of the route.
+ * @param {string} property - Property name.
+ * @returns {boolean} Whether the property is such a copy or such a described value.
+ */
+function isPlaceholderSource(dto: { prototype: object } | undefined, property: string): boolean {
+	if (!dto) {
+		return false;
+	}
+
+	const source: IApiControllerParametersSource | undefined = Reflect.getMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, dto.prototype, property) as IApiControllerParametersSource | undefined;
+
+	if (source !== undefined) {
+		return source.metadata.type !== EApiPropertyDescribeType.OBJECT && source.metadata.type !== EApiPropertyDescribeType.RELATION && !("isArray" in source.metadata && source.metadata.isArray === true);
+	}
+
+	const described: TManualDtoPropertyMetadata | undefined = GetManualDtoPropertyMetadata(dto.prototype).get(property);
+
+	if (!described || described.properties.isArray === true) {
+		return false;
+	}
+
+	if (described.decorator === EManualDtoPropertyMetadataDecorator.NUMBER) {
+		return described.properties.format === EApiPropertyNumberType.INTEGER;
+	}
+
+	return described.decorator === EManualDtoPropertyMetadataDecorator.STRING || described.decorator === EManualDtoPropertyMetadataDecorator.UUID;
 }
 
 /**
