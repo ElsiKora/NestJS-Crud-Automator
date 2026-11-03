@@ -347,6 +347,15 @@ export class ApiAuthorizationIamEngine {
 		return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 	}
 
+	/**
+	 * Tells whether a condition value is a `${resource}` or `${resource.*}` variable.
+	 * @param {unknown} value - Raw condition value.
+	 * @returns {boolean} Whether the value reads the resource.
+	 */
+	private isResourceVariable(value: unknown): boolean {
+		return typeof value === "string" && /^\$\{resource(?:\..+)?\}$/.test(value);
+	}
+
 	private matchesWildcardPattern(pattern: string, value: string): boolean {
 		if (pattern === "*") {
 			return true;
@@ -453,6 +462,15 @@ export class ApiAuthorizationIamEngine {
 
 				// Validated documents only carry known operators; an unknown one still fails closed: it holds for a Deny and fails an Allow.
 				if (!EnumIsValue(EApiPolicyConditionOperator, operator)) {
+					if (isDeny) {
+						continue;
+					}
+
+					return { isMatched: false };
+				}
+
+				// A `${resource.*}` value has no resource to read before the row is loaded, so it fails closed: it holds for a Deny and fails an Allow.
+				if (options.resource === undefined && this.isResourceVariable(rawExpectedValue)) {
 					if (isDeny) {
 						continue;
 					}

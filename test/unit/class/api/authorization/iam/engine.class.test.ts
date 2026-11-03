@@ -214,6 +214,89 @@ describe("ApiAuthorizationIamEngine", () => {
 		});
 	});
 
+	describe("resource variable without a loaded resource", () => {
+		const rowRequests: Array<[string, { action: string; requestMetadata?: IApiAuthorizationRequestMetadata<EngineItemEntity>; routeType?: EApiRouteType }]> = [
+			["a list", { action: "admin:item:list", routeType: EApiRouteType.GET_LIST }],
+			["a read", { action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET }],
+			["a partial update", { action: "admin:item:update", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.PARTIAL_UPDATE }],
+			["a delete", { action: "admin:item:delete", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.DELETE }],
+			["a custom route", { action: "admin:item:custom.report", routeType: undefined }],
+		];
+
+		const allowConditions: Array<[string, Record<string, Record<string, unknown>>]> = [
+			["a StringEquals principal key", { StringEquals: { "principal.attributes.missing": "${resource.tenantId}" } }],
+			["a StringEqualsIfExists principal key", { StringEqualsIfExists: { "principal.attributes.operatorId": "${resource.operatorId}" } }],
+			["a StringNotEquals principal key", { StringNotEquals: { "principal.attributes.operatorId": "${resource.tenantId}" } }],
+			["a StringNotEqualsIfExists principal key", { StringNotEqualsIfExists: { "principal.attributes.operatorId": "${resource.tenantId}" } }],
+			["a StringEquals request key", { StringEquals: { "request.headers.x-tenant-id": "${resource.tenantId}" } }],
+			["a whole-resource variable", { StringEquals: { "principal.attributes.missing": "${resource}" } }],
+		];
+
+		const denyConditions: Array<[string, Record<string, Record<string, unknown>>]> = [
+			["a StringEquals principal key", { StringEquals: { "principal.attributes.operatorId": "${resource.operatorId}" } }],
+			["a StringNotEquals principal key", { StringNotEquals: { "principal.attributes.operatorId": "${resource.operatorId}" } }],
+			["a StringEquals request key", { StringEquals: { "request.headers.x-tenant-id": "${resource.tenantId}" } }],
+		];
+
+		it.each(rowRequests.flatMap(([requestName, request]) => allowConditions.map(([conditionName, condition]): [string, string, typeof request, typeof condition] => [conditionName, requestName, request, condition])))("leaves an Allow with %s unmatched on %s", async (_conditionName, _requestName, request, condition) => {
+			const decision = await evaluate({ ...request, statements: [{ ...allowAll, Condition: condition }] });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.DENY);
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(decision.trace.statements?.[0]?.isMatched).toBe(false);
+		});
+
+		it.each(rowRequests.flatMap(([requestName, request]) => denyConditions.map(([conditionName, condition]): [string, string, typeof request, typeof condition] => [conditionName, requestName, request, condition])))("holds a Deny with %s on %s", async (_conditionName, _requestName, request, condition) => {
+			const decision = await evaluate({ ...request, statements: [allowAll, deny({ Condition: condition })] });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.DENY);
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("keeps the Allow scope of a resource key next to a Deny whose resource variable has no resource to read", async () => {
+			const decision = await evaluate({ statements: [allowOwnOperator, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "${resource.operatorId}", "resource.status": "archived" } } })] });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(decision.scope).toEqual({
+				where: [
+					{ operatorId: Equal("operator-1"), status: Not(Equal("archived")) },
+					{ operatorId: Equal("operator-1"), status: IsNull() },
+				],
+			});
+		});
+
+		it.each([
+			["an Allow", [{ ...allowAll, Condition: { StringEquals: { "resource.status": "${resource.operatorId}" } } }], EApiAuthorizationDecisionType.IMPLICIT_DENY],
+			["a Deny", [allowAll, deny({ Condition: { StringNotEquals: { "resource.status": "${resource.operatorId}" } } })], EApiAuthorizationDecisionType.EXPLICIT_DENY],
+		])("does not compile a resource key compared with a resource variable in %s", async (_name: string, statements: Array<IApiPolicyStatement>, decisionType: EApiAuthorizationDecisionType) => {
+			const decision = await evaluate({ statements });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.DENY);
+			expect(decision.trace.decisionType).toBe(decisionType);
+		});
+
+		it("keeps policies without a resource variable unchanged", async () => {
+			const allowDecision = await evaluate({ statements: [{ ...allowAll, Condition: { StringEquals: { "principal.attributes.operatorId": "operator-1" } } }] });
+			const denyDecision = await evaluate({ statements: [allowAll, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "${principal.attributes.missing}" } } })] });
+			const scopeDecision = await evaluate({ statements: [allowOwnOperator] });
+
+			expect(allowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect(denyDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect(scopeDecision.scope).toEqual({ where: { operatorId: "operator-1" } });
+		});
+
+		it.each([
+			["matches an Allow", [{ ...allowAll, Condition: { StringEquals: { "principal.attributes.operatorId": "${resource.operatorId}" } } }], "operator-1", EApiPolicyEffect.ALLOW],
+			["leaves an Allow unmatched", [{ ...allowAll, Condition: { StringEquals: { "principal.attributes.operatorId": "${resource.operatorId}" } } }], "operator-2", EApiPolicyEffect.DENY],
+			["holds a Deny", [allowAll, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "${resource.operatorId}" } } })], "operator-1", EApiPolicyEffect.DENY],
+			["leaves a Deny unmatched", [allowAll, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "${resource.operatorId}" } } })], "operator-2", EApiPolicyEffect.ALLOW],
+		])("reads the variable from a loaded resource and %s", async (_name: string, statements: Array<IApiPolicyStatement>, operatorId: string, effect: EApiPolicyEffect) => {
+			const decision = await evaluate({ action: "admin:item:read", resource: { id: "item-1", operatorId, secret: "s", status: "active", tenantId: "t" }, routeType: EApiRouteType.GET, statements });
+
+			expect(decision.effect).toBe(effect);
+		});
+	});
+
 	describe("Allow compilation", () => {
 		it.each(["StringNotEquals", "StringNotEqualsIfExists"])("leaves an Allow with a %s resource key unmatched", async (operator: string) => {
 			const decision = await evaluate({ statements: [{ ...allowAll, Condition: { [operator]: { "resource.status": "archived" } } }] });
