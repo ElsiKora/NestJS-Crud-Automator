@@ -1,3 +1,10 @@
+## [5.0.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.0.1...v5.0.2) (2026-11-03)
+
+### Bug Fixes
+
+- **authorization:** fail closed on iam resource variables without a loaded resource ([ce83cd6](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ce83cd674af3f6eede90b1cd42d3809917525b2d))
+- **authorization:** refuse updates that move a row out of its scope ([aaaae30](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/aaaae30c36a99528777609dc4e6f70ee5f3bf3ad))
+
 ## [5.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.0.0...v5.0.1) (2026-11-03)
 
 ### Bug Fixes
