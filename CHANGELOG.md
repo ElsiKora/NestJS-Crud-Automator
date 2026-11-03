@@ -1,9 +1,3 @@
-## [5.0.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.0.2...v5.0.3) (2026-11-03)
-
-### Bug Fixes
-
-- **function:** look up a create key by its column values when a relation shares them ([c8c05e5](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/c8c05e53625dfa61189c44f01ef41290303112a3))
-
 ## [5.0.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.0.1...v5.0.2) (2026-11-03)
 
 ### Bug Fixes
