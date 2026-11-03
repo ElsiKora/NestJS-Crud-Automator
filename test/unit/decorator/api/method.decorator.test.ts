@@ -10,6 +10,7 @@ import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiAuthenticationType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
 import { RequestBodyShapeInterceptor } from "@interceptor/request-body-shape.interceptor";
+import { UuidCanonicalInterceptor } from "@interceptor/uuid-canonical.interceptor";
 import { GUARDS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/internal";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
@@ -122,7 +123,7 @@ describe("ApiMethod", () => {
 	it("applies the request body limits on a route with no execution options", () => {
 		applyDecorator(ApiMethod({ metadata: createMetadata() }));
 
-		expect(readHandlerMetadata<Array<unknown>>(INTERCEPTORS_METADATA)).toEqual([RequestBodyShapeInterceptor]);
+		expect(readHandlerMetadata<Array<unknown>>(INTERCEPTORS_METADATA)).toEqual([RequestBodyShapeInterceptor, UuidCanonicalInterceptor]);
 	});
 
 	it("keeps Passport authentication guards compatible with the CanActivate contract", () => {
@@ -190,7 +191,7 @@ describe("ApiMethod", () => {
 		);
 
 		expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([ExecutionGuard, ApiAuthorizationGuard]);
-		expect(readHandlerMetadata<Array<unknown>>(INTERCEPTORS_METADATA)).toEqual([RequestBodyShapeInterceptor, ExecutionInterceptor]);
+		expect(readHandlerMetadata<Array<unknown>>(INTERCEPTORS_METADATA)).toEqual([RequestBodyShapeInterceptor, UuidCanonicalInterceptor, ExecutionInterceptor]);
 		expect(readHandlerMetadata<Array<string>>(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES)).toEqual(["application/vnd.test+json"]);
 		expect(readHandlerMetadata<Array<string>>(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES)).toEqual(["application/vnd.test+json"]);
 		expect(readHandlerMetadata<Array<Record<string, unknown>>>(SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS)).toEqual([

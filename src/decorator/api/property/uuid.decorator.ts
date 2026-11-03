@@ -235,44 +235,19 @@ function buildResponseDecorators(properties: TApiPropertyUuidProperties): Array<
 }
 
 /**
- * Builds the decorator that writes request UUIDs in their canonical lower-case form.
- * An upper-case spelling then names the same resource string, so it cannot pass a `Deny` that names the lower-case UUID.
+ * Builds the decorator that reads a lone request value of an array property as a one-item list.
+ * A request UUID keeps the letter case it was sent in: a route of `ApiMethod` refuses one that is not lower-case before any pipe runs.
  * @param {TApiPropertyUuidProperties} properties - The property configuration
- * @returns {Array<PropertyDecorator>} An array with the lower-casing transformer, empty for responses
+ * @returns {Array<PropertyDecorator>} An array with the list transformer, empty for responses and single values
  * @private
  */
 function buildTransformDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
-	if (properties.isResponse) {
+	if (properties.isResponse || !properties.isArray) {
 		return [];
 	}
 
-	if (properties.isArray) {
-		// A lone value, such as `?ids=<uuid>`, is a one-item list, as for every list type; a comma list is one item, which is rejected.
-		return [
-			ClassTransformerAutomatorTransform(
-				({ value }: { value: unknown }): unknown => {
-					if (value === undefined || value === null) {
-						return value;
-					}
-
-					return (Array.isArray(value) ? value : [value]).map((item: unknown): unknown => lowerCaseUuid(item));
-				},
-				{ toClassOnly: true },
-			),
-		];
-	}
-
-	return [ClassTransformerAutomatorTransform(({ value }: { value: unknown }): unknown => (Array.isArray(value) ? value.map((item: unknown): unknown => lowerCaseUuid(item)) : lowerCaseUuid(value)), { toClassOnly: true })];
-}
-
-/**
- * Lower-cases one request UUID, leaving a non-string value for the validator to reject.
- * @param {unknown} value - Raw request value.
- * @returns {unknown} The lower-case text, or the value itself when it is not a string.
- * @private
- */
-function lowerCaseUuid(value: unknown): unknown {
-	return typeof value === "string" ? value.toLowerCase() : value;
+	// A lone value, such as `?ids=<uuid>`, is a one-item list, as for every list type; a comma list is one item, which is rejected.
+	return [ClassTransformerAutomatorTransform(({ value }: { value: unknown }): unknown => (value === undefined || value === null || Array.isArray(value) ? value : [value]), { toClassOnly: true })];
 }
 
 /**

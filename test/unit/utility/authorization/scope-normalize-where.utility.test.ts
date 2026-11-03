@@ -38,16 +38,18 @@ const entityMetadata: IApiEntity<ScopeNormalizeItemEntity> = GenerateEntityInfor
 
 describe("AuthorizationScopeNormalizeWhere", () => {
 	it("converts scalar scope values with the path value parser of their column", async () => {
-		const where = await AuthorizationScopeNormalizeWhere<ScopeNormalizeItemEntity>({ code: 42 as unknown as string, day: "2024-03-10", id: "16" as unknown as number, ownerId: OWNER_ID.toUpperCase() }, entityMetadata);
+		const where = await AuthorizationScopeNormalizeWhere<ScopeNormalizeItemEntity>({ code: 42 as unknown as string, day: "2024-03-10", id: "16" as unknown as number, ownerId: OWNER_ID }, entityMetadata);
 
 		expect(where).toEqual({ code: "42", day: "2024-03-10", id: 16, ownerId: OWNER_ID });
 	});
 
 	it("turns a value its column cannot hold into a match-nothing operator", async () => {
 		const where = (await AuthorizationScopeNormalizeWhere<ScopeNormalizeItemEntity>({ id: "016" as unknown as number, ownerId: "not-a-uuid" }, entityMetadata)) as Record<string, { _type?: string; _value?: unknown }>;
+		const upperCase = (await AuthorizationScopeNormalizeWhere<ScopeNormalizeItemEntity>({ ownerId: OWNER_ID.toUpperCase() }, entityMetadata)) as Record<string, { _type?: string; _value?: unknown }>;
 
 		expect(where.id).toMatchObject({ _type: "in", _value: [] });
 		expect(where.ownerId).toMatchObject({ _type: "in", _value: [] });
+		expect(upperCase.ownerId).toMatchObject({ _type: "in", _value: [] });
 	});
 
 	it("normalizes every OR branch and keeps operators and undescribed keys as they are", async () => {

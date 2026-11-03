@@ -24,11 +24,11 @@ describe("ApiControllerGetListQueryParseValue", () => {
 		expect(ApiControllerGetListQueryParseValue("1.5", DOUBLE_METADATA)).toBe(1.5);
 	});
 
-	it("lower-cases a uuid, as a database compares either letter case as one value", () => {
-		expect(ApiControllerGetListQueryParseValue("AAAAAAAA-aaaa-4aaa-8aaa-aaaaaaaaaaaa", UUID_METADATA)).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+	it("parses a lower-case uuid as sent", () => {
+		expect(ApiControllerGetListQueryParseValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", UUID_METADATA)).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
 	});
 
-	it.each(["", "not-a-uuid", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa", 1, null])("rejects %j as a uuid", (value: unknown) => {
+	it.each(["", "not-a-uuid", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa", "AAAAAAAA-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA", 1, null])("rejects %j as a uuid", (value: unknown) => {
 		expect(() => ApiControllerGetListQueryParseValue(value, UUID_METADATA)).toThrow("FILTER_NOT_VALID");
 	});
 

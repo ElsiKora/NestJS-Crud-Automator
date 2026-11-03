@@ -73,7 +73,9 @@ describe.each([false, true])("request list and number rules, implicit conversion
 		["counts", "7", [7]],
 		["days", "2024-03-10", ["2024-03-10"]],
 		["flags", "false", [false]],
-		["ids", LIST_UUID.toUpperCase(), [LIST_UUID]],
+		["ids", LIST_UUID, [LIST_UUID]],
+		// The route refuses an upper-case UUID before any pipe; the DTO keeps the letter case it was sent in.
+		["ids", LIST_UUID.toUpperCase(), [LIST_UUID.toUpperCase()]],
 		["names", "abc", ["abc"]],
 		["statuses", "active", ["active"]],
 	])("reads a lone %s value %j as a one-item list", (key: string, sent: string, received: Array<unknown>) => {

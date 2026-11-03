@@ -20,7 +20,7 @@ Describes UUID-based DTO fields and enforces RFC 4122 validation. Supports singl
 
 - Generates a random UUID example for Swagger and sets the appropriate regex pattern/length. The pattern accepts exactly what `IsUUID()` accepts: versions 1 to 8, the nil and max UUIDs, in either letter case.
 - Adds `IsUUID`, presence guards, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
-- Writes request values in lower case, so an upper-case spelling names the same resource in IAM resource strings and in the database. Generated write routes also lower-case the bodies of `UUID` columns without a host pipe, so values are stored lower-case on every database; lower-case existing upper-case values in text columns once (see [Validation](/docs/nestjs-crud-automator/guides/validation#migration-notes)).
+- Keeps a request value in the letter case it was sent in. On a route of `ApiMethod`, a body or query value that is not lower-case returns `400` (`uuidNotCanonical`, `<path> must be a lower-case UUID`) before any pipe or query, because a database reads either letter case as one key while IAM compares text; a path value returns `400` with `pathParameterNotCanonical`. Lower-case existing upper-case values in text columns once (see [Validation](/docs/nestjs-crud-automator/guides/validation#migration-notes)).
 - Marks the Swagger schema with `format: uuid` and sets `example` or `[example]` for arrays.
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
 

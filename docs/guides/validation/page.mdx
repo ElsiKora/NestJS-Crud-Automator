@@ -583,7 +583,7 @@ public summary(@Param("id") id: string): Promise<ItemSummaryDto> {
 
 A custom route declared on a base class is checked and validated for each securable controller that serves it, by that controller's own `resourcePath`. Two subclasses that name different placeholders each get their own rule, and an undescribed placeholder fails the startup of the subclass that names it, whatever the registration order.
 
-UUID values of the entity's `UUID` columns are lower-cased in request bodies of generated `CREATE`, `UPDATE`, and `PARTIAL_UPDATE` routes and in list filters too, so they are stored and compared lower-case on every database.
+A UUID is lower-case in the body and query too. Nothing is lower-cased: on every route of `ApiMethod`, generated or custom, a body or query value that the route's `@Body()` or `@Query()` DTO validates as a UUID (`ApiPropertyUUID`, `ApiPropertyString` with the UUID format, a copied or generated UUID column, a relation sent by its UUID key, or a bare `@IsUUID()`) and that is not lower-case returns `400` with the `uuidNotCanonical` failure, such as `ownerId must be a lower-case UUID` or `items.1.id must be a lower-case UUID`. The check runs after the guards and before any pipe and any query, with or without a host `ValidationPipe`, as an `ApiRequestValidationException` that a host filter translates with `ApiRequestValidationGetErrors` (see [Error Handling](/docs/nestjs-crud-automator/guides/error-handling#translating-request-validation-failures)). Nested DTOs are followed through their `@Type`, and a renamed property is read under its `@Expose` name. A value that is not a UUID at all is left to `IsUUID`. A generated GET_LIST filter on a UUID field returns `400 FILTER_NOT_VALID` for an upper-case value, in `[value]` and in each item of `[values]`.
 
 ### With and Without a Host Pipe
 
@@ -596,8 +596,8 @@ The route enforces some rules itself and leaves others to a host `ValidationPipe
 | GET_LIST query with a configured `filter`, `order`, or `pagination` section | Parsed strictly by the route                                                | Same                                 |
 | GET_LIST query without such a section                                       | Not validated                                                               | Validated by the generated QUERY DTO |
 | Root-level discriminated `@ApiRouteCustom` bodies                           | Validated by Crud Automator with the variant DTO                            | Same; the host pipe skips them       |
-| Other request bodies of generated and custom routes                         | Not validated; UUID columns of generated write bodies are still lower-cased | Validated by the body DTO            |
-| Query DTOs and other path parameters of custom routes                       | Not validated                                                               | Validated by the route's DTO         |
+| Other request bodies of generated and custom routes                         | Not validated, except that a UUID must be lower-case                        | Validated by the body DTO            |
+| Query DTOs and other path parameters of custom routes                       | Not validated, except that a query UUID must be lower-case                  | Validated by the route's DTO         |
 
 The body and query rules in this guide, such as canonical integers and decimal numbers, `true` and `false` only for `BOOLEAN`, a single value for a single-value field, and a one-item list for a lone value of a list field, are what the generated and copied DTOs accept when a host pipe applies them. `BOOLEAN` and `NUMBER` properties check exactly the value the client sent, whatever the `@Expose` name of the property and the conversion options of the pipe: `enableImplicitConversion` does not turn `"false"` into `true`, `"016"` into `16`, or `true` into `1`, and a property exposed as `is_active` rejects `?is_active=no`.
 
@@ -607,7 +607,7 @@ A list field follows one rule for every type (number, integer, boolean, string, 
 
 PARAMETERS transformers, `validators`, and `BEFORE` subscribers can still replace path values, so the route checks the values it is about to use once more after them. A transformer that writes `not-a-uuid` into a `UUID` key gets the `400`, not a database error.
 
-Scope values from HOOKS or IAM that are merged against a column, such as `{ id: "16" }` from a literal `StringEquals` condition, are converted with the same parser before they merge with the typed path values. A scope value the column cannot hold becomes a match-nothing condition.
+Scope values from HOOKS or IAM that are merged against a column, such as `{ id: "16" }` from a literal `StringEquals` condition, are converted with the same parser before they merge with the typed path values. A scope value the column cannot hold, an upper-case UUID included, becomes a match-nothing condition.
 
 The OpenAPI path parameters come from the same DTO, so they state the type and format: `string` with `format: uuid` and a pattern matching `IsUUID()` for a `UUID` column, and `integer` with `format`, `minimum`, and `maximum` for a `NUMBER` column. Describe the real range of the column: an integer `NUMBER` whose bounds leave the safe integer range fails at startup, and a `bigint` column is described only as `EApiPropertyStringType.BIGINT_STRING`.
 
@@ -660,7 +660,7 @@ Check your application:
 - Integer text is accepted only in canonical form: in path values and list filters always, and in query DTOs and request bodies under a host pipe. `016`, `0x10`, `16.0`, `1.6e1`, `1e3`, and `007` now return `400`.
 - An integer `NUMBER` property with `maximum` above `Number.MAX_SAFE_INTEGER` or `minimum` below `Number.MIN_SAFE_INTEGER` fails at startup with an error that names `BIGINT_STRING`. Describe `bigint` columns as `EApiPropertyStringType.BIGINT_STRING`. `NUMBER_CONSTANT.MAX_BIGINT` and `NUMBER_CONSTANT.MIN_BIGINT` are removed.
 - `DATE` request values (path, query DTO, body) stay validated `YYYY-MM-DD` strings instead of becoming `Date`, so a date-only `pathScope` value matches its row in every server time zone. `TIME` values stay strings too. Only `DATE_TIME` values become `Date`.
-- An upper-case UUID path value on a `uuid` column or a column described as `UUID` returns `400` (`pathParameterNotCanonical`, `id must be a lower-case UUID`) instead of being lower-cased: send the lower-case UUID. Request UUIDs are lower-cased in list filters and the bodies of generated write routes, and they are stored lower-case. A PostgreSQL `uuid` column needs nothing. A column described as `UUID` but stored as text (`varchar`, `char`, or any SQLite column) that already holds upper-case values must be lower-cased once, or those rows cannot be read through a path or filter any more:
+- An upper-case UUID path value on a `uuid` column or a column described as `UUID` returns `400` (`pathParameterNotCanonical`, `id must be a lower-case UUID`) instead of being lower-cased: send the lower-case UUID. From 5.0.1 a body or query UUID that is not lower-case returns `400` too (`uuidNotCanonical`), and a list filter returns `400 FILTER_NOT_VALID`; 5.0.0 lower-cased them silently. Send lower-case UUIDs. A PostgreSQL `uuid` column needs nothing. A column described as `UUID` but stored as text (`varchar`, `char`, or any SQLite column) that already holds upper-case values must be lower-cased once, or those rows cannot be read through a path or filter any more:
 
   ```sql
   UPDATE items SET id = lower(id) WHERE id <> lower(id);

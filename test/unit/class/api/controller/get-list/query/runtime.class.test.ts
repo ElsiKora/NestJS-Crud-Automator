@@ -606,14 +606,16 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(((where.owner as { name?: FindOperator<string> }).name as FindOperator<string>).value).toBe("Owner");
 	});
 
-	it("compares UUID filter values in lower case, as they are stored", () => {
+	it("compares lower-case UUID filter values as sent, and refuses any other letter case", () => {
 		const plan = compilePlan({ externalId: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN], isEnabled: true } });
 		const externalId = "123e4567-e89b-12d3-a456-426614174000";
-		const single = ApiControllerGetListQueryRuntime.parse({ "externalId[operator]": EFilterOperation.EQ, "externalId[value]": externalId.toUpperCase(), limit: 10, page: 1 }, plan);
-		const membership = ApiControllerGetListQueryRuntime.parse({ "externalId[operator]": EFilterOperation.IN, "externalId[values]": [externalId.toUpperCase(), "123E4567-e89b-12D3-a456-426614174001"], limit: 10, page: 1 }, plan);
+		const single = ApiControllerGetListQueryRuntime.parse({ "externalId[operator]": EFilterOperation.EQ, "externalId[value]": externalId, limit: 10, page: 1 }, plan);
+		const membership = ApiControllerGetListQueryRuntime.parse({ "externalId[operator]": EFilterOperation.IN, "externalId[values]": [externalId, "123e4567-e89b-12d3-a456-426614174001"], limit: 10, page: 1 }, plan);
 
 		expect(single.ast?.nodes).toEqual([expect.objectContaining({ path: "externalId", value: externalId })]);
 		expect(membership.ast?.nodes).toEqual([expect.objectContaining({ path: "externalId", values: [externalId, "123e4567-e89b-12d3-a456-426614174001"] })]);
+		expect(() => ApiControllerGetListQueryRuntime.parse({ "externalId[operator]": EFilterOperation.EQ, "externalId[value]": externalId.toUpperCase(), limit: 10, page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ "externalId[operator]": EFilterOperation.IN, "externalId[values]": [externalId, "123E4567-e89b-12D3-a456-426614174001"], limit: 10, page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
 	});
 
 	it.each(["1", "0", "TRUE", "no"])("rejects the BOOLEAN filter text %s", (value: string) => {

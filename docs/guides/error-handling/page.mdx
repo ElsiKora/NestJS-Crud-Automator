@@ -343,7 +343,7 @@ The rules for `cause` in [Reading the Original Failure](#reading-the-original-fa
 
 ## Translating Request Validation Failures
 
-A check that runs ahead of the pipe, such as the [request body limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits) or the [path value check](/docs/nestjs-crud-automator/guides/validation#generated-route-path-parameters) of `ApiAuthorizationGuard`, never reaches your `ValidationPipe` `exceptionFactory`. Neither does the check of a date and time primary key in a generated `CREATE` body, which runs after the pipe. It throws `ApiRequestValidationException` instead, a `BadRequestException` whose response is the usual message list and whose `validationErrors` holds the failures, so a host with its own error contract can translate it.
+A check that runs ahead of the pipe, such as the [request body limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits), the lower-case check of a body or query UUID, or the [path value check](/docs/nestjs-crud-automator/guides/validation#generated-route-path-parameters) of `ApiAuthorizationGuard`, never reaches your `ValidationPipe` `exceptionFactory`. Neither does the check of a date and time primary key in a generated `CREATE` body, which runs after the pipe. It throws `ApiRequestValidationException` instead, a `BadRequestException` whose response is the usual message list and whose `validationErrors` holds the failures, so a host with its own error contract can translate it.
 
 `ApiRequestValidationGetErrors(exception)` returns those failures from the exception or from its `cause` chain, so it also finds one that `CorrelationIDResponseBodyInterceptor` wrapped. For any other thrown value it returns `undefined`. Build your own exception from them and pass it through `CorrelationIDNormalizeException`:
 
@@ -401,6 +401,7 @@ Each failure is a class-validator `ValidationError` with `constraints` and `prop
 | `requestBodyNulCharacter`         | A string or key in the body holds a NUL character                                                                   |
 | `requestPropertyRenamed`          | A body or query sends a renamed property under its property key                                                     |
 | `whitelistValidation`             | A CREATE body references existing rows through a `OneToMany` or inverse `OneToOne` relation                         |
+| `uuidNotCanonical`                | A UUID in the body or query is not lower-case                                                                       |
 | `pathParameterNotCanonical`       | Integer text of a path value is not canonical, such as `016` or `-0`, or a UUID path value is upper-case            |
 | `pathParameterNoText`             | A route's PARAMETERS DTO gives a path value no text authorization can read                                          |
 | `pathParameterConversionMismatch` | That DTO gives a path value other text with and without implicit conversion                                         |
@@ -411,7 +412,7 @@ Each failure is a class-validator `ValidationError` with `constraints` and `prop
 | `createKeyFinerThanColumn`        | That key holds more fractional second digits than its column stores                                                 |
 | `createKeyRepeatedHour`           | That key falls in the second occurrence of an hour a daylight saving change repeats, on a wall clock column         |
 
-For a body limit, `property` is the dotted path in the body, such as `payload.items.1`, and is empty for the body itself; for a path value it is the path parameter name; for a `CREATE` key it is the key's property path, such as `at` or `key.at`, with one failure per refused key. For a reserved key it ends with the key; for a NUL in a key it stops at the object that holds the key. For `requestPropertyRenamed` it is the property key alone, without its path. That failure is thrown while the pipe converts the request, before it validates, so `exceptionFactory` does not see it either. The path holds keys the client sent, so do not put it in a response. The constraint names are stable, so translate those.
+For a body limit, `property` is the dotted path in the body, such as `payload.items.1`, and is empty for the body itself; for `uuidNotCanonical` it is the dotted path of the value in the body, such as `parentId` or `items.0.id`, or the query parameter name, under its `@Expose` name, with one failure per refused value; for a path value it is the path parameter name; for a `CREATE` key it is the key's property path, such as `at` or `key.at`, with one failure per refused key. For a reserved key it ends with the key; for a NUL in a key it stops at the object that holds the key. For `requestPropertyRenamed` it is the property key alone, without its path. That failure is thrown while the pipe converts the request, before it validates, so `exceptionFactory` does not see it either. The path holds keys the client sent, so do not put it in a response. The constraint names are stable, so translate those.
 
 ## Logging Errors
 

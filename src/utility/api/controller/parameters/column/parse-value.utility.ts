@@ -12,11 +12,13 @@ import { validate } from "class-validator";
 
 import { ApiControllerParametersConvert } from "../convert.utility";
 
+import { ApiControllerParametersIsUuidColumn } from "./uuid-type.utility";
+
 const columnValueDtoCache: WeakMap<object, Map<string, null | Type<unknown>>> = new WeakMap<object, Map<string, null | Type<unknown>>>();
 
 /**
  * Parses one value for an entity column with the same decorators that validate and convert a path value of that column.
- * The value is parsed from its string form, so `"16"` and `16` both become `16` for an integer NUMBER column and `"016"` is rejected the same way as in a path.
+ * The value is parsed from its string form, so `"16"` and `16` both become `16` for an integer NUMBER column, and `"016"` and a UUID that is not lower-case are rejected the same way as in a path.
  * @template E - Entity type that owns the column.
  * @param {IApiEntity<E>} entityMetadata - Entity metadata.
  * @param {string} columnName - Entity property name.
@@ -32,8 +34,12 @@ export async function ApiControllerParametersParseColumnValue<E>(entityMetadata:
 
 	const instance: object = ApiControllerParametersConvert(dto, { [columnName]: String(value) });
 	const errors: Array<ValidationError> = await validate(instance);
+	const converted: unknown = Reflect.get(instance, columnName);
+	const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === columnName);
+	// A UUID is canonical only in lower case, as in a path.
+	const isCanonical: boolean = typeof converted !== "string" || !column || !ApiControllerParametersIsUuidColumn(column as IApiEntityColumn<unknown>) || converted === converted.toLowerCase();
 
-	return { isDescribed: true, isValid: errors.length === 0, value: Reflect.get(instance, columnName) };
+	return { isDescribed: true, isValid: errors.length === 0 && isCanonical, value: converted };
 }
 
 /**

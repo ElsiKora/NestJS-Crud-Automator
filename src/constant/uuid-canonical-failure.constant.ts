@@ -1,0 +1,3 @@
+export const UUID_CANONICAL_FAILURE_CONSTANT: { NOT_CANONICAL_CONSTRAINT: string } = {
+	NOT_CANONICAL_CONSTRAINT: "uuidNotCanonical",
+} as const;

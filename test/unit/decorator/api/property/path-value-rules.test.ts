@@ -109,8 +109,8 @@ describe("path value rules of property decorators", () => {
 		}
 	});
 
-	it("writes request UUIDs in lower case", () => {
-		expect(plainToInstance(PathValueUuidDto, { id: "550E8400-E29B-41D4-A716-446655440000" }).id).toBe("550e8400-e29b-41d4-a716-446655440000");
+	it("keeps a request UUID in the letter case it was sent in, for the route to refuse", () => {
+		expect(plainToInstance(PathValueUuidDto, { id: "550E8400-E29B-41D4-A716-446655440000" }).id).toBe("550E8400-E29B-41D4-A716-446655440000");
 	});
 
 	it.each(["016", " 16", "%2016", "0x10", "16.0", "1.6e1", "1e3", "007", "+16", "16 ", "", "Infinity"])("rejects the non-canonical integer text %j", (value: string) => {

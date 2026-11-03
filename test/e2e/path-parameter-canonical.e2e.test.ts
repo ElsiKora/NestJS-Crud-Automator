@@ -108,7 +108,7 @@ const SENT_LIST_CASES: Array<[string, Record<string, unknown> | undefined]> = [
 	["counts=007", undefined],
 	["flags=false", { flags: [false] }],
 	["flags=true,false", undefined],
-	[`ids=${LIST_UUID.toUpperCase()}`, { ids: [LIST_UUID] }],
+	[`ids=${LIST_UUID}`, { ids: [LIST_UUID] }],
 	[`ids=${LIST_UUID},${LIST_UUID}`, undefined],
 	["names=abc", { names: ["abc"] }],
 	["names=ab,cd", undefined],
@@ -265,15 +265,23 @@ describe.each([
 		await expectStatus("/path-parameter/canonical/narrow/016", HttpStatus.BAD_REQUEST);
 	});
 
-	it("stores a UUID body value lower-case, and refuses an upper-case path value instead of reading it as that key", async () => {
-		const created: { id: string } = (await expectStatus("/path-parameter/canonical/text-uuid", HttpStatus.CREATED, "POST", { label: "created", ownerId: UPPER_TEXT_UUID })) as { id: string };
+	it("refuses an upper-case UUID in a body or a path instead of lower-casing it, and stores a lower-case one as sent", async () => {
 		const repository = app!.get(E2ePathParameterCanonicalTextUuidItemService).repository;
+		const rowCount: number = await repository.count();
+
+		expect(await expectStatus("/path-parameter/canonical/text-uuid", HttpStatus.BAD_REQUEST, "POST", { label: "created", ownerId: UPPER_TEXT_UUID })).toMatchObject({ message: ["ownerId must be a lower-case UUID"] });
+		expect(await repository.count()).toBe(rowCount);
+
+		const created: { id: string } = (await expectStatus("/path-parameter/canonical/text-uuid", HttpStatus.CREATED, "POST", { label: "created", ownerId: UPPER_TEXT_UUID.toLowerCase() })) as { id: string };
 
 		expect(await repository.findOneBy({ id: created.id })).toMatchObject({ ownerId: UPPER_TEXT_UUID.toLowerCase() });
 		expect(await expectStatus(`/path-parameter/canonical/text-uuid/${created.id}`, HttpStatus.OK)).toMatchObject({ id: created.id, ownerId: UPPER_TEXT_UUID.toLowerCase() });
 		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id.toUpperCase()}`, HttpStatus.BAD_REQUEST);
 		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id.toUpperCase()}`, HttpStatus.BAD_REQUEST, "PATCH", { ownerId: E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID });
-		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id}`, HttpStatus.OK, "PATCH", { ownerId: E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase() });
+		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id}`, HttpStatus.BAD_REQUEST, "PATCH", { ownerId: E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase() });
+
+		expect(await repository.findOneBy({ id: created.id })).toMatchObject({ ownerId: UPPER_TEXT_UUID.toLowerCase() });
+		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id}`, HttpStatus.OK, "PATCH", { ownerId: E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID });
 
 		expect(await repository.findOneBy({ id: created.id })).toMatchObject({ ownerId: E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID });
 	});
@@ -380,13 +388,18 @@ describe.each([
 		expect({ body: response.json(), status: response.statusCode }).toEqual(received === undefined ? { body: expect.anything(), status: HttpStatus.BAD_REQUEST } : { body: { value: JSON.stringify(received) }, status: HttpStatus.OK });
 	});
 
-	it("filters a UUID text column by the lower-case value it stores", async () => {
+	it("filters a UUID text column by the lower-case value it stores, and refuses an upper-case filter value", async () => {
 		const ownerId: string = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 		await app!.get(E2ePathParameterCanonicalTextUuidItemService).repository.save({ label: "filtered", ownerId });
 
-		const list: { items: Array<{ ownerId: string }> } = (await expectStatus(`/path-parameter/canonical/text-uuid?ownerId[operator]=eq&ownerId[value]=${ownerId.toUpperCase()}&limit=10&page=1`, HttpStatus.OK)) as { items: Array<{ ownerId: string }> };
+		const list: { items: Array<{ ownerId: string }> } = (await expectStatus(`/path-parameter/canonical/text-uuid?ownerId[operator]=eq&ownerId[value]=${ownerId}&limit=10&page=1`, HttpStatus.OK)) as { items: Array<{ ownerId: string }> };
 
 		expect(list.items).toEqual([expect.objectContaining({ ownerId })]);
+		await expectStatus(`/path-parameter/canonical/text-uuid?ownerId[operator]=eq&ownerId[value]=${ownerId.toUpperCase()}&limit=10&page=1`, HttpStatus.BAD_REQUEST);
+	});
+
+	it("refuses an upper-case UUID in a custom route query with or without a host pipe", async () => {
+		expect(await expectStatus(`/path-parameter/canonical/sent-value/list?ids=${LIST_UUID.toUpperCase()}`, HttpStatus.BAD_REQUEST)).toMatchObject({ message: ["ids must be a lower-case UUID"] });
 	});
 
 	it("leaves the raw path text to a guard that runs before authorization", async () => {

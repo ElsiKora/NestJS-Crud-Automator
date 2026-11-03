@@ -37,6 +37,7 @@ import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-lis
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
@@ -66,9 +67,9 @@ import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/rej
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData, ApiControllerTransformRouteData } from "@utility/api/controller/transform-data.utility";
 import { ApiControllerValidateRequest } from "@utility/api/controller/validate-request.utility";
-import { ApiControllerWriteLowerCaseUuid } from "@utility/api/controller/write/lower-case-uuid.utility";
 import { ApiRouteProjectRelationResponse, ApiRouteValidationFlattenErrors } from "@utility/api/route";
 import { ApiRouteCreateDiscriminatedDtoValidationFailure, ApiRouteIsDiscriminatedDtoProperties, ApiRoutePrepareDiscriminatedDtoPayload, ApiRouteResolveDiscriminatedDto, ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
+import { ApiRouteGetNonCanonicalUuidFailures } from "@utility/api/route/get-non-canonical-uuid-failures.utility";
 import { ApiRouteResponseIsListEnvelope } from "@utility/api/route/response/is-list-envelope.utility";
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
@@ -377,6 +378,12 @@ export class ApiRouteRuntime {
 		}
 
 		if (selectedDto) {
+			const uuidFailures: Array<ValidationError> = ApiRouteGetNonCanonicalUuidFailures(selectedDto, request.body, "");
+
+			if (uuidFailures.length > 0) {
+				throw new ApiRequestValidationException(uuidFailures);
+			}
+
 			transformedBody = plainToInstance(selectedDto as ClassConstructor<unknown>, ApiRoutePrepareDiscriminatedDtoPayload(bodyDto, request.body), bodyDto.transformOptions);
 			validationErrors = await validate(transformedBody as object, bodyDto.validatorOptions);
 		}
@@ -701,7 +708,6 @@ export class ApiRouteRuntime {
 
 			if (target === EApiControllerRequestTarget.BODY) {
 				ApiControllerTransformRouteData<E>(transformTargets, options.properties, { body: targets.body }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
-				ApiControllerWriteLowerCaseUuid<E>(options.entityMetadata, targets.body);
 				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, (targets.body ?? {}) as Partial<E>);
 			}
 		}

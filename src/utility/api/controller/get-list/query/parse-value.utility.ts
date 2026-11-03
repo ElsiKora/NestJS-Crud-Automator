@@ -6,7 +6,8 @@ import { EnumValues } from "@utility/enum/values.utility";
 import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
 import { NumberParseCanonicalDecimal, NumberParseCanonicalInteger } from "@utility/number";
 
-const UUID_VALUE_PATTERN: RegExp = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/iu;
+// Lower case only: a database reads an upper-case UUID as the lower-case one, while IAM compares text.
+const UUID_VALUE_PATTERN: RegExp = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/u;
 
 /**
  * Parses one GET_LIST filter value into the value the query binds, by the describe kind of its field.
@@ -96,7 +97,7 @@ export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Re
 
 		case EApiPropertyDescribeType.UUID: {
 			if (typeof value === "string" && UUID_VALUE_PATTERN.test(value)) {
-				return value.toLowerCase();
+				return value;
 			}
 
 			break;
