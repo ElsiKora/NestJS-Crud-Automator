@@ -565,6 +565,26 @@ export class PostController {
 }
 ```
 
+## IAM Policy Document Save Validation
+
+```ts
+@Injectable()
+@ApiRouteSubscriber<PolicyEntity>({ entity: PolicyEntity, routes: [EApiRouteType.CREATE] })
+export class PolicySaveSubscriber extends ApiRouteSubscriberBase<PolicyEntity> {
+	private readonly validator: ApiAuthorizationIamDocumentValidator = new ApiAuthorizationIamDocumentValidator();
+
+	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PolicyEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PolicyEntity>["result"]> {
+		// 400 with one `AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT` code per path, such as
+		// `document.Statement[0].Condition.StringLike` → `iamPolicyNotSupportedYet`.
+		this.validator.assertSavable(context.result.body.document, { namespace: context.result.body.namespace });
+
+		return context.result;
+	}
+}
+```
+
+Run it after bootstrap: `resource.*` keys are checked against the `resourceDefinition` fields every IAM controller of the namespace registered. On a DTO, `@IsApiPolicyDocument({ namespace: "admin:item" })` runs the same check as one `isApiPolicyDocument` constraint.
+
 ## Function Subscriber
 
 ```ts
