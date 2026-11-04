@@ -230,7 +230,7 @@ describe("ApiAuthorizationIamEngine", () => {
 		});
 
 		it.each([
-			["an operator the engine does not evaluate yet", { StringLike: { "principal.id": "other*" } }, "iamPolicyNotSupportedYet"],
+			["a form the engine does not evaluate yet", { StringEquals: { "principal.id": ["a", "b"] } }, "iamPolicyNotSupportedYet"],
 			["an unknown operator", { StringMatches: { "principal.id": "other" } }, "iamPolicyConditionOperatorUnknown"],
 			["an unknown key", { StringEquals: { "user.id": "other" } }, "iamPolicyConditionKeyUnknown"],
 			["a whole-resource variable", { StringEquals: { "principal.attributes.missing": "${resource}" } }, "iamPolicyVariableUnknown"],
@@ -309,7 +309,7 @@ describe("ApiAuthorizationIamEngine", () => {
 
 		it("keeps policies without a resource variable unchanged", async () => {
 			const allowDecision = await evaluate({ statements: [{ ...allowAll, Condition: { StringEquals: { "principal.attributes.operatorId": "operator-1" } } }] });
-			const denyDecision = await evaluate({ statements: [allowAll, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "${principal.attributes.missing}" } } })] });
+			const denyDecision = await evaluate({ statements: [allowAll, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "other" } } })] });
 			const scopeDecision = await evaluate({ statements: [allowOwnOperator] });
 
 			expect(allowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
@@ -330,11 +330,65 @@ describe("ApiAuthorizationIamEngine", () => {
 	});
 
 	describe("Allow compilation", () => {
-		it.each(["StringNotEquals", "StringNotEqualsIfExists"])("leaves an Allow with a %s resource key unmatched", async (operator: string) => {
+		it.each(["StringNotEquals", "StringNotEqualsIfExists"])("compiles an Allow with a %s resource key to its rows, NULL among them", async (operator: string) => {
 			const decision = await evaluate({ statements: [{ ...allowAll, Condition: { [operator]: { "resource.status": "archived" } } }] });
 
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect(decision.scope).toEqual({ where: [{ status: Not(Equal("archived")) }, { status: IsNull() }] });
+		});
+
+		it("leaves an Allow with an unresolved variable unmatched, where a missing value once compared as empty text", async () => {
+			const decision = await evaluate({ statements: [{ ...allowAll, Condition: { StringEquals: { "principal.attributes.missing": "${principal.attributes.missing2}" } } }] });
+
 			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
-			expect(decision.trace.statements?.[0]?.isMatched).toBe(false);
+		});
+
+		it("holds a Deny with an unresolved variable, which fails closed", async () => {
+			const decision = await evaluate({ statements: [allowAll, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "${principal.attributes.missing}" } } })] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("takes the default of a variable that does not resolve", async () => {
+			const decision = await evaluate({ statements: [allowAll, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "${principal.attributes.missing, 'nobody'}" } } })] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+		});
+
+		it("resolves a variable in a Resource pattern for each request, and an Allow whose variable is missing grants nothing", async () => {
+			const statements: Array<IApiPolicyStatement> = [{ ...allowAll, Resource: ["gameport:admin:item/${principal.attributes.itemId}"] }];
+			const read: { action: string; requestMetadata: IApiAuthorizationRequestMetadata<EngineItemEntity>; routeType: EApiRouteType } = { action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET };
+
+			expect((await evaluate({ ...read, principal: { ...principal, attributes: { itemId: "item-1" } }, statements })).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect((await evaluate({ ...read, principal: { ...principal, attributes: { itemId: "item-2" } }, statements })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await evaluate({ ...read, principal: { ...principal, attributes: {} }, statements })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		});
+
+		it("denies the whole request for a Deny whose Resource variable is missing", async () => {
+			const decision = await evaluate({ statements: [allowAll, deny({ Resource: ["gameport:admin:item/${principal.attributes.missing}"] })] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("reads a wildcard a variable holds as literal text", async () => {
+			const statements: Array<IApiPolicyStatement> = [{ ...allowAll, Resource: ["gameport:admin:item/${principal.attributes.itemId}"] }];
+			const decision = await evaluate({ action: "admin:item:read", principal: { ...principal, attributes: { itemId: "*" } }, requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		});
+
+		it("reads request.time and request.sourceIp as context keys", async () => {
+			const requestMetadata: IApiAuthorizationRequestMetadata<EngineItemEntity> = { ip: "10.1.2.3", time: new Date("2024-06-01T00:00:00.000Z") };
+
+			expect((await evaluate({ requestMetadata, statements: [{ ...allowAll, Condition: { DateLessThan: { "request.time": "2025-01-01T00:00:00Z" }, IpAddress: { "request.sourceIp": "10.0.0.0/8" } } }] })).effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await evaluate({ requestMetadata, statements: [{ ...allowAll, Condition: { DateGreaterThan: { "request.time": "2025-01-01T00:00:00Z" } } }] })).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await evaluate({ requestMetadata, statements: [{ ...allowAll, Condition: { NotIpAddress: { "request.sourceIp": "10.0.0.0/8" } } }] })).effect).toBe(EApiPolicyEffect.DENY);
+		});
+
+		it("takes the time of the request when the caller gives none", async () => {
+			const decision = await evaluate({ statements: [{ ...allowAll, Condition: { DateGreaterThan: { "request.time": "2000-01-01T00:00:00Z" } } }] });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
 		});
 	});
 

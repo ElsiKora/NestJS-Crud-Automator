@@ -110,8 +110,8 @@ const OPERATOR_PATH_CASES: Array<[string, Array<string>]> = [
 	["dialu:item/not-a-uuid", ALL_ROWS],
 ];
 
-// String operators on numeric columns: the list answers 403 before any row is read, and no loaded row is allowed.
-const FAIL_CLOSED_CASES: Array<[string, IPolicyCase]> = [
+// String operators on numeric columns do not fit the column: the grammar refuses the document, so a request answers 500.
+const MISFIT_CASES: Array<[string, IPolicyCase]> = [
 	['Allow StringEquals rank "1"', allow("StringEquals", "rank", "1")],
 	["Allow StringEquals rank ${principal.attributes.rank}", allow("StringEquals", "rank", "${principal.attributes.rank}")],
 	['Deny StringEquals price "1.5"', deny("StringEquals", "price", "1.5")],
@@ -262,12 +262,12 @@ describe.each<{ database: TDatabase; databaseName: string; dialect: EApiAuthoriz
 		expect(await listIds(ITEMS)).toEqual({ ids: kept, statusCode: HttpStatus.OK });
 	});
 
-	it.each(FAIL_CLOSED_CASES)("answers 403 on every route for %s", async (_name: string, policyCase: IPolicyCase) => {
+	it.each(MISFIT_CASES)("refuses the document for %s", async (_name: string, policyCase: IPolicyCase) => {
 		policy = policyCase;
 
-		expect(await listIds(ITEMS)).toEqual({ ids: [], statusCode: HttpStatus.FORBIDDEN });
-		// A loaded row fails closed in memory too.
-		expect(await allowedInMemory(E2E_IAM_DIALECT_ITEM_AUTHORIZATION)).toEqual([]);
+		expect(await listIds(ITEMS)).toEqual({ ids: [], statusCode: HttpStatus.INTERNAL_SERVER_ERROR });
+		// A simulated request reads the same document.
+		await expect(allowedInMemory(E2E_IAM_DIALECT_ITEM_AUTHORIZATION)).rejects.toThrow("iamPolicyConditionKeyTypeMismatch");
 	});
 
 	it.each(NO_ROW_CASES)("allows no row, listed or loaded, for %s", async (_name: string, policyCase: IPolicyCase) => {

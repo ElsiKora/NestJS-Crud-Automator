@@ -1,8 +1,8 @@
-import type { IApiAuthorizationIamCondition, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamCondition, IApiAuthorizationIamNetwork, IApiAuthorizationIamOperand, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamPredicate } from "@type/class/api/authorization/iam";
 
-import { ApiAuthorizationIamPredicateBuilder } from "@class/api/authorization/iam";
-import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamTokenType, EApiPolicyConditionOperator, EApiPolicyConditionOperatorFamily } from "@enum/class/authorization";
+import { ApiAuthorizationIamDecimal, ApiAuthorizationIamGlob, ApiAuthorizationIamNetwork, ApiAuthorizationIamOperator, ApiAuthorizationIamParser, ApiAuthorizationIamPredicateBuilder, ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam";
+import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType, EApiPolicyConditionOperator, EApiPolicyConditionOperatorFamily } from "@enum/class/authorization";
 import { createIamLowererColumn } from "@test/unit/class/api/authorization/iam/fixture/lowerer";
 import { describe, expect, it } from "vitest";
 
@@ -34,6 +34,50 @@ function evaluateSql(predicate: TApiAuthorizationIamPredicate, row: TRow): boole
 			return results.includes(false) ? false : results.includes(undefined) ? undefined : true;
 		}
 
+		case EApiAuthorizationIamPredicateKind.ARN: {
+			const value: null | string | undefined = row[predicate.column.queryPath];
+
+			return value === null || value === undefined ? undefined : ApiAuthorizationIamGlob.isSegmentMatched(predicate.pattern, value) !== predicate.isNegated;
+		}
+
+		case EApiAuthorizationIamPredicateKind.COMPARE: {
+			const value: null | string | undefined = row[predicate.column.queryPath];
+
+			if (value === null || value === undefined) {
+				return undefined;
+			}
+
+			const order: number = predicate.comparison === EApiAuthorizationIamPredicateComparison.DATE ? Math.sign(Date.parse(value) - Date.parse(predicate.value)) : ApiAuthorizationIamDecimal.compare(ApiAuthorizationIamDecimal.parse(value) ?? { scale: 0, unscaled: 0n }, ApiAuthorizationIamDecimal.parse(predicate.value) ?? { scale: 0, unscaled: 0n });
+
+			switch (predicate.operator) {
+				case EApiAuthorizationIamPredicateOperator.EQUAL: {
+					return order === 0;
+				}
+
+				case EApiAuthorizationIamPredicateOperator.GREATER_THAN: {
+					return order > 0;
+				}
+
+				case EApiAuthorizationIamPredicateOperator.GREATER_THAN_EQUAL: {
+					return order >= 0;
+				}
+
+				case EApiAuthorizationIamPredicateOperator.LESS_THAN: {
+					return order < 0;
+				}
+
+				case EApiAuthorizationIamPredicateOperator.LESS_THAN_EQUAL: {
+					return order <= 0;
+				}
+
+				case EApiAuthorizationIamPredicateOperator.NOT_EQUAL: {
+					return order !== 0;
+				}
+			}
+
+			break;
+		}
+
 		case EApiAuthorizationIamPredicateKind.FALSE: {
 			return false;
 		}
@@ -45,7 +89,23 @@ function evaluateSql(predicate: TApiAuthorizationIamPredicate, row: TRow): boole
 				return undefined;
 			}
 
+			if (predicate.comparison === EApiAuthorizationIamPredicateComparison.TEXT_IGNORE_CASE) {
+				return predicate.values.includes(ApiAuthorizationIamOperator.foldCase(value)) !== predicate.isNegated;
+			}
+
+			if (predicate.comparison === EApiAuthorizationIamPredicateComparison.BOOLEAN) {
+				return predicate.values.includes(value === "true") !== predicate.isNegated;
+			}
+
 			return predicate.values.includes(value) !== predicate.isNegated;
+		}
+
+		case EApiAuthorizationIamPredicateKind.IP_CONTAINED: {
+			const value: null | string | undefined = row[predicate.column.queryPath];
+			const range: IApiAuthorizationIamNetwork | undefined = ApiAuthorizationIamNetwork.parse(predicate.range);
+			const network: IApiAuthorizationIamNetwork | undefined = ApiAuthorizationIamNetwork.parse(value ?? "");
+
+			return !range || !network ? undefined : ApiAuthorizationIamNetwork.isContained(range, network) !== predicate.isNegated;
 		}
 
 		case EApiAuthorizationIamPredicateKind.IS_NULL: {
@@ -54,9 +114,8 @@ function evaluateSql(predicate: TApiAuthorizationIamPredicate, row: TRow): boole
 
 		case EApiAuthorizationIamPredicateKind.LIKE: {
 			const value: null | string | undefined = row[predicate.column.queryPath];
-			const prefix: string = predicate.pattern[0]?.value ?? "";
 
-			return value === null || value === undefined ? undefined : value.startsWith(prefix) !== predicate.isNegated;
+			return value === null || value === undefined ? undefined : ApiAuthorizationIamGlob.isMatched(predicate.pattern, value) !== predicate.isNegated;
 		}
 
 		case EApiAuthorizationIamPredicateKind.NOT_NULL: {
@@ -89,7 +148,98 @@ const ROWS: Array<{ isMissing: boolean; row: TRow; text: string }> = [
 	{ isMissing: false, row: { "owner.id": "o1", "owner.name": "" }, text: "" },
 ];
 
+// One operator family: its column, its positive and negated operators, the operand, and the non-NULL values a row may hold.
+interface IOperatorCase {
+	family: EApiAuthorizationIamColumnFamily;
+	operators: ReadonlyArray<string>;
+	operand: string;
+	type?: string;
+	values: ReadonlyArray<string>;
+}
+
+const OPERATOR_CASES: ReadonlyArray<IOperatorCase> = [
+	{ family: EApiAuthorizationIamColumnFamily.TEXT, operand: "ann", operators: ["StringEquals", "StringNotEquals"], values: ["", "ann", "ANN", "bob"] },
+	{ family: EApiAuthorizationIamColumnFamily.TEXT, operand: "AnN", operators: ["StringEqualsIgnoreCase", "StringNotEqualsIgnoreCase"], values: ["", "ann", "ANN", "bob", "ÀNN"] },
+	{ family: EApiAuthorizationIamColumnFamily.TEXT, operand: "a*", operators: ["StringLike", "StringNotLike"], values: ["", "a", "ann", "bob"] },
+	{ family: EApiAuthorizationIamColumnFamily.TEXT, operand: "*", operators: ["StringLike", "StringNotLike"], values: ["", "ann"] },
+	{ family: EApiAuthorizationIamColumnFamily.TEXT, operand: "arn:aws:s3:*:bucket", operators: ["ArnEquals", "ArnNotEquals", "ArnLike", "ArnNotLike"], values: ["", "arn:aws:s3:eu:bucket", "arn:aws:s3:eu:x:bucket", "arn:aws:s3::bucket", "bucket"] },
+	{ family: EApiAuthorizationIamColumnFamily.NUMERIC, operand: "10", operators: ["NumericEquals", "NumericNotEquals", "NumericLessThan", "NumericLessThanEquals", "NumericGreaterThan", "NumericGreaterThanEquals"], type: "numeric", values: ["9", "10", "10.0", "10.5", "11", "-10"] },
+	{ family: EApiAuthorizationIamColumnFamily.DATE, operand: "2024-01-01T10:00:00.000Z", operators: ["DateEquals", "DateNotEquals", "DateLessThan", "DateLessThanEquals", "DateGreaterThan", "DateGreaterThanEquals"], type: "timestamptz", values: ["2024-01-01T09:59:59.999Z", "2024-01-01T10:00:00.000Z", "2024-01-01T12:00:00.000+02:00", "2024-01-01T10:00:00.001Z"] },
+	{ family: EApiAuthorizationIamColumnFamily.DATE, operand: "2024-01-02", operators: ["DateEquals", "DateNotEquals", "DateLessThan", "DateGreaterThanEquals"], type: "date", values: ["2024-01-01", "2024-01-02", "2024-01-03"] },
+	{ family: EApiAuthorizationIamColumnFamily.BOOLEAN, operand: "true", operators: ["Bool"], type: "boolean", values: ["true", "false"] },
+	{ family: EApiAuthorizationIamColumnFamily.NETWORK, operand: "10.0.0.0/8", operators: ["IpAddress", "NotIpAddress"], type: "inet", values: ["10.1.2.3", "11.0.0.1", "::ffff:10.1.2.3", "2001:db8::1", "10.0.0.0/8", "10.0.0.0/7"] },
+];
+
+/**
+ * Reads one condition key the way the grammar reads it.
+ * @param {string} operator - Operator as written.
+ * @param {string} operand - Value as written.
+ * @returns {IApiAuthorizationIamCondition} The condition key.
+ */
+function readCondition(operator: string, operand: string): IApiAuthorizationIamCondition {
+	const condition: IApiAuthorizationIamCondition | undefined = ApiAuthorizationIamParser.readStatement({ Action: ["a:*"], Condition: { [operator]: { "principal.id": operand } }, Effect: "Allow", Resource: ["*"] }).conditions[0];
+
+	if (!condition) {
+		throw new Error(`The grammar read no condition for ${operator}`);
+	}
+
+	return condition;
+}
+
 describe("ApiAuthorizationIamPredicateBuilder", () => {
+	describe("complementarity over every operator family", () => {
+		const planner: ApiAuthorizationIamQueryPlanner = new ApiAuthorizationIamQueryPlanner();
+
+		const operators: Array<[string, string, IOperatorCase]> = OPERATOR_CASES.flatMap((operatorCase: IOperatorCase): Array<[string, string, IOperatorCase]> => operatorCase.operators.flatMap((operator: string): Array<[string, string, IOperatorCase]> => [`${operator}`, `${operator}IfExists`].map((name: string): [string, string, IOperatorCase] => [name, operatorCase.operand, operatorCase])));
+
+		it.each(operators)("%s %s: holds XOR fails on every row, and holds equals memory", (operator: string, operand: string, operatorCase: IOperatorCase) => {
+			const condition: IApiAuthorizationIamCondition = readCondition(operator, operand);
+			const memoryOperand: IApiAuthorizationIamOperand | undefined = ApiAuthorizationIamOperator.readOperand(condition, {});
+			const shape: { family: EApiAuthorizationIamColumnFamily; type?: string } = operatorCase.type === undefined ? { family: operatorCase.family } : { family: operatorCase.family, type: operatorCase.type };
+			const rootColumn: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("code", shape);
+			const optionalColumn: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("owner.code", shape, { isBoolean: operatorCase.family === EApiAuthorizationIamColumnFamily.BOOLEAN, isOptional: true, presencePath: "owner.id" });
+			const rootField: IApiAuthorizationIamPredicateColumn = operatorCase.family === EApiAuthorizationIamColumnFamily.BOOLEAN ? createIamLowererColumn("code", shape, { isBoolean: true }) : rootColumn;
+
+			expect(memoryOperand).toBeDefined();
+
+			for (const [column, presence, missing] of [
+				[rootField, undefined, false],
+				[optionalColumn, PRESENCE, true],
+			] as Array<[IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicateColumn | undefined, boolean]>) {
+				const pair: IApiAuthorizationIamPredicatePair | undefined = planner["buildOperandPair"](condition, memoryOperand ?? {}, column, presence);
+
+				expect(pair).toBeDefined();
+
+				const rows: Array<{ actual: null | string | undefined; row: TRow }> = [{ actual: null, row: { [column.queryPath]: null, "owner.id": "o1" } }, ...operatorCase.values.map((value: string): { actual: string; row: TRow } => ({ actual: value, row: { [column.queryPath]: value, "owner.id": "o1" } }))];
+
+				if (missing) {
+					rows.push({ actual: undefined, row: { [column.queryPath]: null, "owner.id": null } });
+				}
+
+				for (const { actual, row } of rows) {
+					const expected: boolean | undefined = ApiAuthorizationIamOperator.evaluate(condition, actual, memoryOperand ?? {}, true);
+
+					expect({ fails: isSelected(pair?.fails ?? { kind: EApiAuthorizationIamPredicateKind.FALSE }, row), holds: isSelected(pair?.holds ?? { kind: EApiAuthorizationIamPredicateKind.FALSE }, row), row }).toEqual({ fails: expected !== true, holds: expected === true, row });
+				}
+			}
+		});
+
+		it.each([
+			["true", [true, false, false]],
+			["false", [false, true, true]],
+		])("Null %s holds XOR fails, with a missing value as NULL", (operand: string, expected: Array<boolean>) => {
+			const pair: IApiAuthorizationIamPredicatePair = ApiAuthorizationIamPredicateBuilder.buildNull({ column: NAME, isNull: operand === "true" });
+			const rows: Array<TRow> = [
+				{ "owner.id": null, "owner.name": null },
+				{ "owner.id": "o1", "owner.name": "ann" },
+				{ "owner.id": "o1", "owner.name": "" },
+			];
+
+			expect(rows.map((row: TRow): boolean => isSelected(pair.holds, row))).toEqual(expected);
+			expect(rows.map((row: TRow): boolean => isSelected(pair.fails, row))).toEqual(expected.map((isHeld: boolean): boolean => !isHeld));
+		});
+	});
+
 	describe("buildCondition", () => {
 		it.each([
 			[false, false],

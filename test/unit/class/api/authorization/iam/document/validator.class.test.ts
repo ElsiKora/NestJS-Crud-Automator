@@ -15,8 +15,17 @@ class ValidatorItemEntity {
 	@PrimaryColumn({ type: "varchar" })
 	public id!: string;
 
+	@Column({ type: "datetime" })
+	public createdAt!: Date;
+
+	@Column({ type: "date" })
+	public day!: string;
+
 	@Column({ type: "boolean" })
 	public isArchived!: boolean;
+
+	@Column({ type: "int" })
+	public rank!: number;
 
 	@Column({ type: "varchar" })
 	public secret!: string;
@@ -28,8 +37,11 @@ class ValidatorItemEntity {
 const itemResourceDefinition: IApiAuthorizationResourceDefinition<ValidatorItemEntity> = {
 	entity: ValidatorItemEntity,
 	fields: [
+		{ isFilterable: true, path: "resource.createdAt", queryPath: "createdAt" },
+		{ isFilterable: true, path: "resource.day", queryPath: "day" },
 		{ isFilterable: true, path: "resource.id", queryPath: "id" },
 		{ isFilterable: true, path: "resource.isArchived", queryPath: "isArchived" },
+		{ isFilterable: true, path: "resource.rank", queryPath: "rank" },
 		{ isFilterable: true, path: "resource.status", queryPath: "status" },
 		{ isFilterable: false, path: "resource.secret", queryPath: "secret" },
 	],
@@ -145,7 +157,8 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["a variable in Action", { Action: ["admin:item:${principal.id}"] }, "document.Statement[0].Action[0]", codes.VARIABLE_NOT_ALLOWED],
 			["a client-controlled variable in Resource", { Resource: ["gameport:admin:item/${request.body.id}"] }, "document.Statement[0].Resource[0]", codes.VARIABLE_NOT_ALLOWED],
 			["an unknown variable in Resource", { Resource: ["gameport:admin:item/${user.id}"] }, "document.Statement[0].Resource[0]", codes.VARIABLE_UNKNOWN],
-			["a principal variable in Resource", { Resource: ["gameport:admin:item/${principal.id}"] }, "document.Statement[0].Resource[0]", codes.NOT_SUPPORTED_YET],
+			["a request.time variable in Resource", { Resource: ["gameport:admin:item/${request.time}"] }, "document.Statement[0].Resource[0]", codes.VARIABLE_NOT_ALLOWED],
+			["a resource variable in Resource", { Resource: ["gameport:admin:item/${resource.id}"] }, "document.Statement[0].Resource[0]", codes.VARIABLE_NOT_ALLOWED],
 			["NotAction", { Action: undefined, NotAction: ["admin:item:read"] }, "document.Statement[0].NotAction", codes.NOT_SUPPORTED_YET],
 			["NotResource", { NotResource: ["gameport:admin:item/1"], Resource: undefined }, "document.Statement[0].NotResource", codes.NOT_SUPPORTED_YET],
 			["a non-object Condition", { Condition: "x" }, "document.Statement[0].Condition", codes.CONDITION_INVALID],
@@ -168,8 +181,17 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["an unknown key", { StringEquals: { "user.id": "a" } }, operatorProperty("StringEquals", "user.id"), codes.CONDITION_KEY_UNKNOWN],
 			["an unmapped resource key", { StringEquals: { "resource.unknown": "a" } }, operatorProperty("StringEquals", "resource.unknown"), codes.CONDITION_KEY_UNKNOWN],
 			["request.secureTransport", { StringEquals: { "request.secureTransport": "true" } }, operatorProperty("StringEquals", "request.secureTransport"), codes.CONDITION_KEY_NOT_ALLOWED],
-			["request.time", { StringEquals: { "request.time": "a" } }, operatorProperty("StringEquals", "request.time"), codes.NOT_SUPPORTED_YET],
-			["request.sourceIp", { StringEquals: { "request.sourceIp": "a" } }, operatorProperty("StringEquals", "request.sourceIp"), codes.NOT_SUPPORTED_YET],
+			["a String operator on request.time", { StringEquals: { "request.time": "a" } }, operatorProperty("StringEquals", "request.time"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a calendar date on request.time", { DateGreaterThan: { "request.time": "2024-01-01" } }, operatorProperty("DateGreaterThan", "request.time"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a String operator on a numeric column", { StringEquals: { "resource.rank": "1" } }, operatorProperty("StringEquals", "resource.rank"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a String operator on a date column", { StringEquals: { "resource.createdAt": "2024-01-01T00:00:00.000Z" } }, operatorProperty("StringEquals", "resource.createdAt"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a Numeric operator on a text column", { NumericEquals: { "resource.status": "1" } }, operatorProperty("NumericEquals", "resource.status"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a Date operator on a numeric column", { DateEquals: { "resource.rank": "2024-01-01T00:00:00.000Z" } }, operatorProperty("DateEquals", "resource.rank"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a calendar date on an instant column", { DateEquals: { "resource.createdAt": "2024-01-01" } }, operatorProperty("DateEquals", "resource.createdAt"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["an instant on a date column", { DateEquals: { "resource.day": "2024-01-01T00:00:00.000Z" } }, operatorProperty("DateEquals", "resource.day"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a StringLike on a boolean column", { StringLike: { "resource.isArchived": "t*" } }, operatorProperty("StringLike", "resource.isArchived"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["an IP operator on a text column", { IpAddress: { "resource.status": "10.0.0.0/8" } }, operatorProperty("IpAddress", "resource.status"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["an Arn operator on a numeric column", { ArnLike: { "resource.rank": "a:*" } }, operatorProperty("ArnLike", "resource.rank"), codes.CONDITION_KEY_TYPE_MISMATCH],
 			["a non-filterable resource key", { StringEquals: { "resource.secret": "a" } }, operatorProperty("StringEquals", "resource.secret"), codes.CONDITION_KEY_NOT_FILTERABLE],
 			["text other than true or false on a boolean column", { StringEquals: { "resource.isArchived": "yes" } }, operatorProperty("StringEquals", "resource.isArchived"), codes.CONDITION_KEY_TYPE_MISMATCH],
 			["an object value", { StringEquals: { "principal.id": { nested: true } } }, operatorProperty("StringEquals", "principal.id"), codes.CONDITION_VALUE_INVALID],
@@ -185,15 +207,58 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["a request header variable", { StringEquals: { "resource.status": "${request.headers.x-status}" } }, operatorProperty("StringEquals", "resource.status"), codes.VARIABLE_NOT_ALLOWED],
 			["a role list variable", { StringEquals: { "resource.status": "${principal.roles}" } }, operatorProperty("StringEquals", "resource.status"), codes.VARIABLE_NOT_ALLOWED],
 			["a request.secureTransport variable", { StringEquals: { "resource.status": "${request.secureTransport}" } }, operatorProperty("StringEquals", "resource.status"), codes.VARIABLE_NOT_ALLOWED],
-			["a request.time variable", { StringEquals: { "resource.status": "${request.time}" } }, operatorProperty("StringEquals", "resource.status"), codes.NOT_SUPPORTED_YET],
-			["an embedded variable", { StringEquals: { "resource.status": "pre-${principal.id}" } }, operatorProperty("StringEquals", "resource.status"), codes.NOT_SUPPORTED_YET],
-			["a variable default", { StringEquals: { "resource.status": "${principal.attributes.status, 'none'}" } }, operatorProperty("StringEquals", "resource.status"), codes.NOT_SUPPORTED_YET],
+			["an unparsable default on a Numeric operator", { NumericEquals: { "resource.rank": "${principal.attributes.rank, 'ten'}" } }, operatorProperty("NumericEquals", "resource.rank"), codes.CONDITION_VALUE_INVALID],
+			["an unparsable default on a Date operator", { DateEquals: { "resource.createdAt": "${principal.attributes.since, 'soon'}" } }, operatorProperty("DateEquals", "resource.createdAt"), codes.CONDITION_VALUE_INVALID],
+			["a variable embedded in a Bool value", { Bool: { "resource.isArchived": "t${principal.id}" } }, operatorProperty("Bool", "resource.isArchived"), codes.CONDITION_VALUE_INVALID],
 		])("refuses a condition with %s", (_name: string, condition: unknown, property: string, code: string) => {
 			expect(inspectCondition(condition)).toEqual([[property, code]]);
 		});
 
-		it.each(Object.values(EApiPolicyConditionOperator).filter((operator: EApiPolicyConditionOperator) => !operator.startsWith("String") || operator.includes("IgnoreCase") || operator.includes("Like")))("refuses the %s operator as not supported yet", (operator: EApiPolicyConditionOperator) => {
-			expect(inspectCondition({ [operator]: { "principal.attributes.flag": "true" } })).toContainEqual([`document.Statement[0].Condition.${operator}`, codes.NOT_SUPPORTED_YET]);
+		it.each([
+			["a variable in Resource", { Resource: ["gameport:admin:item/${principal.id}"] }],
+			["a variable with a default in Resource", { Resource: ["gameport:admin:item/${principal.attributes.team, 'none'}/*"] }],
+			["a parameter variable in Resource", { Resource: ["gameport:admin:item/${request.parameters.id}"] }],
+		])("accepts a statement with %s", (_name: string, statement: Record<string, unknown>) => {
+			expect(inspectStatement(statement)).toEqual([]);
+		});
+
+		it.each([
+			["request.sourceIp", { IpAddress: { "request.sourceIp": "10.0.0.0/8" } }],
+			["a Date operator on request.time", { DateGreaterThan: { "request.time": "2024-01-01T00:00:00Z" } }],
+			["a variable on request.time", { DateLessThan: { "request.time": "${principal.attributes.expiresAt}" } }],
+			["Null on request.time", { Null: { "request.time": "false" } }],
+			["a request.time variable", { DateLessThan: { "resource.createdAt": "${request.time}" } }],
+			["an embedded variable", { StringEquals: { "resource.status": "pre-${principal.id}" } }],
+			["an embedded variable in a glob", { StringLike: { "resource.status": "pre-${principal.id}-*" } }],
+			["an embedded variable in an Arn", { ArnLike: { "resource.status": "arn:${principal.id}:*" } }],
+			["a variable default", { StringEquals: { "resource.status": "${principal.attributes.status, 'none'}" } }],
+			["a Numeric default", { NumericLessThan: { "resource.rank": "${principal.attributes.rank, '10'}" } }],
+			["a Numeric operator on a numeric column", { NumericLessThan: { "resource.rank": "1.5" } }],
+			["a Date operator on an instant column", { DateGreaterThan: { "resource.createdAt": "2024-01-01T00:00:00+02:00" } }],
+			["a Date operator on a date column", { DateEquals: { "resource.day": "2024-01-01" } }],
+			["a Bool operator on a boolean column", { Bool: { "resource.isArchived": "true" } }],
+			["Null on any column", { Null: { "resource.rank": "true" } }],
+			["negated String operators", { StringNotEqualsIgnoreCase: { "resource.status": "a" }, StringNotLike: { "resource.status": "a*" } }],
+		])("accepts a condition with %s", (_name: string, condition: unknown) => {
+			expect(inspectCondition(condition)).toEqual([]);
+		});
+
+		it.each([
+			["2024-01-01", "Date"],
+			["2024-01-01T00:00:00Z", "Date"],
+			["1", "Numeric"],
+			["true", "Bool"],
+			["10.0.0.0/8", "Ip"],
+			["arn:*:item", "Arn"],
+			["a", "String"],
+		])("accepts every operator of the family with the value %s (%s)", (value: string, prefix: string) => {
+			const operators: Array<EApiPolicyConditionOperator> = Object.values(EApiPolicyConditionOperator).filter((operator: EApiPolicyConditionOperator) => operator.startsWith(prefix) || (prefix === "Ip" && operator.startsWith("NotIp")));
+
+			expect(operators.length).toBeGreaterThan(0);
+
+			for (const operator of operators) {
+				expect(inspectCondition({ [operator]: { "principal.attributes.value": value } })).toEqual([]);
+			}
 		});
 
 		it.each([EApiPolicyConditionOperator.STRING_EQUALS, EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS, EApiPolicyConditionOperator.STRING_NOT_EQUALS, EApiPolicyConditionOperator.STRING_NOT_EQUALS_IF_EXISTS])("accepts the %s operator", (operator: EApiPolicyConditionOperator) => {
@@ -208,6 +273,9 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["DateEquals", "2024-13-01", codes.CONDITION_VALUE_INVALID],
 			["DateEquals", "2024-02-30T10:00:00Z", codes.CONDITION_VALUE_INVALID],
 			["DateEquals", "2024-01-01T24:00:00Z", codes.CONDITION_VALUE_INVALID],
+			["DateEquals", "0000-01-01", codes.CONDITION_VALUE_INVALID],
+			["DateEquals", "2024-01-01T10:00:00+24:00", codes.CONDITION_VALUE_INVALID],
+			["NumericEquals", "1e3", codes.CONDITION_VALUE_INVALID],
 			["NumericEquals", "ten", codes.CONDITION_VALUE_INVALID],
 			["NumericEquals", 0.123_456_789_012_345_67, codes.CONDITION_VALUE_TOO_PRECISE],
 			["NumericEquals", "pre-${principal.id}", codes.CONDITION_VALUE_INVALID],
@@ -215,11 +283,9 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["Null", "${principal.id}", codes.CONDITION_VALUE_INVALID],
 			["IpAddress", "10.0.0.0/33", codes.CONDITION_VALUE_INVALID],
 			["IpAddress", "host", codes.CONDITION_VALUE_INVALID],
-		])("checks the %s value %s already", (operator: string, value: unknown, code: string) => {
-			expect(inspectCondition({ [operator]: { "principal.attributes.value": value } })).toEqual([
-				[`document.Statement[0].Condition.${operator}`, codes.NOT_SUPPORTED_YET],
-				[operatorProperty(operator, "principal.attributes.value"), code],
-			]);
+			["IpAddress", "fe80::1%eth0", codes.CONDITION_VALUE_INVALID],
+		])("checks the %s value %s", (operator: string, value: unknown, code: string) => {
+			expect(inspectCondition({ [operator]: { "principal.attributes.value": value } })).toEqual([[operatorProperty(operator, "principal.attributes.value"), code]]);
 		});
 
 		it.each([
@@ -232,15 +298,12 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["IpAddress", "10.0.0.0/8"],
 			["IpAddress", "2001:db8::/32"],
 			["ArnLike", "arn:*:item/?"],
-		])("finds only that %s is not supported yet for %s", (operator: string, value: unknown) => {
-			expect(inspectCondition({ [operator]: { "principal.attributes.value": value } })).toEqual([[`document.Statement[0].Condition.${operator}`, codes.NOT_SUPPORTED_YET]]);
+		])("accepts %s with %s", (operator: string, value: unknown) => {
+			expect(inspectCondition({ [operator]: { "principal.attributes.value": value } })).toEqual([]);
 		});
 
 		it("refuses Bool on a column that is not boolean", () => {
-			expect(inspectCondition({ Bool: { "resource.status": "true" } })).toEqual([
-				["document.Statement[0].Condition.Bool", codes.NOT_SUPPORTED_YET],
-				[operatorProperty("Bool", "resource.status"), codes.CONDITION_KEY_TYPE_MISMATCH],
-			]);
+			expect(inspectCondition({ Bool: { "resource.status": "true" } })).toEqual([[operatorProperty("Bool", "resource.status"), codes.CONDITION_KEY_TYPE_MISMATCH]]);
 		});
 
 		it("reports every failure of a document", () => {
@@ -290,7 +353,7 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 
 	describe("validate", () => {
 		it("refuses a loaded document that fails the grammar", () => {
-			expect(() => new ApiAuthorizationIamDocumentValidator().validate(createRecord({ Statement: [{ ...baseStatement, Condition: { StringLike: { "principal.id": "a*" } } }], Version: "2012-10-17" }))).toThrow('Policy document "policy-a" is invalid: iamPolicyNotSupportedYet at document.Statement[0].Condition.StringLike');
+			expect(() => new ApiAuthorizationIamDocumentValidator().validate(createRecord({ Statement: [{ ...baseStatement, Condition: { StringEquals: { "principal.id": ["a", "b"] } } }], Version: "2012-10-17" }))).toThrow('Policy document "policy-a" is invalid: iamPolicyNotSupportedYet at document.Statement[0].Condition.StringEquals["principal.id"]');
 		});
 
 		it("checks resource keys of a registered namespace", () => {

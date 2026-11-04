@@ -1,4 +1,4 @@
-import type { IApiAuthorizationIamToken } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamToken, IApiAuthorizationPrincipal } from "@interface/class/api/authorization";
 
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam";
 import { EApiAuthorizationIamTokenType } from "@enum/class/authorization";
@@ -62,10 +62,54 @@ describe("ApiAuthorizationIamVariable", () => {
 		});
 
 		it.each([
-			["an embedded variable", { parts: [literal("x-"), variable("principal.id")], source: "x-${principal.id}" }],
-			["a default", { parts: [variable("principal.id", "none")], source: "${principal.id, 'none'}" }],
-		])("refuses %s", (_name: string, value: { parts: Array<IApiAuthorizationIamToken>; source: string }) => {
-			expect(() => ApiAuthorizationIamVariable.resolveValue(value, context)).toThrow("uses a variable form the engine does not evaluate yet");
+			["text around a variable", { parts: [literal("x-"), variable("principal.id")], source: "x-${principal.id}" }, "x-user-1"],
+			["a number inside text", { parts: [literal("l"), variable("principal.attributes.level")], source: "l${principal.attributes.level}" }, "l3"],
+			["a present value over its default", { parts: [variable("principal.id", "none")], source: "${principal.id, 'none'}" }, "user-1"],
+			["the default of a missing value", { parts: [variable("principal.attributes.missing", "none")], source: "${principal.attributes.missing, 'none'}" }, "none"],
+			["the default of an empty value", { parts: [variable("principal.attributes.empty", "none")], source: "${principal.attributes.empty, 'none'}" }, "none"],
+			["the default of a list", { parts: [variable("principal.attributes.list", "none")], source: "${principal.attributes.list, 'none'}" }, "none"],
+			["the default of NULL", { parts: [variable("principal.attributes.nothing", "none")], source: "${principal.attributes.nothing, 'none'}" }, "none"],
+			["the default inside text", { parts: [literal("x-"), variable("principal.attributes.missing", "none")], source: "x-${principal.attributes.missing, 'none'}" }, "x-none"],
+		])("reads %s", (_name: string, value: { parts: Array<IApiAuthorizationIamToken>; source: string }, expected: string) => {
+			expect(ApiAuthorizationIamVariable.resolveValue(value, { principal: { attributes: { empty: "", level: 3, list: ["a"], nothing: null }, id: "user-1" } })).toBe(expected);
+		});
+
+		it.each([
+			["a missing value", { parts: [variable("principal.attributes.missing")], source: "${principal.attributes.missing}" }],
+			["an empty value", { parts: [variable("principal.attributes.empty")], source: "${principal.attributes.empty}" }],
+			["a list", { parts: [variable("principal.attributes.list")], source: "${principal.attributes.list}" }],
+			["an object", { parts: [variable("principal.attributes.object")], source: "${principal.attributes.object}" }],
+			["NULL", { parts: [variable("principal.attributes.nothing")], source: "${principal.attributes.nothing}" }],
+			["a missing value inside text", { parts: [literal("x-"), variable("principal.attributes.missing")], source: "x-${principal.attributes.missing}" }],
+			["a row before it is loaded, whatever the default", { parts: [variable("resource.status", "none")], source: "${resource.status, 'none'}" }],
+		])("does not resolve %s", (_name: string, value: { parts: Array<IApiAuthorizationIamToken>; source: string }) => {
+			expect(ApiAuthorizationIamVariable.resolveValue(value, { principal: { attributes: { empty: "", list: ["a"], nothing: null, object: { a: 1 } } } })).toBeUndefined();
+		});
+
+		it("keeps the type of a variable that stands alone", () => {
+			const time: Date = new Date("2024-01-01T00:00:00.000Z");
+
+			expect(ApiAuthorizationIamVariable.resolveValue({ parts: [variable("request.time")], source: "${request.time}" }, { request: { time } })).toBe(time);
+		});
+	});
+
+	describe("resolveTokens", () => {
+		it("keeps a wildcard a variable holds as literal text", () => {
+			expect(ApiAuthorizationIamVariable.resolveTokens([literal("item/"), variable("principal.id"), { type: EApiAuthorizationIamTokenType.STAR }], { principal: { id: "a*?" } })).toEqual([literal("item/"), literal("a*?"), { type: EApiAuthorizationIamTokenType.STAR }]);
+		});
+
+		it("gives nothing when a variable does not resolve", () => {
+			expect(ApiAuthorizationIamVariable.resolveTokens([literal("item/"), variable("principal.id")], { principal: {} })).toBeUndefined();
+		});
+	});
+
+	describe("createContext", () => {
+		it("exposes the source address and the time of the request", () => {
+			const time: Date = new Date("2024-01-01T00:00:00.000Z");
+			const context: Record<string, unknown> = ApiAuthorizationIamVariable.createContext({ id: "user-1" } as IApiAuthorizationPrincipal, { ip: "10.0.0.1", time });
+
+			expect(ApiAuthorizationIamVariable.readPath(context, "request.sourceIp")).toBe("10.0.0.1");
+			expect(ApiAuthorizationIamVariable.readPath(context, "request.time")).toBe(time);
 		});
 	});
 });

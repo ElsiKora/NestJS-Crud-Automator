@@ -362,6 +362,7 @@ describe("ApiAuthorizationGuard", () => {
 					ip: "127.0.0.1",
 					parameters: { id: "entity-1" },
 					query: { page: "1" },
+					time: expect.any(Date),
 				},
 				routeAuthorization: {
 					mode: EApiAuthorizationMode.HOOKS,

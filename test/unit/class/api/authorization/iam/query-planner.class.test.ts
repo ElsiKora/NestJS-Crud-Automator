@@ -301,8 +301,11 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 			expect(planAllow({ StringEquals: { "resource.keylessLabel": "red" } })).toEqual({ isFullyCompilable: true, scope: { where: { keyless: { label: "red" } } } });
 		});
 
-		it.each(["StringNotEquals", "StringNotEqualsIfExists"])("does not compile %s", (operator: string) => {
-			expect(planAllow({ [operator]: { "resource.status": "archived" } })).toEqual({ isFullyCompilable: false });
+		it.each(["StringNotEquals", "StringNotEqualsIfExists"])("compiles %s with its NULL branch", (operator: string) => {
+			expect(planAllow({ [operator]: { "resource.status": "archived" } })).toEqual({
+				isFullyCompilable: true,
+				scope: { where: [{ status: Not(Equal("archived")) }, { status: IsNull() }] },
+			});
 		});
 
 		it.each(["resource.tagName", "resource.operatorLabelName"].flatMap((path: string) => ["StringEquals", "StringEqualsIfExists"].map((operator: string) => [operator, path])))("does not compile %s on the to-many path %s", (operator: string, path: string) => {
@@ -327,7 +330,7 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		it.each([
 			["an object value", { StringEquals: { "resource.status": { nested: true } } }, "iamPolicyConditionValueInvalid"],
 			["several values", { StringEquals: { "resource.status": ["a", "b"] } }, "iamPolicyNotSupportedYet"],
-			["an operator the engine does not evaluate yet", { StringLike: { "resource.status": "a*" } }, "iamPolicyNotSupportedYet"],
+			["a qualifier", { "ForAnyValue:StringEquals": { "principal.roles": "a" } }, "iamPolicyNotSupportedYet"],
 		])("refuses a statement with %s", (_name: string, condition: Record<string, Record<string, unknown>>, code: string) => {
 			expect(() => planAllow(condition)).toThrow(code);
 			expect(() => planDeny([{ condition }])).toThrow(code);
