@@ -232,11 +232,11 @@ describe.each([
 		await expectStatus(`/path-parameter/canonical/dt-res/${OTHER_AT}/items/2`, HttpStatus.OK);
 	});
 
-	it("fails a String condition on a DATE_TIME column closed, after validating the path value", async () => {
-		// A date column holds no one text a String operator could compare, so the Allow is not matched for any row.
-		await expectStatus(`/path-parameter/canonical/dt-recipe/${E2E_PATH_PARAMETER_CANONICAL_AT}/items/1`, HttpStatus.FORBIDDEN);
+	it("refuses the document of a String condition on a DATE_TIME column, after validating the path value", async () => {
+		// A date column holds no one text a String operator could compare, so the grammar refuses the key.
+		await expectStatus(`/path-parameter/canonical/dt-recipe/${E2E_PATH_PARAMETER_CANONICAL_AT}/items/1`, HttpStatus.INTERNAL_SERVER_ERROR);
 		await expectStatus(`/path-parameter/canonical/dt-recipe/${AT_WITHOUT_MILLISECONDS}/items/1`, HttpStatus.BAD_REQUEST);
-		await expectStatus(`/path-parameter/canonical/dt-recipe/${OTHER_AT}/items/1`, HttpStatus.FORBIDDEN);
+		await expectStatus(`/path-parameter/canonical/dt-recipe/${OTHER_AT}/items/1`, HttpStatus.INTERNAL_SERVER_ERROR);
 	});
 
 	it("renders a BOOLEAN path value into the resource string a Deny names", async () => {

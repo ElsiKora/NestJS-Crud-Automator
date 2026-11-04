@@ -151,19 +151,19 @@ describe.each([
 	});
 
 	// A numeric column holds no one text a String operator could compare (`10.50` is not `10.5`), so such an Allow is not matched.
-	it("fails a request.parameters String condition on a NUMBER column closed", async () => {
+	it("refuses the document of a request.parameters String condition on a NUMBER column", async () => {
 		for (const id of [DENIED_INT, ALLOWED_INT, "99"]) {
 			const response = await fastify.inject({ method: "GET", url: `/path-parameter/iam/int-cond/${id}` });
 
-			expect(response.statusCode).toBe(HttpStatus.FORBIDDEN);
+			expect(response.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	});
 
-	it("fails a literal String condition on a NUMBER column closed", async () => {
+	it("refuses the document of a literal String condition on a NUMBER column", async () => {
 		for (const id of [DENIED_INT, ALLOWED_INT]) {
 			const response = await fastify.inject({ method: "GET", url: `/path-parameter/iam/int-literal/${id}` });
 
-			expect(response.statusCode).toBe(HttpStatus.FORBIDDEN);
+			expect(response.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	});
 

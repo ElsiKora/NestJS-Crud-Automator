@@ -266,7 +266,8 @@ describe.each([
 
 		expect(keptIds.isDenied).toBe(true);
 		expect(keptIds.sql).toEqual([]);
-		expect(keptIds.inMemory.length).toBeGreaterThan(0);
+		// A key no scope can express fails closed on a loaded row too, so SQL and memory agree.
+		expect(keptIds.inMemory).toEqual([]);
 	});
 
 	it.each(tenantCases)("keeps the same rows in SQL and in memory for %s over two placeholders", async (_name: string, resources: Array<string>) => {
