@@ -95,7 +95,7 @@ const deny = (statement: Partial<IApiPolicyStatement>): IApiPolicyStatement => (
 	...statement,
 });
 
-const evaluate = async (options: { action?: string; boundaryStatements?: ReadonlyArray<IApiPolicyStatement>; requestMetadata?: IApiAuthorizationRequestMetadata<EngineItemEntity>; resource?: EngineItemEntity; resourceDefinition?: IApiAuthorizationResourceDefinition<EngineItemEntity>; routeType?: EApiRouteType; statements: ReadonlyArray<IApiPolicyStatement> }) => {
+const evaluate = async (options: { action?: string; boundaryStatements?: ReadonlyArray<IApiPolicyStatement>; principal?: IApiAuthorizationPrincipal; requestMetadata?: IApiAuthorizationRequestMetadata<EngineItemEntity>; resource?: EngineItemEntity; resourceDefinition?: IApiAuthorizationResourceDefinition<EngineItemEntity>; routeType?: EApiRouteType; statements: ReadonlyArray<IApiPolicyStatement> }) => {
 	const documents = [{ document: { Statement: options.statements, Version: "2012-10-17" }, id: "identity", namespace: "admin:item", sourceType: EApiPolicySourceType.MANAGED, version: "1" }, ...(options.boundaryStatements ? [{ document: { Statement: options.boundaryStatements, Version: "2012-10-17" }, id: "boundary", namespace: "admin:item", sourceType: EApiPolicySourceType.MANAGED, version: "1" }] : [])];
 
 	return await new ApiAuthorizationIamEngine(new ApiAuthorizationIamQueryPlanner()).evaluate<EngineItemEntity>({
@@ -106,7 +106,7 @@ const evaluate = async (options: { action?: string; boundaryStatements?: Readonl
 		},
 		documents,
 		policyNamespace: "admin:item",
-		principal,
+		principal: options.principal ?? principal,
 		requestMetadata: options.requestMetadata ?? {},
 		resource: options.resource,
 		resourceDefinition: options.resourceDefinition ?? itemResourceDefinition,
@@ -444,7 +444,7 @@ describe("ApiAuthorizationIamEngine", () => {
 		});
 
 		it("ignores row patterns of other resource types and patterns that match nothing", async () => {
-			const decision = await evaluate({ statements: [allowAll, deny({ Resource: ["gameport:other/item-1", "gameport:admin:item/a*b"] })] });
+			const decision = await evaluate({ statements: [allowAll, deny({ Resource: ["gameport:other/item-1", "gameport:other/*-secret"] })] });
 
 			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
 			expect(decision.scope).toBeUndefined();
@@ -511,6 +511,149 @@ describe("ApiAuthorizationIamEngine", () => {
 
 			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
 			expect(decision.scope).toBeUndefined();
+		});
+	});
+
+	describe("Deny patterns with an interior wildcard", () => {
+		const tenantResourceDefinition: IApiAuthorizationResourceDefinition<EngineItemEntity> = {
+			...itemResourceDefinition,
+			fields: [...itemResourceDefinition.fields, { isFilterable: true, path: "resource.tenantId", queryPath: "tenantId" }],
+			resourcePath: "gameport:tenant/{tenantId}/item/{id}",
+		};
+		const allowAnyResource: IApiPolicyStatement = { ...allowAll, Resource: ["*"] };
+		const rowRoutes: Array<[string, EApiRouteType]> = [
+			["admin:item:read", EApiRouteType.GET],
+			["admin:item:update", EApiRouteType.UPDATE],
+			["admin:item:delete", EApiRouteType.DELETE],
+		];
+
+		it.each(rowRoutes)("denies %s for an Action with an interior wildcard", async (action: string, routeType: EApiRouteType) => {
+			const requestMetadata: IApiAuthorizationRequestMetadata<EngineItemEntity> = { parameters: { id: "item-1" } };
+			const verbDecision = await evaluate({ action, requestMetadata, routeType, statements: [allowAll, deny({ Action: [`admin:*:${action.split(":").at(-1) ?? ""}`] })] });
+			const anyNamespaceDecision = await evaluate({ action, requestMetadata, routeType, statements: [allowAll, deny({ Action: ["*:item:*e*"] })] });
+
+			expect(verbDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(anyNamespaceDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("keeps other actions served under an Action with an interior wildcard", async () => {
+			const decision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements: [allowAll, deny({ Action: ["admin:*:delete"] })] });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it.each(rowRoutes)("denies %s of the named row for a Resource with an interior wildcard", async (action: string, routeType: EApiRouteType) => {
+			const statements: Array<IApiPolicyStatement> = [allowAnyResource, deny({ Resource: ["gameport:tenant/*/item/item-1", "gameport:*/item/*-secret"] })];
+			const namedDecision = await evaluate({ action, requestMetadata: { parameters: { id: "item-1", tenantId: "t-1" } }, resourceDefinition: tenantResourceDefinition, routeType, statements });
+			const suffixDecision = await evaluate({ action, requestMetadata: { parameters: { id: "a-secret", tenantId: "t-2" } }, resourceDefinition: tenantResourceDefinition, routeType, statements });
+			const otherDecision = await evaluate({ action, requestMetadata: { parameters: { id: "item-2", tenantId: "t-1" } }, resourceDefinition: tenantResourceDefinition, routeType, statements });
+
+			expect(namedDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(suffixDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(otherDecision.effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("keeps ? a literal character", async () => {
+			const statements: Array<IApiPolicyStatement> = [allowAll, deny({ Resource: ["gameport:admin:item/item-?"] })];
+			const literalDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-?" } }, routeType: EApiRouteType.GET, statements });
+			const otherDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements });
+
+			expect(literalDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(otherDecision.effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("denies the whole list for an Action with an interior wildcard", async () => {
+			const decision = await evaluate({ statements: [allowAll, deny({ Action: ["admin:*:list"] })] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it.each([
+			["a suffix", "gameport:tenant/t-1/item/*-secret"],
+			["a wildcard before the placeholders", "gameport:*/item/item-1"],
+			["a wildcard across both placeholders", "gameport:tenant/t-1*item-1"],
+		])("denies the whole list for a Resource with %s that matches some rows", async (_name: string, pattern: string) => {
+			const decision = await evaluate({ resourceDefinition: tenantResourceDefinition, statements: [allowAnyResource, deny({ Resource: [pattern] })] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("denies the whole list for a Resource with an interior wildcard that covers every row", async () => {
+			const decision = await evaluate({ statements: [allowAll, deny({ Resource: ["gameport:*:item/*"] })] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("ignores a Resource with an interior wildcard that matches no row of the list", async () => {
+			const decision = await evaluate({ resourceDefinition: tenantResourceDefinition, statements: [allowAnyResource, deny({ Resource: ["gameport:other/*/item/*", "gameport:tenants*/item/*"] })] });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(decision.scope).toBeUndefined();
+		});
+
+		it("denies a create for an Action or a Resource with an interior wildcard", async () => {
+			const actionDecision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Action: ["admin:*:create"] })] });
+			const resourceDecision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Resource: ["gameport:admin:item/*-secret"] })] });
+			const otherTypeDecision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Resource: ["gameport:other/*-secret"] })] });
+
+			expect(actionDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(resourceDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(otherTypeDecision.effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("keeps an Allow with an interior wildcard unmatched", async () => {
+			const actionDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements: [{ ...allowAll, Action: ["admin:*:read"] }] });
+			const resourceDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements: [{ ...allowAll, Resource: ["gameport:*/item-1"] }] });
+			const listDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:*:item/*"] }] });
+
+			expect(actionDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(resourceDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(listDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		});
+	});
+
+	describe("condition keys whose value is a list or an object", () => {
+		const structuredPrincipal: IApiAuthorizationPrincipal = {
+			...principal,
+			attributes: { ...principal.attributes, profile: { tier: "gold" }, tags: ["banned"] },
+			roles: ["admin", "banned"],
+		};
+		const keys: Array<string> = ["principal.roles", "principal.attributes.tags", "principal.attributes.profile"];
+		const operators: Array<string> = ["StringEquals", "StringEqualsIfExists", "StringNotEquals", "StringNotEqualsIfExists"];
+		const cases: Array<[string, string]> = keys.flatMap((key: string): Array<[string, string]> => operators.map((operator: string): [string, string] => [operator, key]));
+		const readOptions = { action: "admin:item:read", principal: structuredPrincipal, requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET };
+
+		it.each(cases)("holds a Deny %s on %s", async (operator: string, key: string) => {
+			const equalDecision = await evaluate({ ...readOptions, statements: [allowAll, deny({ Condition: { [operator]: { [key]: "banned" } } })] });
+			const otherDecision = await evaluate({ ...readOptions, statements: [allowAll, deny({ Condition: { [operator]: { [key]: "other" } } })] });
+			const listDecision = await evaluate({ principal: structuredPrincipal, statements: [allowAll, deny({ Condition: { [operator]: { [key]: "banned" } } })] });
+
+			expect(equalDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(otherDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(listDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it.each(cases)("fails an Allow %s on %s", async (operator: string, key: string) => {
+			const equalDecision = await evaluate({ ...readOptions, statements: [{ ...allowAll, Condition: { [operator]: { [key]: "admin" } } }] });
+			const otherDecision = await evaluate({ ...readOptions, statements: [{ ...allowAll, Condition: { [operator]: { [key]: "other" } } }] });
+
+			expect(equalDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(otherDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		});
+
+		it("keeps a held Deny with a resource key a row exclusion", async () => {
+			const decision = await evaluate({ principal: structuredPrincipal, statements: [allowAll, deny({ Condition: { StringEquals: { "principal.roles": "banned", "resource.status": "archived" } } })] });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(decision.scope).toEqual({ where: [{ status: Not(Equal("archived")) }, { status: IsNull() }] });
+		});
+
+		it("keeps scalar and missing keys compared as before", async () => {
+			const scalarDecision = await evaluate({ ...readOptions, statements: [allowAll, deny({ Condition: { StringEquals: { "principal.attributes.operatorId": "operator-2" } } })] });
+			const missingDecision = await evaluate({ ...readOptions, statements: [{ ...allowAll, Condition: { StringEqualsIfExists: { "principal.attributes.missing": "x" } } }] });
+
+			expect(scalarDecision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(missingDecision.effect).toBe(EApiPolicyEffect.ALLOW);
 		});
 	});
 });
