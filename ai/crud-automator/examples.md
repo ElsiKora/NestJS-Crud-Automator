@@ -610,6 +610,18 @@ const document: IApiPolicyDocument = {
 			Effect: EApiPolicyEffect.DENY,
 			Resource: ["*"],
 		},
+		{
+			// Everything but deleting, on the rows of the principal's prefix: a list scopes to `id LIKE 'prefix-%'`.
+			Effect: EApiPolicyEffect.ALLOW,
+			NotAction: ["admin:item:delete"],
+			Resource: ["admin:item/${principal.attributes.prefix, 'none'}-*"],
+		},
+		{
+			// Updating any row but the named one is denied, and an unresolved variable denies the request.
+			Action: ["admin:item:update"],
+			Effect: EApiPolicyEffect.DENY,
+			NotResource: ["admin:item/${principal.attributes.itemId}"],
+		},
 	],
 	Version: "2012-10-17",
 };

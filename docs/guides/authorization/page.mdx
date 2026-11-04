@@ -657,11 +657,67 @@ IAM behavior is intentionally strict:
 
 Every `Action` and `Resource` pattern, in an Allow and a Deny alike, is a glob: `*` matches any sequence of characters, the empty one and `:` and `/` included, at any position, and `?` matches exactly one character, one Unicode code point. So `admin:*:delete` matches `admin:item:delete`, `gameport:admin:item/*/secret` matches `gameport:admin:item/7/secret`, `admin:*-history` matches `admin:item-history`, and `gameport:admin:item/item-?` matches `gameport:admin:item/item-1` but not `gameport:admin:item/item-12`. To match a literal `*`, `?` or `$`, write `${*}`, `${?}` or `${$}`: `gameport:admin:item/a${?}` matches only `gameport:admin:item/a?`. The match walks the pattern without a regular expression and in bounded time, so a long pattern cannot stall a request.
 
-On a row route the resource string is concrete, so a pattern matches it or not. On a list or a create the resource string still holds unresolved placeholders, such as `{id}` in `gameport:admin:item/{id}`, and a placeholder may hold any value. An Allow pattern matches there only when it matches whatever value each placeholder holds, so only a `*` stands for a placeholder: `gameport:admin:item/*` and `gameport:*:item/*` allow the list, while `gameport:admin:item/?`, `gameport:admin:item/${*}` and `gameport:admin:item/item-*` do not. To allow some rows of a list, write a `resource.*` condition, which compiles into the scope (see [Allow scopes](#allow-scopes)).
+On a row route the resource string is concrete, so a pattern matches it or not. On a list the resource string still holds unresolved placeholders, such as `{id}` in `gameport:admin:item/{id}`, so the engine reads a pattern as one of four things:
 
-An `Action` pattern must be able to match an action of the namespace the document is stored for: in `admin:item`, `other:item:read` and `admin:items*` fail validation with `iamPolicyPatternOutsideNamespace`, while `*`, `admin:*` and `*:read` pass. An `Action` pattern takes no variable (`iamPolicyVariableNotAllowed`). A `Resource` pattern takes `${principal.id}`, `${principal.type}`, `${principal.attributes.*}`, `${principal.claims.*}` and `${request.parameters.*}`, also inside other text and with a default, as in `gameport:tenant/${principal.attributes.tenantId, 'none'}/item/*`; a wildcard a variable holds is literal text. A value the client controls, such as `${request.body.*}`, and `${resource.*}`, which would be circular, fail with `iamPolicyVariableNotAllowed`. A pattern whose variable does not resolve names no resource: an Allow grants nothing by it, and a Deny denies the whole request with `403`. `NotAction` and `NotResource` fail with `iamPolicyNotSupportedYet`, and a statement that writes both `Action` and `NotAction`, or both `Resource` and `NotResource`, with `iamPolicyActionConflict` or `iamPolicyResourceConflict`.
+| Pattern on a list                                                                  | Reads as  | Example on `gameport:admin:item/{id}`                          |
+| ---------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------- |
+| matches whatever each placeholder holds                                            | every row | `gameport:admin:item/*`, `gameport:*:item/*`                   |
+| matches no value of a placeholder                                                  | no row    | `gameport:other/*`                                             |
+| says what each placeholder must match, in one way                                  | some rows | `gameport:admin:item/item-1`, `.../item-*`, `.../?`, `.../*-1` |
+| could say it in more than one way, such as a literal that may lie in either of two | ambiguous | `gameport:tenant/*/item/x` on `tenant/{tenantId}/item/{id}`    |
+
+Some rows compile into the scope with one glob per placeholder, in an Allow and a Deny alike (see [Allow scopes](#allow-scopes) and [Row-scoped Deny on lists](#row-scoped-deny-on-lists)). An ambiguous pattern fails closed on a list: a Deny denies the whole list and an Allow grants nothing by it, even though a read of a row it names still matches as a glob. A `*` that absorbs a separator counts: on `tenant/{tenantId}/item/{id}` both `t-1/item/a*` readings hold, the row with tenant `t-1` and an id starting with `a`, and the row with a tenant starting with `t-1/item/a`, so that pattern is ambiguous on text columns. A column whose database type cannot hold the separator settles it: a uuid column on PostgreSQL, an integer or date column on PostgreSQL, MySQL and MariaDB, and a boolean column on any of them.
+
+A create names no row, so only a pattern that covers every value of each placeholder matches it: `gameport:admin:item/*` allows a create, and `gameport:admin:item/item-1` does not.
+
+An `Action` pattern must be able to match an action of the namespace the document is stored for: in `admin:item`, `other:item:read` and `admin:items*` fail validation with `iamPolicyPatternOutsideNamespace`, while `*`, `admin:*` and `*:read` pass. An `Action` pattern takes no variable (`iamPolicyVariableNotAllowed`). A `Resource` pattern takes `${principal.id}`, `${principal.type}`, `${principal.attributes.*}`, `${principal.claims.*}` and `${request.parameters.*}`, also inside other text and with a default, as in `gameport:tenant/${principal.attributes.tenantId, 'none'}/item/*`; a wildcard a variable holds is literal text. A value the client controls, such as `${request.body.*}`, and `${resource.*}`, which would be circular, fail with `iamPolicyVariableNotAllowed`. A pattern whose variable does not resolve names no resource: an Allow grants nothing by it, and a Deny denies the whole request with `403`. A statement that writes both `Action` and `NotAction`, or both `Resource` and `NotResource`, fails with `iamPolicyActionConflict` or `iamPolicyResourceConflict`.
 
 How a Deny `Resource` with an interior `*` or a `?` applies to a list or a create is described in [Deny semantics](#deny-semantics) and [Row-scoped Deny on lists](#row-scoped-deny-on-lists).
+
+### NotAction and NotResource
+
+A statement writes exactly one of `Action` and `NotAction`, and exactly one of `Resource` and `NotResource`, each a non-empty list of patterns. `NotAction` takes the same patterns and checks as `Action`, and `NotResource` the same patterns, variables and checks as `Resource`.
+
+`NotAction` applies to every action none of its patterns matches. A document is bound to its namespace, so it never reaches another namespace, but it does cover a custom action you add to this one later.
+
+`NotResource` applies to every resource none of its patterns matches. A pattern whose variable does not resolve never counts as a miss, because that would make the statement apply to every row: an Allow grants nothing and a Deny denies the whole request with `403`, on a row route, a list and a create, even when another pattern of the statement resolves.
+
+| `NotResource` patterns, on a request             | Allow                     | Deny                                        |
+| ------------------------------------------------ | ------------------------- | ------------------------------------------- |
+| a row route, a pattern matches the row           | not matched               | not applied                                 |
+| a row route, no pattern matches the row          | allows                    | denies                                      |
+| a list, a pattern matches every row              | not matched               | not applied                                 |
+| a list, every pattern matches no row             | every row                 | denies the whole list                       |
+| a list, patterns say which rows                  | the rows no pattern names | keeps only the rows a pattern names         |
+| a list, a pattern is ambiguous or cannot compile | not matched               | denies the whole list                       |
+| a create, a pattern matches every value          | not matched               | not applied                                 |
+| a create, every pattern matches no row           | allows                    | denies                                      |
+| a create, a pattern names some rows              | not matched               | denies, because the new id is not known yet |
+| a variable does not resolve, on any request      | not matched               | denies the whole request                    |
+
+A `resource.*` key of the same statement applies as usual: an Allow keeps the rows no pattern names where its keys hold, and a Deny also keeps the rows where a key fails. A NULL placeholder renders as `""`, so `NotResource: ["gameport:admin:item/item-1"]` in an Allow includes the row whose `id` is NULL, as it does in memory.
+
+```typescript filename="authorization/not-resource-document.ts" copy
+const document = {
+	Statement: [
+		{
+			// Everything but deleting.
+			Effect: EApiPolicyEffect.ALLOW,
+			NotAction: ["admin:item:delete"],
+			Resource: ["gameport:admin:item/*"],
+		},
+		{
+			// Only the rows of the principal's prefix stay; any other row is denied, on a list and on a read.
+			Action: ["admin:item:*"],
+			Effect: EApiPolicyEffect.DENY,
+			NotResource: ["gameport:admin:item/${principal.attributes.prefix, 'none'}-*"],
+		},
+	],
+	Version: "2012-10-17",
+};
+
+// GET_LIST scope: id LIKE 'prefix-%', compared exactly on PostgreSQL, MySQL, MariaDB and SQLite
+```
 
 ### Condition operators
 
@@ -753,11 +809,13 @@ Bootstrap registers the `resourceDefinition` of every IAM controller in `ApiAuth
 | `iamPolicyConditionValueEpochNotAllowed` | a date written as epoch seconds                                                                  |
 | `iamPolicyVariableUnknown`               | a variable whose path is no context path                                                         |
 | `iamPolicyVariableNotAllowed`            | a variable refused where it is written, such as `${request.body.*}` as a value                   |
-| `iamPolicyNotSupportedYet`               | a qualifier, several values or `NotAction`/`NotResource` the engine does not evaluate yet        |
+| `iamPolicyNotSupportedYet`               | a qualifier or several values the engine does not evaluate yet                                   |
 
 ### Allow scopes
 
-The query planner compiles every Allow condition on a `resource.*` field marked `isFilterable` into the decision scope, positive and negated operators alike (see [Operator families in SQL](#operator-families-in-sql)). Allow statements are ORed with each other and intersected with boundary scopes. An Allow statement whose `resource.*` keys use a non-filterable or unmapped field, an unresolved `${...}` variable, a value that is `""` or resolves to `null` or `""`, a `queryPath` TypeORM cannot resolve to a column, a column the dialect cannot compare exactly (see [Exact String comparison](#exact-string-comparison)), or on a boolean column a value other than `true`, `false` or that exact text is not matched. A matched Allow statement without `resource.*` keys allows every row, whatever the other matched Allow statements restrict.
+The query planner compiles every Allow condition on a `resource.*` field marked `isFilterable` into the decision scope, positive and negated operators alike (see [Operator families in SQL](#operator-families-in-sql)). Allow statements are ORed with each other and intersected with boundary scopes. An Allow statement whose `resource.*` keys use a non-filterable or unmapped field, an unresolved `${...}` variable, a value that is `""` or resolves to `null` or `""`, a `queryPath` TypeORM cannot resolve to a column, a column the dialect cannot compare exactly (see [Exact String comparison](#exact-string-comparison)), or on a boolean column a value other than `true`, `false` or that exact text is not matched. A matched Allow statement without `resource.*` keys and with a `Resource` that covers every row allows every row, whatever the other matched Allow statements restrict.
+
+An Allow whose `Resource` names some rows of a list scopes the list to them, ANDed with its `resource.*` keys. `gameport:admin:item/item-1` compiles to `id = 'item-1'`, `gameport:admin:item/item-*` to `id LIKE 'item-%'`, and several patterns are ORed. A read of a row it names is allowed and a read of another is refused, so the list and the read agree. The placeholder follows the rules of [Row-scoped Deny on lists](#row-scoped-deny-on-lists). An Allow is not matched, and grants nothing, where it cannot be exact: a pattern that is ambiguous, a placeholder field that is missing or not `isFilterable`, a glob on a column that is not a described text column, a placeholder on a decimal or date column, and a glob on a dialect that does not match it exactly, which is any but PostgreSQL, MySQL, MariaDB and SQLite.
 
 The planner reads each `queryPath` through the TypeORM metadata of the resource entity, at every step: to-one relations (`ManyToOne`, `OneToOne`) of any depth, embedded entities, and columns inherited from a parent class or a single-table-inheritance parent. A path that does not end on a column TypeORM maps, such as a misspelled property, a relation itself, or a step past a column, does not compile.
 
@@ -819,7 +877,7 @@ Generated routes evaluate IAM once, before the resource is loaded. A matched Den
 - **No `resource.*` keys** — the whole request is denied with `403`.
 - **`resource.*` keys that all compile** — the Deny becomes a row exclusion: its condition is negated and ANDed with the Allow scope. Lists omit excluded rows, and `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` of an excluded row answer `404`, exactly like a row outside an Allow scope. On `UPDATE` and `PARTIAL_UPDATE` the exclusion also applies to the row after the write: a body that moves a row into the excluded state answers `403` and is rolled back (see [Scoped UPDATE](#scoped-update)).
 - **Any `resource.*` key that cannot compile** (a field the controller does not map, or does not mark `isFilterable`, a `queryPath` TypeORM cannot resolve to a column, an unresolved `${...}` variable, a value that resolves to `null` or `""`, a value other than `true` or `false` on a boolean column) — the whole request is denied with `403`.
-- **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule. A Deny whose `Resource` names a concrete row, such as `gameport:admin:item/item-1`, is not applied on `CREATE`: the request is evaluated against the collection resource, so that pattern does not match and the row is created. A `Resource` with a `*` before its end or a `?`, such as `gameport:admin:item/*-archived` or `gameport:admin:item/item-?`, is the exception: when some row of the collection could match it, it denies the whole `CREATE` with `403`, because that wildcard can stand for any part of the resource string and so fails closed. To refuse a value on `CREATE`, use an Allow scope instead (see [Scoped CREATE](#scoped-create)).
+- **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule. A `NotResource` that names some rows denies the whole request, because the id of the new row is not known yet. A Deny whose `Resource` names a concrete row, such as `gameport:admin:item/item-1`, is not applied on `CREATE`: the request is evaluated against the collection resource, so that pattern does not match and the row is created. A `Resource` with a `*` before its end or a `?`, such as `gameport:admin:item/*-archived` or `gameport:admin:item/item-?`, is the exception: when some row of the collection could match it, it denies the whole `CREATE` with `403`, because that wildcard can stand for any part of the resource string and so fails closed. To refuse a value on `CREATE`, use an Allow scope instead (see [Scoped CREATE](#scoped-create)).
 
 By De Morgan, the keys of one Deny become top-level OR branches of the exclusion. The kept rows are exactly the rows the in-memory evaluator allows once the resource is loaded. That evaluator compares values as strings and treats a stored `NULL` as a present value that normalizes to an empty string, so `NULL` never equals a non-empty value and always differs from it. A path that crosses a missing relation is a missing key, at any depth, for which the `IfExists` operators hold, while the joined column reads `NULL`. So a Deny `StringEqualsIfExists` keeps a `NULL` column only while the relation is present, checked on `key`, the primary column of the last relation the path crosses:
 
@@ -881,19 +939,21 @@ The same condition applies to the row after an update. With this document, `PATC
 
 ### Row-scoped Deny on lists
 
-A list request (`GET_LIST`, or a custom route whose action is `<policyNamespace>:list`) uses the collection resource, for example `gameport:admin:item/*`. A Deny statement whose `Action` matches the list action and whose `Resource` is more specific than the collection resource is compiled into a row exclusion on the mapped fields:
+A list request (`GET_LIST`, or a custom route whose action is `<policyNamespace>:list`) uses the collection resource, for example `gameport:admin:item/*`. A Deny statement whose `Action` matches the list action and whose `Resource` says which rows it names (see [Wildcards in Action and Resource](#wildcards-in-action-and-resource)) is compiled into a row exclusion on the mapped fields:
 
 - `gameport:admin:item/item-1` excludes `id = 'item-1'`
-- `gameport:admin:item/abc*` excludes ids starting with `abc`; literal `%`, `_`, and `!` are escaped and the prefix is matched with `NOT LIKE ... ESCAPE '!'`, under the binary collation on MySQL and MariaDB, and with `NOT GLOB` on SQLite
+- `gameport:admin:item/abc*` excludes ids starting with `abc`, `gameport:admin:item/*-archived` those ending in `-archived`, and `gameport:admin:item/item-?` those of `item-` and one more character; literal `%`, `_`, and `!` are escaped and the glob is matched with `NOT LIKE ... ESCAPE '!'`, under the binary collation on MySQL and MariaDB, and with `NOT GLOB` on SQLite
 - `gameport:admin:item/` excludes the rows whose id is `NULL` or `""`
+- with `resourcePath: "gameport:tenant/{tenantId}/item/{id}"`, `gameport:tenant/t-1*item-1` excludes tenants starting with `t-1` and ids ending in `item-1`
 - with `resourcePath: "bool:item/{isFeatured}"` on a boolean column, `bool:item/true` excludes `isFeatured = true`; only `true` and `false` map, so `bool:item/1` or `bool:item/TRUE` denies the list with `403`
-- a pattern with a `*` before its end or a `?`, such as `gameport:admin:item/*-archived`, `gameport:*/item-1` or `gameport:admin:item/item-?`, is not mapped to rows: that wildcard can stand for literal parts and placeholders alike, so no single placeholder value is certain. When some row of the collection can match it, the whole list is denied with `403`; when none can, as with `gameport:other/*/item-1`, it is ignored. A pattern that matches every row, such as `gameport:*:item/*`, denies the list like `gameport:admin:item/*`
+- with an integer `{id}` column, `gameport:admin:item/7` excludes `id = 7`; text no integer renders, such as `07` or `abc`, names no row, and a glob such as `7*` denies the list with `403`
+- a pattern that maps to rows in more than one way, such as `gameport:*/item-1`, or `gameport:tenant/*/item/item-1` on text columns, denies the whole list with `403`; one that no row can match, as with `gameport:other/*/item-1`, is ignored. A pattern that matches every row, such as `gameport:*:item/*`, denies the list like `gameport:admin:item/*`
 
 A loaded row whose placeholder field is `NULL` or `""` renders the placeholder as `""`, so `gameport:admin:item/` matches it and a prefix such as `abc*` does not. The exclusion keeps the same rows: an exact `""` constraint excludes `field = '' OR field IS NULL`.
 
-Unresolved `resourcePath` placeholders map to `resourceDefinition.fields` by name: `{id}` uses the `resource.id` field, which must be `isFilterable`. Prefix patterns additionally require a direct property described as `EApiPropertyDescribeType.STRING` on a text column, the same rule the typed `starts` filter uses, without the `BIGINT_STRING` and `UUID` string formats; UUID, enum, numeric, and relation-backed fields cannot be prefix-matched. Placeholders already resolved from request parameters, such as an inherited parent id, must match literally. A prefix pattern only maps when it ends inside the first unresolved placeholder. When the pattern cannot be mapped unambiguously or a placeholder field is missing, not filterable, or not a string, the whole list request is denied with `403`. Patterns for other resource types are ignored.
+Unresolved `resourcePath` placeholders map to `resourceDefinition.fields` by name: `{id}` uses the `resource.id` field, which must be `isFilterable`. A glob on a placeholder additionally requires a direct property described as `EApiPropertyDescribeType.STRING` on a text column, the same rule the typed `starts` filter uses, without the `BIGINT_STRING` and `UUID` string formats; UUID, enum, numeric, and relation-backed fields cannot be matched with a glob. Placeholders already resolved from request parameters, such as an inherited parent id, must match literally. When the pattern cannot be mapped unambiguously or a placeholder field is missing, not filterable, or does not fit the glob, the whole list request is denied with `403`. Patterns for other resource types are ignored.
 
-A prefix compares letter case on every database: `LIKE` on PostgreSQL, `LIKE` under the binary collation on MySQL and MariaDB, and `GLOB` on SQLite, whose `LIKE` ignores letter case.
+A glob compares letter case on every database: `LIKE` on PostgreSQL, `LIKE` under the binary collation on MySQL and MariaDB, and `GLOB` on SQLite, whose `LIKE` ignores letter case.
 
 Actions are never widened: a Deny on `read` does not hide rows from `list`, and a row-scoped Deny on `list` does not affect `read`. On row routes the resource string is concrete, so an exact `Resource` Deny matches that row and denies the request with `403`.
 
@@ -1155,9 +1215,15 @@ In 5.2.0 the String operators compare exactly on every database (see [Exact Stri
 
 In 5.2.0 every policy document is read by one strict grammar, at save and at load (see [Policy document validation](#policy-document-validation)):
 
+- `NotAction` and `NotResource` are evaluated (see [NotAction and NotResource](#notaction-and-notresource)), and `IApiPolicyStatement` has the optional fields `Action`, `NotAction`, `Resource` and `NotResource`.
+- An Allow whose `Resource` names some rows now scopes a list to them (see [Allow scopes](#allow-scopes)). It used to grant nothing on a list.
+- A Deny `Resource` with a `?` or a `*` before its end now excludes its rows from a list when it maps to them one way, as `gameport:admin:item/item-?` and `gameport:tenant/t-1*item-1` do. It used to deny the whole list. One that maps more than one way still does.
+- A placeholder on an integer column compares as an integer, so text no integer renders names no row and an Allow can scope by it.
+- A Deny on a loaded resource whose placeholder holds no text, such as an object, denies when the pattern could match. It used to stay out of the request.
+- `IApiAuthorizationIamResourceConstraint` holds `pattern` tokens instead of `isPrefix` and `value`, `IApiAuthorizationIamDenyExclusion` holds an optional `resourceRows` instead of `resourceConstraints`, and `ApiAuthorizationIamPredicateBuilder.buildPrefixConstraint` is `buildPatternConstraint`.
 - `?` in an `Action` or `Resource` pattern matches exactly one character; it used to match only itself. Write `${?}` for a literal `?`, `${*}` for a literal `*` and `${$}` for a literal `$`.
 - An Allow pattern with a `*` before its end now matches like a Deny pattern: `admin:*:read` allows `admin:item:read`, and `gameport:*:item/*` allows a list. It used to match nothing.
-- A document a source returns now throws, and the request answers `500`, for an unknown field such as `Principal`, a scalar `Action`, `Resource` or `Statement`, a `NotAction` or `NotResource`, an `Action` outside the namespace, a condition key that is no context path, `request.time`, `request.sourceIp` or `request.secureTransport`, a qualifier, a `resource.*` key no IAM controller of the namespace maps or maps as filterable, a list of several values, an object or `null` value, a client-controlled, unknown, embedded or defaulted variable, a variable in `Resource`, or an operator other than the four String operators the engine evaluates. Such a key used to fail closed or be logged as a warning. A list of one value now reads as that value instead of failing closed.
+- A document a source returns now throws, and the request answers `500`, for an unknown field such as `Principal`, a scalar `Action`, `Resource` or `Statement`, an `Action` outside the namespace, a condition key that is no context path, `request.time`, `request.sourceIp` or `request.secureTransport`, a qualifier, a `resource.*` key no IAM controller of the namespace maps or maps as filterable, a list of several values, an object or `null` value, a client-controlled, unknown, embedded or defaulted variable, a variable in `Resource`, or an operator other than the four String operators the engine evaluates. Such a key used to fail closed or be logged as a warning. A list of one value now reads as that value instead of failing closed.
 - The IgnoreCase, Like, Numeric, Date, `Bool`, `Null`, IP address and ARN operators, their `IfExists` forms, `request.time`, `request.sourceIp`, variables in `Resource`, variables inside other text and variable defaults are evaluated now (see [Condition operators](#condition-operators) and [Operator families in SQL](#operator-families-in-sql)).
 - A negated String operator in an Allow compiles into the scope. It used to leave the statement unmatched.
 - A variable that is missing, `null`, `""`, a list or an object now leaves an Allow unmatched and makes a Deny deny the whole request with `403`; it used to compare as `""`. Write a default, such as `${principal.attributes.team, ''}`, for the old reading.

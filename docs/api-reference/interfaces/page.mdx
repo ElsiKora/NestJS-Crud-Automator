@@ -600,19 +600,29 @@ interface IApiAuthorizationIamResourceSegment {
 }
 
 interface IApiAuthorizationIamResourceConstraint {
-	isPrefix: boolean; // true for a trailing-wildcard pattern such as "<type>/abc*"
+	pattern: ReadonlyArray<IApiAuthorizationIamToken>; // what the placeholder must render; no tokens name the empty value
 	placeholder: string; // mapped to the "resource.<placeholder>" field
-	value: string;
+}
+
+interface IApiAuthorizationIamResourceClassification {
+	constraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>; // of a PARTIAL pattern
+	kind: EApiAuthorizationIamResourceClass; // ALL, AMBIGUOUS, NONE or PARTIAL
+}
+
+interface IApiAuthorizationIamResourceRows {
+	constraintSets: ReadonlyArray<ReadonlyArray<IApiAuthorizationIamResourceConstraint>>; // one set per pattern
+	isNegated: boolean; // true for NotResource: the rows that match no pattern
 }
 
 interface IApiAuthorizationIamDenyExclusion {
-	resourceConstraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>;
+	resourceRows?: IApiAuthorizationIamResourceRows; // every row when absent
 	statement: IApiPolicyStatement;
 }
 
 interface IApiAuthorizationIamStatementMatch {
 	exclusions?: Array<IApiAuthorizationIamDenyExclusion>; // absent on a matched Deny means a whole-request deny
 	isMatched: boolean;
+	resourceRows?: IApiAuthorizationIamResourceRows; // rows a matched Allow applies to on a list; every row when absent
 }
 ```
 
