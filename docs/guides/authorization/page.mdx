@@ -653,6 +653,14 @@ IAM behavior is intentionally strict:
 - conditions that cannot be planned into a query fail closed instead of being filtered in memory: an Allow statement is not matched, while a Deny statement denies the whole request (explicit deny)
 - duplicate document IDs across sources and missing requested documents throw immediately
 
+### Wildcards in Action and Resource
+
+A Deny statement reads each `Action` and `Resource` pattern as a glob: `*` matches any sequence of characters, the empty one and `:` and `/` included, at any position. So `admin:*:delete` matches `admin:item:delete`, `gameport:admin:item/*/secret` matches `gameport:admin:item/7/secret`, and `admin:*-history` matches `admin:item-history`. `?` and every other character match only themselves. The match walks the pattern without a regular expression and in bounded time, so a long pattern cannot stall a request.
+
+An Allow statement keeps the narrower forms: `*` alone, a trailing `*` as a prefix, such as `admin:item:*`, or an exact value. An Allow pattern with a `*` anywhere else matches nothing and grants nothing, so a wildcard can only widen what a Deny refuses, never what an Allow grants. Write one Allow pattern per action or per resource prefix instead. The document validator accepts both forms.
+
+How a Deny `Resource` with a `*` before its end applies to a list or a create is described in [Deny semantics](#deny-semantics) and [Row-scoped Deny on lists](#row-scoped-deny-on-lists).
+
 ### Condition operators
 
 IAM conditions support exactly these operators, exposed as `EApiPolicyConditionOperator`:
@@ -665,6 +673,8 @@ IAM conditions support exactly these operators, exposed as `EApiPolicyConditionO
 | `StringNotEqualsIfExists` | the value is absent or differs from it         |
 
 Any other operator is a document validation error: `ApiAuthorizationIamDocumentValidator` rejects the document when it is loaded from a document source, so a typo can never silently turn a statement into a no-op. If an unknown operator still reaches evaluation, it fails closed: the key holds for a Deny and fails for an Allow. An operand that is a list, an object or `null` has no text to compare: the validator logs a warning and the key fails closed the same way: the key fails for an Allow and holds for a Deny, whose other keys still decide whether it matches. In a planned scope such a `resource.*` key cannot compile (see [Deny semantics](#deny-semantics)). None of these answers `500`.
+
+A key whose value is a list or an object, such as `principal.roles` or an object under `principal.attributes`, has no one text to compare either, so it fails closed the same way under every operator, the `IfExists` forms included: it holds for a Deny and fails for an Allow. So a Deny `StringEquals { "principal.roles": "banned" }` holds for every principal whose roles are a list, even an empty one, and an Allow on `principal.roles` never matches. `AuthorizationResolveDefaultPrincipal` always makes `roles` and `groups` lists, so do not compare them; resolve the value a policy needs into a scalar attribute, such as `principal.attributes.isBanned`, in your principal resolver. A loaded `resource.*` value that is a list or an object fails closed the same way in memory. A missing key and `null` still compare as before.
 
 Keys inside one statement are ANDed. `principal.*` and `request.*` keys are evaluated in memory; `resource.*` keys are evaluated in memory when the resource is already loaded (for example in `ApiAuthorizationSimulator` with `resource`) and are otherwise planned into a database scope.
 
@@ -691,7 +701,7 @@ Generated routes evaluate IAM once, before the resource is loaded. A matched Den
 - **No `resource.*` keys** — the whole request is denied with `403`.
 - **`resource.*` keys that all compile** — the Deny becomes a row exclusion: its condition is negated and ANDed with the Allow scope. Lists omit excluded rows, and `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` of an excluded row answer `404`, exactly like a row outside an Allow scope. On `UPDATE` and `PARTIAL_UPDATE` the exclusion also applies to the row after the write: a body that moves a row into the excluded state answers `403` and is rolled back (see [Scoped UPDATE](#scoped-update)).
 - **Any `resource.*` key that cannot compile** (another operator, a non-filterable or unmapped field, a `queryPath` TypeORM cannot resolve to a column, an unresolved `${...}` variable, a value that resolves to `null` or `""`, a list, object or `null` value, a value other than `true` or `false` on a boolean column) — the whole request is denied with `403`.
-- **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule. A Deny whose `Resource` names a concrete row, such as `gameport:admin:item/item-1`, is not applied on `CREATE`: the request is evaluated against the collection resource, so that pattern does not match and the row is created. To refuse a value on `CREATE`, use an Allow scope instead (see [Scoped CREATE](#scoped-create)).
+- **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule. A Deny whose `Resource` names a concrete row, such as `gameport:admin:item/item-1`, is not applied on `CREATE`: the request is evaluated against the collection resource, so that pattern does not match and the row is created. A `Resource` with a `*` before its end, such as `gameport:admin:item/*-archived`, is the exception: when some row of the collection could match it, it denies the whole `CREATE` with `403`, because that `*` can span any part of the resource string and so fails closed. To refuse a value on `CREATE`, use an Allow scope instead (see [Scoped CREATE](#scoped-create)).
 
 By De Morgan, the keys of one Deny become top-level OR branches of the exclusion. The kept rows are exactly the rows the in-memory evaluator allows once the resource is loaded. That evaluator compares values as strings and treats a stored `NULL` as a present value that normalizes to an empty string, so `NULL` never equals a non-empty value and always differs from it. A path that crosses a missing relation is a missing key, at any depth, for which the `IfExists` operators hold, while the joined column reads `NULL`. So a Deny `StringEqualsIfExists` keeps a `NULL` column only while the relation is present, checked on `key`, the primary column of the last relation the path crosses:
 
@@ -758,6 +768,7 @@ A list request (`GET_LIST`, or a custom route whose action is `<policyNamespace>
 - `gameport:admin:item/item-1` excludes `id = 'item-1'`
 - `gameport:admin:item/abc*` excludes ids starting with `abc`; literal `%`, `_`, and `!` are escaped and the prefix is matched with `NOT LIKE ... ESCAPE '!'`
 - with `resourcePath: "bool:item/{isFeatured}"` on a boolean column, `bool:item/true` excludes `isFeatured = true`; only `true` and `false` map, so `bool:item/1` or `bool:item/TRUE` denies the list with `403`
+- a pattern with a `*` before its end, such as `gameport:admin:item/*-archived` or `gameport:*/item-1`, is not mapped to rows: that `*` can span literal parts and placeholders alike, so no single placeholder value is certain. When some row of the collection can match it, the whole list is denied with `403`; when none can, as with `gameport:other/*/item-1`, it is ignored. A pattern that matches every row, such as `gameport:*:item/*`, denies the list like `gameport:admin:item/*`
 
 Rows whose placeholder field is `NULL` stay visible, because their resource string renders the placeholder as `*`, which no row-scoped pattern matches.
 

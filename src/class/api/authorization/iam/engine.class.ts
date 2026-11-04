@@ -3,6 +3,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationDecision, IApiAuthorizationIamDenyExclusion, IApiAuthorizationIamResourceConstraint, IApiAuthorizationIamResourceSegment, IApiAuthorizationIamStatementMatch, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyAttachment, IApiPolicyDocumentRecord, IApiPolicyStatement, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
+import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class";
 import { ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam/query-planner.class";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
 import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiPolicyConditionOperator, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
@@ -356,6 +357,23 @@ export class ApiAuthorizationIamEngine {
 		return typeof value === "string" && /^\$\{resource(?:\..+)?\}$/.test(value);
 	}
 
+	/**
+	 * Tells whether a value has no text to compare although it is present: a list, an object, or an invalid date.
+	 * @param {unknown} value - Value a condition key reads.
+	 * @returns {boolean} Whether the value is structured.
+	 */
+	private isStructuredValue(value: unknown): boolean {
+		return typeof value === "object" && value !== null && AuthorizationSerializeValue(value) === undefined;
+	}
+
+	/**
+	 * Matches an Allow Action or Resource pattern: `*` alone, a trailing `*` as a prefix, or an exact value. Any other
+	 * `*` makes the pattern match nothing, so an Allow never grants more than these forms; Deny patterns use
+	 * {@link ApiAuthorizationIamGlob.isMatched} instead.
+	 * @param {string} pattern - Allow pattern.
+	 * @param {string} value - Concrete action or resource string.
+	 * @returns {boolean} Whether the pattern matches the value.
+	 */
 	private matchesWildcardPattern(pattern: string, value: string): boolean {
 		if (pattern === "*") {
 			return true;
@@ -401,20 +419,27 @@ export class ApiAuthorizationIamEngine {
 		resourceSegments: ReadonlyArray<IApiAuthorizationIamResourceSegment>;
 		statement: IApiPolicyStatement;
 	}): IApiAuthorizationIamStatementMatch {
-		const isActionMatched: boolean = options.statement.Action.some((pattern: string) => this.matchesWildcardPattern(pattern, options.action));
+		const isDeny: boolean = options.statement.Effect === EApiPolicyEffect.DENY;
+		// A Deny pattern is a glob with `*` anywhere, so it never matches less than it says; an Allow keeps its narrower forms.
+		const matchesPattern: (pattern: string, value: string) => boolean = (pattern: string, value: string): boolean => (isDeny ? ApiAuthorizationIamGlob.isMatched(pattern, value) : this.matchesWildcardPattern(pattern, value));
+		const isActionMatched: boolean = options.statement.Action.some((pattern: string) => matchesPattern(pattern, options.action));
 
 		if (!isActionMatched) {
 			return { isMatched: false };
 		}
 
-		const isDeny: boolean = options.statement.Effect === EApiPolicyEffect.DENY;
 		const resourceString: string = options.resourceSegments.map((segment: IApiAuthorizationIamResourceSegment): string => segment.value).join("");
-		const isResourceMatched: boolean = options.statement.Resource.some((pattern: string) => this.matchesWildcardPattern(pattern, resourceString));
+		const isResourceMatched: boolean = options.statement.Resource.some((pattern: string) => matchesPattern(pattern, resourceString));
 		const resourceConstraintSets: Array<ReadonlyArray<IApiAuthorizationIamResourceConstraint>> = isResourceMatched ? [[]] : [];
 		let isResourceMappable: boolean = true;
 
-		if (!isResourceMatched && isDeny && options.resource === undefined && options.isListRequest) {
+		if (!isResourceMatched && isDeny && options.resource === undefined && (options.isListRequest || options.isCreateRequest)) {
 			for (const pattern of options.statement.Resource) {
+				// A create names no row, so only a pattern with a wildcard before its end, which cannot be mapped, applies to it.
+				if (!options.isListRequest && !pattern.slice(0, -1).includes("*")) {
+					continue;
+				}
+
 				const patternMatch: { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined = this.resolveResourcePatternConstraints(pattern, options.resourceSegments);
 
 				if (patternMatch) {
@@ -500,6 +525,15 @@ export class ApiAuthorizationIamEngine {
 					return { isMatched: false };
 				}
 
+				// A list or object value, such as `principal.roles`, has no one text to compare, so the key fails closed: it holds for a Deny and fails an Allow.
+				if (this.isStructuredValue(actualValue.value)) {
+					if (isDeny) {
+						continue;
+					}
+
+					return { isMatched: false };
+				}
+
 				if (!this.evaluateOperator(operator, actualValue.value, expectedValue)) {
 					return { isMatched: false };
 				}
@@ -551,7 +585,7 @@ export class ApiAuthorizationIamEngine {
 	/**
 	 * Writes a condition operand as the canonical text the condition compares, so a typed resource value and the text of a path value compare equal.
 	 * @param {unknown} value - Request, resource or principal value.
-	 * @returns {string} Canonical text, or an empty string for a value with no text form.
+	 * @returns {string} Canonical text, or an empty string for a missing or null value.
 	 */
 	private normalizeComparable(value: unknown): string {
 		return AuthorizationSerializeValue(value) ?? "";
@@ -675,6 +709,8 @@ export class ApiAuthorizationIamEngine {
 	 * @param {string} pattern - Statement Resource pattern that does not match the collection resource string.
 	 * @param {ReadonlyArray<IApiAuthorizationIamResourceSegment>} segments - Collection resource segments.
 	 * @returns {{ constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined} Placeholder constraints of the rows the pattern covers, `isMappable: false` when the placeholder values are ambiguous, or undefined when no row can match.
+	 * A pattern with a `*` before its end never maps: that `*` can span literals and placeholders alike, so when some
+	 * row can match it the whole request is denied.
 	 */
 	private resolveResourcePatternConstraints(pattern: string, segments: ReadonlyArray<IApiAuthorizationIamResourceSegment>): { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined {
 		const isPrefixPattern: boolean = pattern.endsWith("*");
@@ -682,7 +718,7 @@ export class ApiAuthorizationIamEngine {
 		let remainder: string = isPrefixPattern ? pattern.slice(0, -1) : pattern;
 
 		if (remainder.includes("*")) {
-			return undefined;
+			return ApiAuthorizationIamGlob.isOverlapping(pattern, segments) ? { constraints, isMappable: false } : undefined;
 		}
 
 		for (const [index, segment] of segments.entries()) {
