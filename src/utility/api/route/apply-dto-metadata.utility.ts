@@ -16,6 +16,7 @@ import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoP
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerate } from "@utility/dto";
+import { DtoRequestWireBindDto, DtoRequestWireBindRoute } from "@utility/dto/request-wire/bind";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
@@ -61,6 +62,18 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
 	if (parameterTypes.length > 0) {
 		Reflect.defineMetadata(PARAMTYPES_METADATA, parameterTypes, target, propertyKey);
 	}
+
+	// A configured DTO counts where the route reads it even without an argument: the guard runs the PARAMETERS DTO on the path values.
+	const routeOrigin: string = `route ${handlerName} in controller ${target.constructor.name}`;
+
+	DtoRequestWireBindRoute(target.constructor, propertyKey);
+
+	for (const dto of ApiRouteIsDiscriminatedDtoProperties(bodyDto) ? bodyDto.type : [bodyDto]) {
+		DtoRequestWireBindDto(dto, EApiDtoType.BODY, `the body of ${routeOrigin}`);
+	}
+
+	DtoRequestWireBindDto(parametersDto, EApiDtoType.PARAMETERS, `the parameters of ${routeOrigin}`);
+	DtoRequestWireBindDto(queryDto, EApiDtoType.QUERY, `the query of ${routeOrigin}`);
 
 	const requestDtos: Array<Type<unknown>> = [];
 

@@ -7,6 +7,7 @@ import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/c
 import { Catch, Injectable } from "@nestjs/common";
 import { ModulesContainer } from "@nestjs/core";
 import { ApiControllerAssertSchemaNames } from "@utility/api/controller/assert-schema-names.utility";
+import { DtoRequestWireBindController } from "@utility/dto/request-wire/bind";
 
 /**
  * The only exception class the check filter declares, so the filter never handles an exception of the application.
@@ -37,8 +38,8 @@ export class ApiControllerSchemaNameCheck implements ExceptionFilter<ApiControll
 	}
 
 	/**
-	 * Runs the startup check of each controller, whose constructor a REQUEST-scoped controller only runs on a request.
-	 * Fails startup when two controller classes of this application have one schema prefix, or two classes in its route schemas have one component name.
+	 * Runs the startup check of each controller, whose constructor a REQUEST-scoped controller only runs on a request, and binds the request DTOs of each of its routes to where the route reads them.
+	 * Fails startup when two controller classes of this application have one schema prefix, two classes in its route schemas have one component name, or one DTO class is read from a JSON body and from a query or a path.
 	 * @returns {void}
 	 */
 	public onApplicationBootstrap(): void {
@@ -51,6 +52,7 @@ export class ApiControllerSchemaNameCheck implements ExceptionFilter<ApiControll
 		for (const module of this.modulesContainer.values()) {
 			for (const wrapper of module.controllers.values()) {
 				if (wrapper.metatype) {
+					DtoRequestWireBindController(wrapper.metatype);
 					(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, wrapper.metatype) as ((controller: TApiControllerConstructor, isConstructedPerRequest: boolean) => void) | undefined)?.(wrapper.metatype as TApiControllerConstructor, !wrapper.isDependencyTreeStatic());
 				}
 			}

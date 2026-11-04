@@ -7,8 +7,9 @@ import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
-import { EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { ValidationPipe } from "@nestjs/common";
+import { DtoRequestWireBindDto } from "@utility/dto/request-wire/bind";
 import { plainToInstance } from "class-transformer";
 import { IsNumber, validateSync } from "class-validator";
 import { describe, expect, it } from "vitest";
@@ -135,8 +136,12 @@ describe("isUniqueItems on request arrays", () => {
 	it.each([
 		["ApiPropertyBoolean", buildBooleanDto, ["true", true]],
 		["ApiPropertyNumber", buildNumberDto, ["7", 7]],
-	])("compares %s items after they are transformed", (_name: string, factory: TArrayDtoFactory, items: Array<unknown>) => {
-		expect(getItemsConstraints(factory, true, items)).toEqual(["arrayUniqueItems"]);
+	])("compares %s items of a query after they are transformed", (_name: string, factory: TArrayDtoFactory, items: Array<unknown>) => {
+		const dto: new () => object = factory(true);
+
+		DtoRequestWireBindDto(dto, EApiDtoType.QUERY, "a query");
+
+		expect(validateSync(plainToInstance(dto, { items })).flatMap((error) => Object.keys(error.constraints ?? {}))).toEqual(["arrayUniqueItems"]);
 	});
 
 	it("compares ApiPropertyDate items in the one published form of an instant", () => {

@@ -6,6 +6,7 @@ import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthenticationType, EApiControllerRequestTarget, EApiDtoType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
+import { FormBodyInterceptor } from "@interceptor/form-body.interceptor";
 import { RequestBodyShapeInterceptor } from "@interceptor/request-body-shape.interceptor";
 import { UuidCanonicalInterceptor } from "@interceptor/uuid-canonical.interceptor";
 import { GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/internal";
@@ -156,7 +157,7 @@ describe("ApiControllerApplyDecorators", () => {
 		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, [], "TestController");
 
 		expect(Reflect.getMetadata(GUARDS_METADATA, targetMethod)).toEqual([DecoratorExecutionGuard, ApiAuthorizationGuard]);
-		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, targetMethod)).toEqual([RequestBodyShapeInterceptor, UuidCanonicalInterceptor, DecoratorExecutionInterceptor]);
+		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, targetMethod)).toEqual([RequestBodyShapeInterceptor, FormBodyInterceptor, UuidCanonicalInterceptor, DecoratorExecutionInterceptor]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, targetMethod)).toEqual(["application/vnd.generated+json"]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, targetMethod)).toEqual(["application/vnd.generated+json"]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS, targetMethod)).toEqual([expect.objectContaining({ in: "header", name: "X-Route-Proof", required: true })]);

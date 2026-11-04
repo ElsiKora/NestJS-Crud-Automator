@@ -439,12 +439,22 @@ export class E2ePathParameterCanonicalCopyActiveBodyDto {
 }
 
 /**
+ * Reads the copied boolean from a query: a JSON body and a query need one DTO class each.
+ */
+export class E2ePathParameterCanonicalCopyActiveQueryDto extends E2ePathParameterCanonicalCopyActiveBodyDto {}
+
+/**
  * Declares the boolean with `ApiPropertyBoolean` directly.
  */
 export class E2ePathParameterCanonicalBooleanBodyDto {
 	@ApiPropertyBoolean({ description: "active", entity: E2ePathParameterCanonicalIntItemEntity, isRequired: true } as never)
 	public active!: boolean;
 }
+
+/**
+ * Reads the boolean from a query: a JSON body and a query need one DTO class each.
+ */
+export class E2ePathParameterCanonicalBooleanQueryDto extends E2ePathParameterCanonicalBooleanBodyDto {}
 
 const buildBooleanEchoRoute = (method: RequestMethod, path: string, dto: Partial<Record<EApiDtoType, new () => unknown>>): MethodDecorator =>
 	ApiRouteCustom({
@@ -469,8 +479,8 @@ export class E2ePathParameterCanonicalBooleanEchoController {
 		return { value: `${typeof body.active}:${String(body.active)}` };
 	}
 
-	@buildBooleanEchoRoute(RequestMethod.GET, "copy", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalCopyActiveBodyDto })
-	public copyQuery(@Query() query: E2ePathParameterCanonicalCopyActiveBodyDto): E2ePathParameterCanonicalCustomResponseDto {
+	@buildBooleanEchoRoute(RequestMethod.GET, "copy", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalCopyActiveQueryDto })
+	public copyQuery(@Query() query: E2ePathParameterCanonicalCopyActiveQueryDto): E2ePathParameterCanonicalCustomResponseDto {
 		return { value: `${typeof query.active}:${String(query.active)}` };
 	}
 
@@ -479,8 +489,8 @@ export class E2ePathParameterCanonicalBooleanEchoController {
 		return { value: `${typeof body.active}:${String(body.active)}` };
 	}
 
-	@buildBooleanEchoRoute(RequestMethod.GET, "boolean", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalBooleanBodyDto })
-	public booleanQuery(@Query() query: E2ePathParameterCanonicalBooleanBodyDto): E2ePathParameterCanonicalCustomResponseDto {
+	@buildBooleanEchoRoute(RequestMethod.GET, "boolean", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalBooleanQueryDto })
+	public booleanQuery(@Query() query: E2ePathParameterCanonicalBooleanQueryDto): E2ePathParameterCanonicalCustomResponseDto {
 		return { value: `${typeof query.active}:${String(query.active)}` };
 	}
 }
@@ -599,6 +609,11 @@ export class E2ePathParameterCanonicalSentBooleanDto {
 }
 
 /**
+ * Reads the boolean and the boolean list from a query.
+ */
+export class E2ePathParameterCanonicalSentBooleanQueryDto extends E2ePathParameterCanonicalSentBooleanDto {}
+
+/**
  * A boolean and a boolean list, renamed in the request with `@Expose({ name })`.
  */
 export class E2ePathParameterCanonicalSentRenamedBooleanDto {
@@ -612,6 +627,11 @@ export class E2ePathParameterCanonicalSentRenamedBooleanDto {
 }
 
 /**
+ * Reads the renamed boolean and boolean list from a query.
+ */
+export class E2ePathParameterCanonicalSentRenamedBooleanQueryDto extends E2ePathParameterCanonicalSentRenamedBooleanDto {}
+
+/**
  * An integer and an integer list, under their own names.
  */
 export class E2ePathParameterCanonicalSentIntegerDto {
@@ -621,6 +641,11 @@ export class E2ePathParameterCanonicalSentIntegerDto {
 	@ApiPropertyNumber(SENT_INTEGERS)
 	public values?: Array<number>;
 }
+
+/**
+ * Reads the integer and the integer list from a query.
+ */
+export class E2ePathParameterCanonicalSentIntegerQueryDto extends E2ePathParameterCanonicalSentIntegerDto {}
 
 /**
  * An integer and an integer list, renamed in the request with `@Expose({ name })`.
@@ -636,6 +661,11 @@ export class E2ePathParameterCanonicalSentRenamedIntegerDto {
 }
 
 /**
+ * Reads the renamed integer and integer list from a query.
+ */
+export class E2ePathParameterCanonicalSentRenamedIntegerQueryDto extends E2ePathParameterCanonicalSentRenamedIntegerDto {}
+
+/**
  * Echoes the body or query a host pipe gives the handler, for each sent-value DTO.
  */
 @ApiControllerObservable()
@@ -649,8 +679,8 @@ export class E2ePathParameterCanonicalSentValueController {
 		return { value: JSON.stringify(body) };
 	}
 
-	@buildBooleanEchoRoute(RequestMethod.GET, "boolean-plain", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentBooleanDto })
-	public booleanPlainQuery(@Query() query: E2ePathParameterCanonicalSentBooleanDto): E2ePathParameterCanonicalCustomResponseDto {
+	@buildBooleanEchoRoute(RequestMethod.GET, "boolean-plain", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentBooleanQueryDto })
+	public booleanPlainQuery(@Query() query: E2ePathParameterCanonicalSentBooleanQueryDto): E2ePathParameterCanonicalCustomResponseDto {
 		return { value: JSON.stringify(query) };
 	}
 
@@ -659,8 +689,8 @@ export class E2ePathParameterCanonicalSentValueController {
 		return { value: JSON.stringify(body) };
 	}
 
-	@buildBooleanEchoRoute(RequestMethod.GET, "boolean-renamed", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentRenamedBooleanDto })
-	public booleanRenamedQuery(@Query() query: E2ePathParameterCanonicalSentRenamedBooleanDto): E2ePathParameterCanonicalCustomResponseDto {
+	@buildBooleanEchoRoute(RequestMethod.GET, "boolean-renamed", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentRenamedBooleanQueryDto })
+	public booleanRenamedQuery(@Query() query: E2ePathParameterCanonicalSentRenamedBooleanQueryDto): E2ePathParameterCanonicalCustomResponseDto {
 		return { value: JSON.stringify(query) };
 	}
 
@@ -674,8 +704,8 @@ export class E2ePathParameterCanonicalSentValueController {
 		return { value: JSON.stringify(body) };
 	}
 
-	@buildBooleanEchoRoute(RequestMethod.GET, "integer-plain", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentIntegerDto })
-	public integerPlainQuery(@Query() query: E2ePathParameterCanonicalSentIntegerDto): E2ePathParameterCanonicalCustomResponseDto {
+	@buildBooleanEchoRoute(RequestMethod.GET, "integer-plain", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentIntegerQueryDto })
+	public integerPlainQuery(@Query() query: E2ePathParameterCanonicalSentIntegerQueryDto): E2ePathParameterCanonicalCustomResponseDto {
 		return { value: JSON.stringify(query) };
 	}
 
@@ -684,8 +714,8 @@ export class E2ePathParameterCanonicalSentValueController {
 		return { value: JSON.stringify(body) };
 	}
 
-	@buildBooleanEchoRoute(RequestMethod.GET, "integer-renamed", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentRenamedIntegerDto })
-	public integerRenamedQuery(@Query() query: E2ePathParameterCanonicalSentRenamedIntegerDto): E2ePathParameterCanonicalCustomResponseDto {
+	@buildBooleanEchoRoute(RequestMethod.GET, "integer-renamed", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentRenamedIntegerQueryDto })
+	public integerRenamedQuery(@Query() query: E2ePathParameterCanonicalSentRenamedIntegerQueryDto): E2ePathParameterCanonicalCustomResponseDto {
 		return { value: JSON.stringify(query) };
 	}
 }

@@ -15,6 +15,7 @@ import { ApiControllerGetDtoWithPathPlan } from "@utility/api/controller/get/dto
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerParametersDtoSet } from "@utility/api/controller/parameters";
 import { ApiControllerPathPlanAssert } from "@utility/api/controller/path";
+import { DtoRequestWireBindDto } from "@utility/dto/request-wire/bind";
 import { getMetadataStorage } from "class-validator";
 
 /**
@@ -100,6 +101,13 @@ export function ApiControllerApplyMetadataWithPathPlan<E extends IApiBaseEntity>
 
 	Reflect.defineMetadata(ROUTE_ARGS_METADATA, routeArgumentsMetadata, target, methodName);
 	Reflect.defineMetadata(PARAMTYPES_METADATA, parameterTypes, targetPrototype, methodName);
+
+	const routeOrigin: string = `route ${methodName} in controller ${String((target as { name?: string }).name)}`;
+
+	DtoRequestWireBindDto(requestDto, EApiDtoType.PARAMETERS, `the parameters of ${routeOrigin}`);
+	DtoRequestWireBindDto(configuredRequestDto, EApiDtoType.PARAMETERS, `the parameters of ${routeOrigin}`);
+	DtoRequestWireBindDto(queryDto, EApiDtoType.QUERY, `the query of ${routeOrigin}`);
+	DtoRequestWireBindDto(bodyDto, EApiDtoType.BODY, `the body of ${routeOrigin}`);
 }
 
 /**

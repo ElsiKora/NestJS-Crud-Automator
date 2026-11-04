@@ -9,6 +9,7 @@ import { STATUS_CODES } from "node:http";
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
+import { FormBodyInterceptor } from "@interceptor/form-body.interceptor";
 import { RequestBodyShapeInterceptor } from "@interceptor/request-body-shape.interceptor";
 import { UuidCanonicalInterceptor } from "@interceptor/uuid-canonical.interceptor";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
@@ -275,7 +276,7 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	const authenticationGuards: Array<Type<CanActivate>> = metadata.security?.authentication?.guard ? [metadata.security.authentication.guard] : [];
-	decorators.push(UseGuards(...beforeAuthenticationGuards, ...authenticationGuards, ...afterAuthenticationGuards, ApiAuthorizationGuard, ...afterAuthorizationGuards), UseInterceptors(RequestBodyShapeInterceptor, UuidCanonicalInterceptor, ...(options.execution?.interceptors ?? [])));
+	decorators.push(UseGuards(...beforeAuthenticationGuards, ...authenticationGuards, ...afterAuthenticationGuards, ApiAuthorizationGuard, ...afterAuthorizationGuards), UseInterceptors(RequestBodyShapeInterceptor, FormBodyInterceptor, UuidCanonicalInterceptor, ...(options.execution?.interceptors ?? [])));
 
 	return applyDecorators(...decorators);
 }

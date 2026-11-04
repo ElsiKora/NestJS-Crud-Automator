@@ -26,6 +26,7 @@ import { DtoGetRelationRequestMetadata } from "@utility/dto/get/relation/request
 import { DtoGetRelationResponseMetadata } from "@utility/dto/get/relation/response-metadata.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.utility";
+import { DtoRequestWireBindDto } from "@utility/dto/request-wire/bind/dto.utility";
 import { DtoSchemaNameGetRouteOrigin } from "@utility/dto/schema-name/route-origin.utility";
 import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -276,6 +277,9 @@ export function DtoGenerate<E>(
 	} finally {
 		DtoAutoContextPop(GeneratedDTO.prototype);
 	}
+
+	// The GET_LIST base class declares `limit` and `page` outside this context, so a query DTO converts their text through the binding.
+	DtoRequestWireBindDto(GeneratedDTO, dtoType, routeOrigin);
 
 	if (isTypedFilterPlan) {
 		const hiddenSwaggerProperties: Set<string> = new Set<string>();

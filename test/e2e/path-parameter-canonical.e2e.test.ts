@@ -56,8 +56,11 @@ interface ISentValueCase {
 }
 
 const BOOLEAN_SENT: Array<[unknown, unknown, Array<"body" | "query">]> = [
-	["true", true, ["body", "query"]],
-	["false", false, ["body", "query"]],
+	["true", true, ["query"]],
+	["false", false, ["query"]],
+	// A JSON body carries types: boolean text is refused there.
+	["true", undefined, ["body"]],
+	["false", undefined, ["body"]],
 	[true, true, ["body"]],
 	[false, false, ["body"]],
 	["1", undefined, ["body", "query"]],
@@ -65,28 +68,26 @@ const BOOLEAN_SENT: Array<[unknown, unknown, Array<"body" | "query">]> = [
 	["no", undefined, ["body", "query"]],
 	["TRUE", undefined, ["body", "query"]],
 	[1, undefined, ["body"]],
-	[
-		["true", "false"],
-		[true, false],
-		["body", "query"],
-	],
+	[["true", "false"], [true, false], ["query"]],
+	[["true", "false"], undefined, ["body"]],
+	[[true, false], [true, false], ["body"]],
 	[["true", "no"], undefined, ["body", "query"]],
 	[["false", "0"], undefined, ["body", "query"]],
 ];
 
 const INTEGER_SENT: Array<[unknown, unknown, Array<"body" | "query">]> = [
-	["16", 16, ["body", "query"]],
+	["16", 16, ["query"]],
+	// A JSON body carries types: number text is refused there.
+	["16", undefined, ["body"]],
 	[16, 16, ["body"]],
 	["016", undefined, ["body", "query"]],
 	["1e1", undefined, ["body", "query"]],
 	["0x10", undefined, ["body", "query"]],
 	["16.0", undefined, ["body", "query"]],
 	[true, undefined, ["body"]],
-	[
-		["1", "2"],
-		[1, 2],
-		["body", "query"],
-	],
+	[["1", "2"], [1, 2], ["query"]],
+	[["1", "2"], undefined, ["body"]],
+	[[1, 2], [1, 2], ["body"]],
 	[[3], [3], ["body"]],
 	[["1", "016"], undefined, ["body", "query"]],
 ];
@@ -315,12 +316,13 @@ describe.each([
 
 	it.skipIf(pipe === "none").each(["copy", "boolean"])("gives the handler the boolean of the %s body and query DTO exactly as sent", async (kind: string) => {
 		for (const [sent, received] of [
-			["true", "boolean:true"],
-			["false", "boolean:false"],
+			[true, "boolean:true"],
 			[false, "boolean:false"],
-		] as Array<[boolean | string, string]>) {
+		] as Array<[boolean, string]>) {
 			expect(await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}`, HttpStatus.OK, "POST", { active: sent })).toEqual({ value: received });
 			expect(await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}?active=${String(sent)}`, HttpStatus.OK)).toEqual({ value: received });
+			// A JSON body carries types: the text "true" or "false" is refused there.
+			await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}`, HttpStatus.BAD_REQUEST, "POST", { active: String(sent) });
 		}
 
 		for (const value of NON_CANONICAL_BOOLEANS) {

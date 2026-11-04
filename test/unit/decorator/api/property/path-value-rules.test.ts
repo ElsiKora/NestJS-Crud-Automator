@@ -7,7 +7,8 @@ import { ApiPropertyDate } from "@decorator/api/property/date.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
-import { EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { DtoRequestWireBindDto } from "@utility/dto/request-wire/bind";
 import { Expose, plainToInstance } from "class-transformer";
 import { isUUID, validateSync } from "class-validator";
 import { describe, expect, it } from "vitest";
@@ -62,6 +63,11 @@ class PathValueRenamedIntegerDto {
 class PathValueDoubleDto {
 	@ApiPropertyNumber({ description: "ratio", entity: PathValueRulesEntity, exampleValue: 1, format: EApiPropertyNumberType.DOUBLE, isRequired: true, maximum: 10_000, minimum: 0, multipleOf: 0.5 })
 	public ratio!: number;
+}
+
+// Path values are text, so these DTOs convert their canonical text as a PARAMETERS DTO does.
+for (const dto of [PathValueIntegerDto, PathValueIntegerArrayDto, PathValueBooleanDto, PathValueBooleanArrayDto, PathValueRenamedBooleanDto, PathValueRenamedIntegerDto, PathValueDoubleDto]) {
+	DtoRequestWireBindDto(dto, EApiDtoType.PARAMETERS, "a path");
 }
 
 class PathValueDateDto {

@@ -1,7 +1,8 @@
 import "reflect-metadata";
 
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
-import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { DtoRequestWireBindDto } from "@utility/dto/request-wire/bind";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
@@ -99,6 +100,19 @@ class NumberOptionalDto {
 	public count?: number;
 }
 
+class NumberQueryDto extends NumberDto {}
+
+class NumberPathDto extends NumberDto {}
+
+class NumberArrayQueryDto extends NumberArrayDto {}
+
+class NumberDoubleQueryDto extends NumberDoubleDto {}
+
+DtoRequestWireBindDto(NumberQueryDto, EApiDtoType.QUERY, "a query");
+DtoRequestWireBindDto(NumberPathDto, EApiDtoType.PARAMETERS, "a path");
+DtoRequestWireBindDto(NumberArrayQueryDto, EApiDtoType.QUERY, "a query");
+DtoRequestWireBindDto(NumberDoubleQueryDto, EApiDtoType.QUERY, "a query");
+
 class NumberResponseDto {
 	@ApiPropertyNumber({
 		description: "total",
@@ -124,14 +138,25 @@ describe("ApiPropertyNumber", () => {
 		expect(metadata?.maximum).toBe(10);
 	});
 
-	it("transforms string values to numbers and validates integers", () => {
-		const instance = plainToInstance(NumberDto, { count: "4" });
+	it.each([
+		["query", NumberQueryDto],
+		["path", NumberPathDto],
+	])("converts integer text in a %s DTO and validates it", (_place: string, dto: typeof NumberDto) => {
+		const instance = plainToInstance(dto, { count: "4" });
 
 		expect(instance.count).toBe(4);
 		expect(validateSync(instance)).toHaveLength(0);
 
-		const errors = validateSync(plainToInstance(NumberDto, { count: 3 }));
+		const errors = validateSync(plainToInstance(dto, { count: 3 }));
 		expect(errors[0]?.constraints?.isDivisibleBy).toBeDefined();
+	});
+
+	it("keeps integer text in a JSON body DTO for IsInt to refuse, and accepts a JSON number", () => {
+		const instance = plainToInstance(NumberDto, { count: "4" });
+
+		expect(instance.count).toBe("4");
+		expect(validateSync(instance)[0]?.constraints?.isInt).toBe("count must be an integer number");
+		expect(validateSync(plainToInstance(NumberDto, { count: 4 }))).toHaveLength(0);
 	});
 
 	it("rejects non-integers for integer formats", () => {
@@ -164,25 +189,40 @@ describe("ApiPropertyNumber", () => {
 		expect(emptyErrors[0]?.constraints?.arrayMinSize).toBeDefined();
 		expect(emptyErrors[0]?.constraints?.arrayNotEmpty).toBeDefined();
 
-		const instance = plainToInstance(NumberArrayDto, { values: ["2", "4"] });
+		const instance = plainToInstance(NumberArrayQueryDto, { values: ["2", "4"] });
 		expect(instance.values).toEqual([2, 4]);
 		expect(validateSync(instance)).toHaveLength(0);
+		expect(validateSync(plainToInstance(NumberArrayDto, { values: [2, 4] }))).toHaveLength(0);
 	});
 
-	it("wraps a single array value into a one-item array before converting it", () => {
-		const instance = plainToInstance(NumberArrayDto, { values: "2" });
+	it("checks each item of a JSON body list as sent", () => {
+		const instance = plainToInstance(NumberArrayDto, { values: [2, "4"] });
+
+		expect(instance.values).toEqual([2, "4"]);
+		expect(validateSync(instance)[0]?.constraints?.isInt).toBe("each value in values must be an integer number");
+	});
+
+	it("wraps a single array value into a one-item array before converting it in a query", () => {
+		const instance = plainToInstance(NumberArrayQueryDto, { values: "2" });
 
 		expect(instance.values).toEqual([2]);
 		expect(validateSync(instance).map((error) => Object.keys(error.constraints ?? {}))).toEqual([["arrayMinSize"]]);
 	});
 
+	it("wraps a single JSON body value into a one-item array without converting it", () => {
+		expect(plainToInstance(NumberArrayDto, { values: 2 }).values).toEqual([2]);
+		expect(plainToInstance(NumberArrayDto, { values: "2" }).values).toEqual(["2"]);
+	});
+
 	it("validates double formats with divisibility rules", () => {
-		const instance = plainToInstance(NumberDoubleDto, { ratio: "1.3" });
+		const instance = plainToInstance(NumberDoubleQueryDto, { ratio: "1.3" });
 
 		expect(instance.ratio).toBe(1.3);
 		const errors = validateSync(instance);
 
 		expect(errors[0]?.constraints?.isDivisibleBy).toBeDefined();
+		expect(validateSync(plainToInstance(NumberDoubleDto, { ratio: "1.5" }))[0]?.constraints?.isNumber).toBe("ratio must be a number conforming to the specified constraints");
+		expect(validateSync(plainToInstance(NumberDoubleDto, { ratio: 1.5 }))).toHaveLength(0);
 	});
 
 	it("does not expose multipleOf in response swagger metadata", () => {

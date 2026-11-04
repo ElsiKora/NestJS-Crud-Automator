@@ -10,8 +10,8 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
-import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
+import { DtoRequestWireScalarTransform } from "@utility/dto/request-wire/scalar-transform.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { IsDecimalDivisibleBy } from "@utility/is/decimal-divisible-by.utility";
 import { NumberDescribeUnsafeIntegerRange, NumberParseCanonicalDecimal, NumberParseCanonicalInteger } from "@utility/number";
@@ -31,7 +31,7 @@ import random from "lodash/random.js";
  * - Response/Request specific decorators
  * - Min/max value constraints
  * - Multiple-of validation
- * - Strict transformation of request text to number: the value is checked exactly as the client sent it, whatever the `@Expose` name and host pipe options
+ * - Strict conversion of request text to number where the request carries text (query, path, form or multipart body); a JSON body must send a JSON number. The value is checked exactly as the client sent it, whatever the `@Expose` name and host pipe options
  * - Range validation
  *
  * The decorator can automatically generate an example value within the specified range
@@ -318,48 +318,18 @@ function buildResponseDecorators(properties: TApiPropertyNumberProperties): Arra
 }
 
 /**
- * Builds decorators for type transformation from string to number.
- * The transformer receives the value the client sent, under any `@Expose` name and host pipe options, and converts only canonical number text.
+ * Builds the request transform, which converts canonical number text only where the request carries the value as text: a query, a path, or a form or multipart body.
+ * A JSON body keeps the value as sent, so `"5"` fails `IsInt` or `IsNumber` there as any other invalid number does. See `DtoRequestWireScalarTransform` and `DtoRequestWireBindDto`.
  * @param {TApiPropertyNumberProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} An array of type transformation decorators
  * @private
  */
 function buildTransformDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (!properties.isResponse) {
-		if (properties.isArray) {
-			decorators.push(
-				ClassTransformerAutomatorTransform(
-					({ value }: { value: unknown }): unknown => {
-						if (value === undefined || value === null) {
-							return value;
-						}
-
-						// A lone value, such as `?counts=7`, is a one-item list, as for every list type; `?counts=1,2` is the single item `1,2`, which is rejected.
-						return (Array.isArray(value) ? value : [value]).map((item: unknown): unknown => parseNumberValue(properties.format, item));
-					},
-					{ toClassOnly: true },
-				),
-			);
-		} else {
-			decorators.push(
-				ClassTransformerAutomatorTransform(
-					({ value }: { value: unknown }): unknown => {
-						if (value === undefined || value === null) {
-							return value;
-						}
-
-						// A single value given as a list, such as `{ n: ["007"] }` or `?n=1&n=2`, is kept as the list for the validator to reject.
-						return Array.isArray(value) ? value : parseNumberValue(properties.format, value);
-					},
-					{ toClassOnly: true },
-				),
-			);
-		}
+	if (properties.isResponse) {
+		return [];
 	}
 
-	return decorators;
+	return [DtoRequestWireScalarTransform((item: unknown): unknown => parseNumberValue(properties.format, item), properties.isArray ?? false)];
 }
 
 /**

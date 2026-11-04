@@ -599,7 +599,7 @@ The route enforces some rules itself and leaves others to a host `ValidationPipe
 | Other request bodies of generated and custom routes                         | Not validated, except that a UUID must be lower-case                        | Validated by the body DTO            |
 | Query DTOs and other path parameters of custom routes                       | Not validated, except that a query UUID must be lower-case                  | Validated by the route's DTO         |
 
-The body and query rules in this guide, such as canonical integers and decimal numbers, `true` and `false` only for `BOOLEAN`, a single value for a single-value field, and a one-item list for a lone value of a list field, are what the generated and copied DTOs accept when a host pipe applies them. `BOOLEAN` and `NUMBER` properties check exactly the value the client sent, whatever the `@Expose` name of the property and the conversion options of the pipe: `enableImplicitConversion` does not turn `"false"` into `true`, `"016"` into `16`, or `true` into `1`, and a property exposed as `is_active` rejects `?is_active=no`.
+The body and query rules in this guide, such as canonical integers and decimal numbers, `true` and `false` only for `BOOLEAN`, a single value for a single-value field, and a one-item list for a lone value of a list field, are what the generated and copied DTOs accept when a host pipe applies them. Number and boolean text is converted only where the request carries text; a JSON body must send JSON numbers and booleans, see [Text And JSON Values](#text-and-json-values). `BOOLEAN` and `NUMBER` properties check exactly the value the client sent, whatever the `@Expose` name of the property and the conversion options of the pipe: `enableImplicitConversion` does not turn `"false"` into `true`, `"016"` into `16`, or `true` into `1`, and a property exposed as `is_active` rejects `?is_active=no`.
 
 Number text follows one rule wherever a request carries it: an integer is canonical decimal text (`^-?(0|[1-9]\d*)$`), and a `DOUBLE` is decimal text with an optional fraction and exponent (`^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$`). Empty, padded, hexadecimal, `+`-signed, and named text such as `""`, `" 16 "`, `0x10`, `+1`, `.5`, and `Infinity` returns `400`.
 
@@ -610,6 +610,22 @@ PARAMETERS transformers, `validators`, and `BEFORE` subscribers can still replac
 Scope values from HOOKS or IAM that are merged against a column, such as `{ id: "16" }` from a literal `StringEquals` condition, are converted with the same parser before they merge with the typed path values. A scope value the column cannot hold, an upper-case UUID included, becomes a match-nothing condition.
 
 The OpenAPI path parameters come from the same DTO, so they state the type and format: `string` with `format: uuid` and a pattern matching `IsUUID()` for a `UUID` column, and `integer` with `format`, `minimum`, and `maximum` for a `NUMBER` column. Describe the real range of the column: an integer `NUMBER` whose bounds leave the safe integer range fails at startup, and a `bigint` column is described only as `EApiPropertyStringType.BIGINT_STRING`.
+
+### Text And JSON Values
+
+A query, a path, and a form or multipart body carry every value as text, so `ApiPropertyNumber` and `ApiPropertyBoolean` convert canonical text there: `?count=5` and `/items/5` give the number `5`, and `?isActive=true` gives `true`. A JSON body carries types, so it converts nothing: a number field must be a JSON number and a boolean field a JSON boolean. `{ "count": "5" }` and `{ "isActive": "true" }` return `400` with the same body and message as any invalid value (`count must be an integer number`, `isActive must be a boolean value`), under every host pipe, with or without `enableImplicitConversion`, and under any `@Expose` name. This holds for POST, PUT, and PATCH bodies of generated and custom routes alike.
+
+- Lists follow the rule per item: `?counts=1&counts=2` gives `[1, 2]`, and `{ "counts": [1, "2"] }` returns `400`. A lone value is a one-item list in both, so `{ "counts": 7 }` gives `[7]`.
+- Nested objects follow the part of the request their outer DTO is read from: an `ApiPropertyObject` property or a hand-written nested DTO under `@Type` in a JSON body needs JSON numbers and booleans too.
+- No `ApiPropertyNumber` format is sent as text in JSON: `INTEGER` is an OpenAPI `integer` and `DOUBLE` an OpenAPI `number`. A `bigint` column is described with `ApiPropertyString` and `EApiPropertyStringType.BIGINT_STRING`, whose wire form is a string in every part of the request, so `{ "total": "5" }` is still accepted and stays the string `"5"`.
+- A form or multipart body on an `@ApiMethod` route, sent as `application/x-www-form-urlencoded` or `multipart/form-data` and parsed by the host's own parser, converts its fields as a query does.
+
+Each DTO class learns where it is read as follows:
+
+- A generated DTO follows its DTO type: QUERY and PARAMETERS DTOs convert, BODY DTOs do not. The same holds for `ApiPropertyCopy` properties of those DTOs.
+- A hand-written DTO class keeps values as sent until a route reads it from a query or a path: a `@Query()` or `@Param()` argument, whole or keyed such as `@Query("filter")`, or a configured `dto[EApiDtoType.QUERY]` or `dto[EApiDtoType.PARAMETERS]` of a generated route. A class read with `@Body()` stays strict. Routes of `@ApiRouteCustom` and generated routes bind their classes when they are declared, and every controller, plain Nest controllers included, is bound at startup. The binding covers inherited properties and the classes nested in the DTO through `@Type`, and it is made on the class itself.
+- One class cannot be read both from a JSON body and from a query or a path. Startup fails with an error that names the class and both routes, such as `DTO ItemDto is read from text in the query of route list in controller ItemController and from a JSON body in the body of route create in controller ItemController`. Declare a separate DTO for each. A subclass of a body DTO may serve as a query DTO, but a subclass of a query or path DTO cannot be a body DTO, because it inherits the conversion.
+- A class you only pass to `plainToInstance` yourself, outside any route, keeps values as sent.
 
 ## Validation in Subscribers
 
@@ -640,6 +656,16 @@ export class UserValidationSubscriber extends ApiRouteSubscriberBase<UserEntity>
 ```
 
 ## Migration Notes
+
+### 5.1.0
+
+A JSON body no longer converts number and boolean text. Before 5.1.0 `{ "count": "5" }` became `5` and `{ "isActive": "true" }` became `true` under a host pipe; now both return `400` with the usual validation body. Queries, paths, and form or multipart bodies still convert canonical text. See [Text And JSON Values](#text-and-json-values).
+
+Check your application:
+
+- Send JSON numbers and booleans in request bodies, list items and nested objects included. `BIGINT_STRING` values stay strings.
+- A hand-written DTO class read both with `@Body()` and with `@Query()` or `@Param()` now fails at startup: split it into a body DTO and a query or path DTO.
+- A DTO class you convert yourself with `plainToInstance` outside a route keeps text as text.
 
 ### 5.0.0
 

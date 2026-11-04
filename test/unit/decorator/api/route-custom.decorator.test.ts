@@ -7,6 +7,7 @@ import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiRouteCustom } from "@decorator/api";
 import { EApiAuthenticationType, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
+import { FormBodyInterceptor } from "@interceptor/form-body.interceptor";
 import { RequestBodyShapeInterceptor } from "@interceptor/request-body-shape.interceptor";
 import { UuidCanonicalInterceptor } from "@interceptor/uuid-canonical.interceptor";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
@@ -337,7 +338,7 @@ describe("ApiRouteCustom", () => {
 		expect(Reflect.getMetadata(healthMetadataKey, handler)).toBe(true);
 		expect(Reflect.getMetadata(HEADERS_METADATA, handler)).toEqual([{ name: "Cache-Control", value: "no-cache" }]);
 		expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([ExistingGuard, ExecutionGuard, ApiAuthorizationGuard]);
-		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, handler)).toEqual([ExistingInterceptor, RequestBodyShapeInterceptor, UuidCanonicalInterceptor, ExecutionInterceptor, ApiRouteRuntimeInterceptor]);
+		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, handler)).toEqual([ExistingInterceptor, RequestBodyShapeInterceptor, FormBodyInterceptor, UuidCanonicalInterceptor, ExecutionInterceptor, ApiRouteRuntimeInterceptor]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, handler)).toEqual(["application/vnd.test+json"]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, handler)).toEqual(["application/vnd.test+json"]);
 		expect(parameters).toEqual(

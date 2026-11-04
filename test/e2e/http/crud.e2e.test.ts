@@ -2043,15 +2043,24 @@ describe("CRUD routes (E2E)", () => {
 
 		const invalidHiddenCopyResponse = await fastify.inject({
 			method: "POST",
-			payload: { count: "2", internalReference: 123, name: "Copied" },
+			payload: { count: 2, internalReference: 123, name: "Copied" },
 			url: "/copy",
 		});
 
 		expect(invalidHiddenCopyResponse.statusCode).toBe(400);
 
-		const response = await fastify.inject({
+		// A JSON body carries types: the number text "2" is refused there.
+		const textResponse = await fastify.inject({
 			method: "POST",
 			payload: { count: "2", internalReference: "copied-internal", name: "Copied" },
+			url: "/copy",
+		});
+
+		expect(textResponse.statusCode).toBe(400);
+
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 2, internalReference: "copied-internal", name: "Copied" },
 			url: "/copy",
 		});
 

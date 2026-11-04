@@ -493,6 +493,10 @@ A `timestamptz` key column with a precision above 3, an unset precision, another
 
 See [Controllers: Row Paths And Composite Keys](/docs/nestjs-crud-automator/core-concepts/controllers#row-paths-and-composite-keys).
 
+## Number And Boolean Body Values
+
+From 5.1.0 a JSON body must send number fields as JSON numbers and boolean fields as JSON booleans: `{ "count": "5" }` and `{ "isActive": "true" }` return `400` with the usual validation body, list items and nested objects included. Queries, paths, and form or multipart bodies still convert canonical text such as `?count=5`. `BIGINT_STRING` values stay strings. A hand-written DTO class read both from a JSON body and from a query or a path fails at startup; declare one DTO for each. See [Text And JSON Values](/docs/nestjs-crud-automator/guides/validation#text-and-json-values).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

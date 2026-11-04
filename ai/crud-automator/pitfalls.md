@@ -368,6 +368,10 @@ Do not put a raw `class-validator` `@ValidateNested()` without `@Type` on a plai
 
 Do not set `shouldKeepDiscriminatorProperty: false` on an `@ApiPropertyObject` request property: it fails at decoration, because a removed discriminator cannot be validated. Leave the option out to keep the property. For entity metadata that is only read, set `properties[route][BODY].isEnabled: false` on each write route; `isResponse: true` on a write body decorates and then rejects every write. At root level on `@ApiRouteCustom`, `false` removes the property before validation, so a variant that requires it fails at startup, unless `validatorOptions.skipMissingProperties` is set. A variant that requires it only through raw `class-validator` is not detected and rejects every body.
 
+## Number And Boolean Text In JSON Bodies
+
+Do not send `"5"` or `"true"` for an `ApiPropertyNumber` or `ApiPropertyBoolean` field of a JSON body: it returns the validation `400`, list items and nested objects included. Only a query, a path, and a form or multipart body convert canonical text. Do not reuse one hand-written DTO class for `@Body()` and for `@Query()` or `@Param()`: startup fails and names both routes, so declare one DTO for each. A `bigint` value stays a string through `BIGINT_STRING`.
+
 ## Calendar Dates As `Date` Objects
 
 Do not type a `DATE` or `TIME` request property as `Date` or call `Date` methods on it: `@ApiPropertyDate` keeps `YYYY-MM-DD` and `HH:mm:ss` as text, so the stored day does not move with the process time zone. Only a `DATE_TIME` value, which must be the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, becomes a `Date`; `enableImplicitConversion` does not change that. Do not describe a date with `ApiPropertyString` and `format: DATE`: it fails at decoration. Do not expect a generated route to check a body without a host `ValidationPipe`; list filters are the exception, the route checks them itself.

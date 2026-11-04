@@ -9,8 +9,8 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
-import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
+import { DtoRequestWireScalarTransform } from "@utility/dto/request-wire/scalar-transform.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
@@ -24,12 +24,12 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, Validate
  * This decorator handles boolean properties with support for:
  * - Single boolean values or arrays of booleans
  * - Response/Request specific decorators
- * - Strict conversion of request text to boolean
+ * - Strict conversion of request text to boolean where the request carries text (query, path, form or multipart body); a JSON body must send a JSON boolean
  * - Array validation with min/max items
  * - Nullable values
  *
  * A request value is checked exactly as the client sent it, whatever the `@Expose` name and host pipe options:
- * only `true` and `false`, as booleans or as that exact text, are accepted; `1`, `0`, `no`, `TRUE`, and numbers are rejected.
+ * only `true` and `false`, as booleans or, outside a JSON body, as that exact text, are accepted; `1`, `0`, `no`, `TRUE`, and numbers are rejected.
  * @param {TApiPropertyBooleanProperties} properties - Configuration options for the boolean property
  * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-boolean | API Reference - ApiPropertyBoolean}
@@ -221,7 +221,8 @@ function buildResponseDecorators(properties: TApiPropertyBooleanProperties): Arr
 
 /**
  * Builds decorators for type transformation from request text to boolean.
- * Only `true` and `false`, as booleans or as that exact text, are converted; any other value is kept for `IsBoolean` to reject, so `1`, `no`, and `TRUE` return `400`, whatever the `@Expose` name of the property and the conversion options of the host pipe.
+ * Only `true` and `false`, as booleans or, where the request carries the value as text (a query, a path, or a form or multipart body), as that exact text, are accepted; any other value is kept for `IsBoolean` to reject,
+ * so `1`, `no`, `TRUE`, and in a JSON body `"true"` return `400`, whatever the `@Expose` name of the property and the conversion options of the host pipe. See `DtoRequestWireScalarTransform` and `DtoRequestWireBindDto`.
  * @param {TApiPropertyBooleanProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} An array of type transformation decorators
  * @private
@@ -232,23 +233,7 @@ function buildTransformDecorators(properties: TApiPropertyBooleanProperties): Ar
 	}
 
 	// `Type(() => Object)` keeps the sent value: without it `enableImplicitConversion` hands the transformer `Boolean(value)`, which is true for any non-empty text, such as "false".
-	if (properties.isArray) {
-		return [
-			Type(() => Object),
-			ClassTransformerAutomatorTransform(
-				({ value }: { value: unknown }): unknown => {
-					if (value === null || value === undefined) {
-						return value;
-					}
-
-					return Array.isArray(value) ? value.map((item: unknown): unknown => parseBooleanValue(item)) : [parseBooleanValue(value)];
-				},
-				{ toClassOnly: true },
-			),
-		];
-	}
-
-	return [Type(() => Object), ClassTransformerAutomatorTransform(({ value }: { value: unknown }): unknown => parseBooleanValue(value), { toClassOnly: true })];
+	return [Type(() => Object), DtoRequestWireScalarTransform((item: unknown): unknown => parseBooleanValue(item), properties.isArray ?? false)];
 }
 
 /**

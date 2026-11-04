@@ -6,7 +6,8 @@ import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
-import { EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
+import { DtoRequestWireBindDto } from "@utility/dto/request-wire/bind";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { describe, expect, it } from "vitest";
@@ -55,14 +56,19 @@ class RequestListDto {
 	public statuses?: Array<string>;
 }
 
+// These are the rules of a query, whose values are text; a JSON body of the same DTO converts no text.
+class RequestListQueryDto extends RequestListDto {}
+
+DtoRequestWireBindDto(RequestListQueryDto, EApiDtoType.QUERY, "a query");
+
 /**
- * Reads one request value as a host pipe does, with or without implicit conversion.
+ * Reads one query value as a host pipe does, with or without implicit conversion.
  * @param {Record<string, unknown>} plain - Request object as sent.
  * @param {boolean} isImplicit - Whether the pipe enables implicit conversion.
  * @returns {{ errors: Array<string>; instance: Record<string, unknown> }} Converted instance and the names of the failing properties.
  */
 function read(plain: Record<string, unknown>, isImplicit: boolean): { errors: Array<string>; instance: Record<string, unknown> } {
-	const instance: Record<string, unknown> = plainToInstance(RequestListDto, plain, { enableImplicitConversion: isImplicit }) as unknown as Record<string, unknown>;
+	const instance: Record<string, unknown> = plainToInstance(RequestListQueryDto, plain, { enableImplicitConversion: isImplicit }) as unknown as Record<string, unknown>;
 
 	return { errors: validateSync(instance).map((error: { property: string }): string => error.property), instance };
 }
@@ -130,5 +136,32 @@ describe.each([false, true])("request list and number rules, implicit conversion
 
 	it.each(["", " 16 ", "0x10", "0b1", "+1", ".5", "1.", "01.5", "Infinity", "NaN", "1e", "1,5", true, [1.5]])("rejects the DOUBLE value %j", (sent: unknown) => {
 		expect(read({ amount: sent }, isImplicit).errors).toEqual(["amount"]);
+	});
+});
+
+describe.each([false, true])("request list and number rules of a JSON body, implicit conversion: %s", (isImplicit: boolean) => {
+	it.each([
+		["amount", "1.5"],
+		["amounts", ["1.5"]],
+		["counts", ["7"]],
+		["counts", "7"],
+		["flags", ["false"]],
+		["flags", "true"],
+	])("keeps the text of %s %j for the validator to refuse", (key: string, sent: unknown) => {
+		const instance: Record<string, unknown> = plainToInstance(RequestListDto, { [key]: sent }, { enableImplicitConversion: isImplicit }) as unknown as Record<string, unknown>;
+
+		expect(validateSync(instance).map((error: { property: string }): string => error.property)).toEqual([key]);
+	});
+
+	it.each([
+		["amount", 1.5, 1.5],
+		["amounts", [1.5, 2], [1.5, 2]],
+		["counts", 7, [7]],
+		["flags", [true, false], [true, false]],
+	])("accepts the JSON value of %s %j", (key: string, sent: unknown, received: unknown) => {
+		const instance: Record<string, unknown> = plainToInstance(RequestListDto, { [key]: sent }, { enableImplicitConversion: isImplicit }) as unknown as Record<string, unknown>;
+
+		expect(validateSync(instance)).toEqual([]);
+		expect(instance[key]).toEqual(received);
 	});
 });
