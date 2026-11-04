@@ -107,12 +107,11 @@ const DENY_EVERY_ROUTE_CASES: Array<[string, Array<IApiPolicyStatement>]> = [
 	["StringEquals on an object attribute", deny({ Condition: { StringEquals: { "principal.attributes.profile": "gold" } } })],
 ];
 
-// Allow statements whose key reads a list or an object, or whose Resource cannot cover every row, which must not grant anything.
+// Allow statements whose key reads a list or an object, which must not grant anything.
 const ALLOW_NOTHING_CASES: Array<[string, Array<IApiPolicyStatement>]> = [
 	["StringEquals on the principal role list", [{ ...ALLOW, Condition: { StringEquals: { "principal.roles": "admin" } } }]],
 	["StringNotEquals on the principal role list", [{ ...ALLOW, Condition: { StringNotEquals: { "principal.roles": "guest" } } }]],
 	["StringNotEqualsIfExists on an object attribute", [{ ...ALLOW, Condition: { StringNotEqualsIfExists: { "principal.attributes.profile": "silver" } } }]],
-	["a Resource with ? over one character of an unresolved row", [{ ...ALLOW, Resource: [`${NAMESPACE}/?`] }]],
 ];
 
 describe.each([
@@ -216,10 +215,24 @@ describe.each([
 		expect(await routeStatuses(ROWS[0]!)).toEqual({ CREATE: HttpStatus.CREATED, DELETE: HttpStatus.NO_CONTENT, GET: HttpStatus.OK, LIST: HttpStatus.OK, PATCH: HttpStatus.OK });
 	});
 
-	it("refuses the matching row and the whole collection for a Deny Resource with ?", async () => {
+	it("scopes the list and grants no other route for an Allow Resource with ?, which no row matches", async () => {
+		statements = [{ ...ALLOW, Resource: [`${NAMESPACE}/?`] }];
+
+		const response = await fastify.inject({ method: "GET", url: `${URL}?${PAGE}` });
+
+		expect((response.json() as { items: Array<unknown> }).items).toEqual([]);
+		expect(await routeStatuses(ROWS[0]!)).toEqual({ ...FORBIDDEN_EVERYWHERE, LIST: HttpStatus.OK });
+		expect(await storedIds()).toEqual(["own", "secret-1"]);
+	});
+
+	it("refuses the matching row and hides it from the list for a Deny Resource with ?", async () => {
 		statements = deny({ Resource: [`${NAMESPACE}/secret-?`] });
 
-		expect(await routeStatuses(ROWS[1]!)).toEqual(FORBIDDEN_EVERYWHERE);
+		const response = await fastify.inject({ method: "GET", url: `${URL}?${PAGE}` });
+
+		expect((response.json() as { items: Array<{ id: string }> }).items.map((item: { id: string }): string => item.id)).toEqual(["own"]);
+		// A create names no row, and that ? can stand for any part of the resource string, so it fails closed.
+		expect(await routeStatuses(ROWS[1]!)).toEqual({ ...FORBIDDEN_EVERYWHERE, LIST: HttpStatus.OK });
 		expect((await fastify.inject({ method: "GET", url: `${URL}/own` })).statusCode).toBe(HttpStatus.OK);
 		expect(await storedIds()).toEqual(["own", "secret-1"]);
 	});

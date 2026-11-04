@@ -12,4 +12,5 @@ export { ApiAuthorizationIamParser } from "./parser.class";
 export * from "./predicate";
 export { ApiAuthorizationIamQueryPlanner } from "./query-planner.class";
 export { ApiAuthorizationIamResourceDefinitionRegistry } from "./registry.class";
+export { ApiAuthorizationIamResourcePattern } from "./resource-pattern.class";
 export { ApiAuthorizationIamVariable } from "./variable.class";

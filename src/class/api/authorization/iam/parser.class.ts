@@ -740,10 +740,6 @@ export class ApiAuthorizationIamParser {
 		const value: unknown = input[writtenField];
 
 		if (Array.isArray(value) && value.length > 0) {
-			if (isNegated) {
-				ApiAuthorizationIamParser.fail(scope, `${property}.${writtenField}`, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.NOT_SUPPORTED_YET, `Statement ${writtenField} is not supported yet`);
-			}
-
 			for (const [index, entry] of (value as ReadonlyArray<unknown>).entries()) {
 				const pattern: IApiAuthorizationIamPattern | undefined = ApiAuthorizationIamParser.readPattern(entry, kind, `${property}.${writtenField}[${index}]`, scope);
 

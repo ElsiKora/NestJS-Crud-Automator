@@ -10,6 +10,9 @@ const IAM_PREDICATE_TEXT_FAMILIES: ReadonlySet<EApiAuthorizationIamColumnFamily>
 // Operator families whose positive form is an `IN` atom.
 const IAM_PREDICATE_IN_FAMILIES: ReadonlySet<EApiPolicyConditionOperatorFamily> = new Set<EApiPolicyConditionOperatorFamily>([EApiPolicyConditionOperatorFamily.BOOL, EApiPolicyConditionOperatorFamily.STRING, EApiPolicyConditionOperatorFamily.STRING_IGNORE_CASE]);
 
+// The text an integer renders as: no sign but a minus, no leading zero, and no negative zero.
+const IAM_PREDICATE_CANONICAL_INTEGER: RegExp = /^(?:0|-?[1-9]\d*)$/;
+
 // The complement of each comparison over non-NULL values.
 const IAM_PREDICATE_COMPLEMENT: ReadonlyMap<EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamPredicateOperator> = new Map<EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamPredicateOperator>([
 	[EApiAuthorizationIamPredicateOperator.EQUAL, EApiAuthorizationIamPredicateOperator.NOT_EQUAL],
@@ -143,6 +146,27 @@ export class ApiAuthorizationIamPredicateBuilder {
 	}
 
 	/**
+	 * Builds the pair of one exact resource-pattern constraint on an integer column: the placeholder renders the decimal
+	 * text of the integer, so only that text names a row, and any other holds for no row instead of reaching the database.
+	 * @param {object} options - Constraint options.
+	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Integer column the placeholder reads.
+	 * @param {string} options.value - Non-empty text the placeholder must render.
+	 * @returns {IApiAuthorizationIamPredicatePair} The pair.
+	 */
+	public static buildIntegerConstraint(options: { column: IApiAuthorizationIamPredicateColumn; value: string }): IApiAuthorizationIamPredicatePair {
+		if (!IAM_PREDICATE_CANONICAL_INTEGER.test(options.value)) {
+			return { fails: { kind: EApiAuthorizationIamPredicateKind.TRUE }, holds: { kind: EApiAuthorizationIamPredicateKind.FALSE } };
+		}
+
+		const createAtom: (operator: EApiAuthorizationIamPredicateOperator) => TApiAuthorizationIamPredicate = (operator: EApiAuthorizationIamPredicateOperator): TApiAuthorizationIamPredicate => ({ column: options.column, comparison: EApiAuthorizationIamPredicateComparison.NUMERIC, kind: EApiAuthorizationIamPredicateKind.COMPARE, operator, value: options.value });
+
+		return {
+			fails: ApiAuthorizationIamPredicateBuilder.or([createAtom(EApiAuthorizationIamPredicateOperator.NOT_EQUAL), { column: options.column, kind: EApiAuthorizationIamPredicateKind.IS_NULL }]),
+			holds: createAtom(EApiAuthorizationIamPredicateOperator.EQUAL),
+		};
+	}
+
+	/**
 	 * Builds the pair of one IP condition key: the column's network lies within the range.
 	 * @param {object} options - Key options.
 	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Column the key reads.
@@ -197,26 +221,24 @@ export class ApiAuthorizationIamPredicateBuilder {
 	}
 
 	/**
-	 * Builds the pair of one prefix resource-pattern constraint: the placeholder renders text that starts with the prefix.
-	 * A NULL placeholder renders as `""`, which only the empty prefix starts.
+	 * Builds the pair of one resource-pattern constraint with a wildcard: the placeholder renders text that matches the glob.
+	 * A NULL placeholder renders as `""`, which among the patterns with a literal or a `?` none matches.
 	 * @param {object} options - Constraint options.
 	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Text column the placeholder reads.
-	 * @param {string} options.prefix - Literal prefix.
+	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} options.pattern - Literal, `*` and `?` tokens the placeholder must match.
 	 * @returns {IApiAuthorizationIamPredicatePair} The pair.
 	 */
-	public static buildPrefixConstraint(options: { column: IApiAuthorizationIamPredicateColumn; prefix: string }): IApiAuthorizationIamPredicatePair {
-		if (options.prefix === "") {
+	public static buildPatternConstraint(options: { column: IApiAuthorizationIamPredicateColumn; pattern: ReadonlyArray<IApiAuthorizationIamToken> }): IApiAuthorizationIamPredicatePair {
+		if (options.pattern.every((token: IApiAuthorizationIamToken): boolean => token.type === EApiAuthorizationIamTokenType.STAR)) {
 			return { fails: { kind: EApiAuthorizationIamPredicateKind.FALSE }, holds: { kind: EApiAuthorizationIamPredicateKind.TRUE } };
 		}
 
-		const pattern: ReadonlyArray<IApiAuthorizationIamToken> = [{ type: EApiAuthorizationIamTokenType.LITERAL, value: options.prefix }, { type: EApiAuthorizationIamTokenType.STAR }];
-
 		return {
 			fails: ApiAuthorizationIamPredicateBuilder.or([
-				{ column: options.column, isNegated: true, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern },
+				{ column: options.column, isNegated: true, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern: options.pattern },
 				{ column: options.column, kind: EApiAuthorizationIamPredicateKind.IS_NULL },
 			]),
-			holds: { column: options.column, isNegated: false, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern },
+			holds: { column: options.column, isNegated: false, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern: options.pattern },
 		};
 	}
 

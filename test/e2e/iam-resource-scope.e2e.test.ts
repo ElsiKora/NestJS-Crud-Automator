@@ -17,7 +17,7 @@ import { GenericContainer, Wait } from "testcontainers";
 import { Column, Entity, PrimaryColumn, Repository } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiAuthorizationSimulator, ApiController, ApiControllerSecurable, ApiPropertyDescribe, ApiService, ApiServiceBase, AuthorizationResolveDefaultPrincipal, EApiAuthenticationType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationModule, ApiAuthorizationSimulator, ApiController, ApiControllerSecurable, ApiPropertyDescribe, ApiService, ApiServiceBase, AuthorizationResolveDefaultPrincipal, EApiAuthenticationType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 
 type TDatabase = "mariadb" | "mysql" | "postgres" | "sqlite";
 
@@ -50,15 +50,18 @@ class E2eIamScopeTenantItemEntity {
 @Entity("e2e_iam_scope_ranks")
 class E2eIamScopeRankEntity {
 	@PrimaryColumn({ type: "int" })
+	@ApiPropertyDescribe({ description: "id", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 1000, minimum: -1000, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
 	public id!: number;
 }
 
 @Entity("e2e_iam_scope_devices")
 class E2eIamScopeDeviceEntity {
 	@PrimaryColumn({ type: "uuid" })
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
 	public id!: string;
 
 	@Column({ nullable: true, type: "uuid" })
+	@ApiPropertyDescribe({ description: "tenantId", type: EApiPropertyDescribeType.UUID })
 	public tenantId?: null | string;
 }
 

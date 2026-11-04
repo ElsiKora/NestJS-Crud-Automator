@@ -476,15 +476,15 @@ describe.each<{ database: TE2eIamOperatorDatabase; databaseName: string }>([
 	});
 
 	describe("variables in Resource", () => {
-		// An Allow pattern allows a list only when it covers every row, with or without a variable: it reads one row alone.
+		// An Allow pattern that names a row scopes a list to it, with or without a variable, as a read of that row allows it.
 		it.each([
 			[`${namespace}/\${principal.attributes.rowId}`, ["a"]],
 			[`${namespace}/\${principal.attributes.missing, 'b'}`, ["b"]],
-		])("an Allow on %s allows the row it names, and not the list", async (resource: string, rows: Array<string>) => {
+		])("an Allow on %s allows the row it names, on a list and on a read", async (resource: string, rows: Array<string>) => {
 			statements = [statement(EApiPolicyEffect.ALLOW, { resource: [resource] })];
 
 			expect(await allowedInMemory()).toEqual(rows);
-			expect(await list()).toEqual({ ids: [], statusCode: HttpStatus.FORBIDDEN });
+			expect(await list()).toEqual({ ids: rows, statusCode: HttpStatus.OK });
 		});
 
 		it("a Deny on a resolved variable excludes the row it names", async () => {

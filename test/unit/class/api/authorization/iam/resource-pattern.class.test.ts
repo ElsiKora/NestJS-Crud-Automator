@@ -89,7 +89,6 @@ describe("ApiAuthorizationIamResourcePattern", () => {
 			["both slots exactly", "ns:tenant/t-1/item/item-1", TENANT, { id: "item-1", tenantId: "t-1" }],
 			["a prefix that ends in the first slot", "ns:tenant/t-1*", TENANT, { tenantId: "t-1*" }],
 			["a wildcard across the separator", "ns:tenant/t-1*item-1", TENANT, { id: "*item-1", tenantId: "t-1*" }],
-			["a wildcard the first slot alone can absorb the rest of the path into", "ns:tenant/t-1/note/*", TENANT, { tenantId: "t-1/note/*" }],
 			["the empty first slot", "ns:tenant//item/item-1", TENANT, { id: "item-1", tenantId: "" }],
 			["the empty last slot", "ns:tenant/t-1/item/", TENANT, { id: "", tenantId: "t-1" }],
 		])("decomposes %s", (_name: string, pattern: string, segments: Array<IApiAuthorizationIamResourceSegment>, expected: Record<string, string> | undefined) => {
@@ -109,6 +108,8 @@ describe("ApiAuthorizationIamResourcePattern", () => {
 			// The separator may lie in the literal or under the star.
 			["a prefix past the separator", "ns:tenant/t-1/it*"],
 			["a prefix past the whole separator", "ns:tenant/t-1/item/a*"],
+			// The first slot ends right before the wildcard, which absorbs the separator, or holds more than the literal.
+			["a literal only the first slot can hold", "ns:tenant/t-1/note/*"],
 			// The literal may lie in either slot.
 			["a wildcard in a text slot before the separator", "ns:tenant/*/item/item-1"],
 			["a wildcard in a text slot with a suffix", "ns:tenant/t-1/item/*-secret"],
@@ -133,9 +134,15 @@ describe("ApiAuthorizationIamResourcePattern", () => {
 			expect(classify("ns:tenant/*/item/*", TENANT, alphabets).kind).toBe(EApiAuthorizationIamResourceClass.ALL);
 		});
 
-		it("drops an alignment a slot's alphabet cannot hold, and finds no row when none is left", () => {
-			expect(classify("ns:item/ABC", ITEM, new Map([["id", CANONICAL_ALPHABET]])).kind).toBe(EApiAuthorizationIamResourceClass.NONE);
-			expect(classify("ns:item/x/y", ITEM, new Map([["id", CANONICAL_ALPHABET]])).kind).toBe(EApiAuthorizationIamResourceClass.NONE);
+		it("settles only a pattern that is ambiguous without the alphabets, and finds no row when no mapping is left", () => {
+			const alphabets: ReadonlyMap<string, RegExp> = new Map([
+				["id", CANONICAL_ALPHABET],
+				["tenantId", CANONICAL_ALPHABET],
+			]);
+
+			// One mapping stays: the compiled comparison answers that no row holds it, on every database alike.
+			expect(readConstraints(classify("ns:item/ABC", ITEM, new Map([["id", CANONICAL_ALPHABET]])))).toEqual({ id: "ABC" });
+			expect(classify("ns:tenant/*/item/ABC", TENANT, alphabets).kind).toBe(EApiAuthorizationIamResourceClass.NONE);
 		});
 
 		it("reads two placeholders with no literal between them as ambiguous unless a wildcard covers both", () => {

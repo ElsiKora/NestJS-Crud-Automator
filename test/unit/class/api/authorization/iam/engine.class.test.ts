@@ -874,7 +874,7 @@ describe("ApiAuthorizationIamEngine", () => {
 			const decision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/${*}"] }] });
 
 			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
-			expect(decision.scope).toEqual({ where: { id: Equal("*") } });
+			expect(decision.scope).toEqual({ where: { id: "*" } });
 		});
 	});
 

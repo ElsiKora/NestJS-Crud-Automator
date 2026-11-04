@@ -1,4 +1,4 @@
-import type { IApiAuthorizationDecision, IApiAuthorizationIamDialect, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamDialect, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
 import type { FindOperator } from "typeorm";
 
 import { ApiAuthorizationIamEngine, ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam";
@@ -83,8 +83,8 @@ const CREATE: IRequest = { action: "admin:item:create", routeType: EApiRouteType
 const read = (id: string): IRequest => ({ action: "admin:item:read", requestMetadata: { parameters: { id } }, routeType: EApiRouteType.GET });
 const update = (id: string): IRequest => ({ action: "admin:item:update", requestMetadata: { parameters: { id } }, routeType: EApiRouteType.UPDATE });
 
-const evaluate = async (request: IRequest, statements: ReadonlyArray<IApiPolicyStatement>): Promise<IApiAuthorizationDecision<EngineTargetItemEntity, never>> =>
-	(await new ApiAuthorizationIamEngine(new ApiAuthorizationIamQueryPlanner()).evaluate<EngineTargetItemEntity>({
+const evaluate = async (request: IRequest, statements: ReadonlyArray<IApiPolicyStatement>) =>
+	await new ApiAuthorizationIamEngine(new ApiAuthorizationIamQueryPlanner()).evaluate<EngineTargetItemEntity>({
 		action: request.action,
 		attachments: { attachments: [{ policyId: "identity", principalId: principal.id, principalType: principal.type }], boundaries: [] },
 		dialect: request.dialect,
@@ -95,7 +95,7 @@ const evaluate = async (request: IRequest, statements: ReadonlyArray<IApiPolicyS
 		resource: request.resource,
 		resourceDefinition: request.resourceDefinition ?? itemDefinition,
 		routeType: request.routeType,
-	})) as IApiAuthorizationDecision<EngineTargetItemEntity, never>;
+	});
 
 const readType = async (request: IRequest, statements: ReadonlyArray<IApiPolicyStatement>): Promise<EApiAuthorizationDecisionType | undefined> => (await evaluate(request, statements)).trace.decisionType;
 
@@ -230,8 +230,8 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 
 			expect(decision.scope).toEqual({
 				where: [
-					{ id: Not(Equal("item-1")), status: Equal("active") },
-					{ id: IsNull(), status: Equal("active") },
+					{ id: Not(Equal("item-1")), status: "active" },
+					{ id: IsNull(), status: "active" },
 				],
 			});
 		});
@@ -360,7 +360,7 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 			const decision = await evaluate(LIST, [allow({ Resource: ["gameport:admin:item/item-1"] })]);
 
 			expect(decision.trace.decisionType).toBe(ALLOWED);
-			expect(decision.scope).toEqual({ where: { id: Equal("item-1") } });
+			expect(decision.scope).toEqual({ where: { id: "item-1" } });
 		});
 
 		it("ORs the rows of several patterns and of several statements", async () => {
@@ -379,7 +379,7 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 		it("ANDs its rows with its resource keys", async () => {
 			const decision = await evaluate(LIST, [allow({ Condition: { StringEquals: { "resource.status": "active" } }, Resource: ["gameport:admin:item/item-1"] })]);
 
-			expect(decision.scope).toEqual({ where: { id: Equal("item-1"), status: Equal("active") } });
+			expect(decision.scope).toEqual({ where: { id: "item-1", status: "active" } });
 		});
 
 		it("grants nothing when its Condition on the principal fails", async () => {
@@ -396,14 +396,14 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 		it("scopes a list on two placeholders", async () => {
 			const decision = await evaluate({ ...LIST, resourceDefinition: tenantDefinition }, [allow({ Resource: ["gameport:tenant/t-1/item/item-1"] })]);
 
-			expect(decision.scope).toEqual({ where: { id: Equal("item-1"), tenantId: Equal("t-1") } });
+			expect(decision.scope).toEqual({ where: { id: "item-1", tenantId: "t-1" } });
 		});
 
 		it("reads a placeholder the route resolved as a literal", async () => {
 			const decision = await evaluate({ ...LIST, requestMetadata: { parameters: { tenantId: "t-1" } }, resourceDefinition: tenantDefinition }, [allow({ Resource: ["gameport:tenant/t-1/item/item-1"] })]);
 			const otherTenant = await evaluate({ ...LIST, requestMetadata: { parameters: { tenantId: "t-2" } }, resourceDefinition: tenantDefinition }, [allow({ Resource: ["gameport:tenant/t-1/item/item-1"] })]);
 
-			expect(decision.scope).toEqual({ where: { id: Equal("item-1") } });
+			expect(decision.scope).toEqual({ where: { id: "item-1" } });
 			expect(otherTenant.trace.decisionType).toBe(IMPLICIT);
 		});
 

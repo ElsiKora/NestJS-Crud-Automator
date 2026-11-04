@@ -9,4 +9,5 @@ export { AUTHORIZATION_MODULE_OPTIONS_TOKEN } from "./module-options-token.const
 export * from "./policy";
 export { AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN } from "./principal-resolver-token.constant";
 export { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "./scope-iam.constant";
+export { AUTHORIZATION_IAM_SLOT_ALPHABET_CONSTANT } from "./slot-alphabet-iam.constant";
 export { AUTHORIZATION_POLICY_REGISTRY_TOKEN } from "./token-registry.constant";

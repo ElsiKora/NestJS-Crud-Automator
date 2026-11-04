@@ -8,7 +8,9 @@ import type {
 	IApiAuthorizationIamOperand,
 	IApiAuthorizationIamPattern,
 	IApiAuthorizationIamQueryField,
+	IApiAuthorizationIamResourceClassification,
 	IApiAuthorizationIamResourceConstraint,
+	IApiAuthorizationIamResourceRows,
 	IApiAuthorizationIamResourceSegment,
 	IApiAuthorizationIamStatement,
 	IApiAuthorizationIamStatementMatch,
@@ -28,9 +30,10 @@ import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class
 import { ApiAuthorizationIamOperator } from "@class/api/authorization/iam/operator.class";
 import { ApiAuthorizationIamParser } from "@class/api/authorization/iam/parser.class";
 import { ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam/query-planner.class";
+import { ApiAuthorizationIamResourcePattern } from "@class/api/authorization/iam/resource-pattern.class";
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
-import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiPolicyConditionOperatorFamily, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
+import { EApiAuthorizationDecisionType, EApiAuthorizationIamResourceClass, EApiAuthorizationMode, EApiPolicyConditionOperatorFamily, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
@@ -90,6 +93,7 @@ export class ApiAuthorizationIamEngine {
 		const boundaryDocuments: ReadonlyArray<IApiPolicyDocumentRecord> = options.attachments.boundaries.map((attachment: IApiPolicyAttachment): IApiPolicyDocumentRecord => this.resolveDocumentRecord(attachment.policyId, documentMap, options.policyNamespace));
 
 		const identityEvaluation: {
+			allowRows: Map<IApiPolicyStatement, IApiAuthorizationIamResourceRows>;
 			allowStatements: Array<IApiPolicyStatement>;
 			denyExclusions: Array<IApiAuthorizationIamDenyExclusion>;
 			hasExplicitDeny: boolean;
@@ -114,6 +118,7 @@ export class ApiAuthorizationIamEngine {
 		});
 
 		const boundaryEvaluation: {
+			allowRows: Map<IApiPolicyStatement, IApiAuthorizationIamResourceRows>;
 			allowStatements: Array<IApiPolicyStatement>;
 			denyExclusions: Array<IApiAuthorizationIamDenyExclusion>;
 			hasExplicitDeny: boolean;
@@ -146,6 +151,7 @@ export class ApiAuthorizationIamEngine {
 			requestMetadata,
 			resource: options.resource,
 			resourceDefinition: options.resourceDefinition,
+			statementRows: identityEvaluation.allowRows,
 			statements: identityEvaluation.allowStatements,
 		});
 
@@ -161,6 +167,7 @@ export class ApiAuthorizationIamEngine {
 						requestMetadata,
 						resource: options.resource,
 						resourceDefinition: options.resourceDefinition,
+						statementRows: boundaryEvaluation.allowRows,
 						statements: boundaryEvaluation.allowStatements,
 					});
 
@@ -287,6 +294,43 @@ export class ApiAuthorizationIamEngine {
 	}
 
 	/**
+	 * Classifies one resolved pattern of a statement's target. A list decomposes it over the placeholders of the path. Any
+	 * other request names one resource or none, so a pattern either covers it, misses it, or says nothing exact about it:
+	 * an Allow then grants nothing by the pattern and a `NotResource` or a loaded resource fails closed. A `Resource` of a
+	 * Deny that says nothing exact about an unloaded row stays out of the request, unless it holds a wildcard before its
+	 * end on a create, which no row could be checked against later.
+	 * @template E - Entity type.
+	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} tokens - Resolved pattern tokens.
+	 * @param {IApiAuthorizationIamStatement} statement - Statement of the pattern.
+	 * @param {object} options - Matching options.
+	 * @param {IApiAuthorizationIamDialect} [options.dialect] - SQL dialect of the resource entity.
+	 * @param {boolean} options.isCreateRequest - Whether the request creates a resource.
+	 * @param {boolean} options.isListRequest - Whether the request lists resources.
+	 * @param {E} [options.resource] - Loaded resource, when available.
+	 * @param {IApiAuthorizationResourceDefinition<E>} options.resourceDefinition - IAM resource definition.
+	 * @param {ReadonlyArray<IApiAuthorizationIamResourceSegment>} options.resourceSegments - Request resource segments.
+	 * @returns {IApiAuthorizationIamResourceClassification} The class of the pattern.
+	 */
+	private classifyResourcePattern<E extends IApiBaseEntity>(tokens: ReadonlyArray<IApiAuthorizationIamToken>, statement: IApiAuthorizationIamStatement, options: { dialect?: IApiAuthorizationIamDialect; isCreateRequest: boolean; isListRequest: boolean; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E>; resourceSegments: ReadonlyArray<IApiAuthorizationIamResourceSegment> }): IApiAuthorizationIamResourceClassification {
+		if (options.isListRequest && options.resource === undefined) {
+			return ApiAuthorizationIamResourcePattern.classify(tokens, options.resourceSegments, this.queryPlanner.readSlotAlphabets(options.resourceDefinition, options.dialect));
+		}
+
+		if (ApiAuthorizationIamGlob.isCovering(tokens, options.resourceSegments)) {
+			return { constraints: [], kind: EApiAuthorizationIamResourceClass.ALL };
+		}
+
+		if (!ApiAuthorizationIamGlob.isOverlapping(tokens, options.resourceSegments)) {
+			return { constraints: [], kind: EApiAuthorizationIamResourceClass.NONE };
+		}
+
+		const isDenyResourceOfUnloadedRow: boolean = statement.effect === EApiPolicyEffect.DENY && !statement.resource.isNegated && options.resource === undefined;
+		const isStayingOut: boolean = isDenyResourceOfUnloadedRow && (!options.isCreateRequest || ApiAuthorizationIamGlob.readLiteralPrefix(tokens) !== undefined);
+
+		return { constraints: [], kind: isStayingOut ? EApiAuthorizationIamResourceClass.NONE : EApiAuthorizationIamResourceClass.AMBIGUOUS };
+	}
+
+	/**
 	 * Evaluates one condition key in memory, as `ApiAuthorizationIamOperator` says. A `resource.*` key reads the column its
 	 * field mapping declares, and compares only if its SQL scope could: otherwise the row would decide one way when loaded
 	 * and another when listed. A key on a path TypeORM does not map has no column type to check, so only String and Null
@@ -343,6 +387,7 @@ export class ApiAuthorizationIamEngine {
 		resourceDefinition: IApiAuthorizationResourceDefinition<E>;
 		resourceSegments: ReadonlyArray<IApiAuthorizationIamResourceSegment>;
 	}): {
+		allowRows: Map<IApiPolicyStatement, IApiAuthorizationIamResourceRows>;
 		allowStatements: Array<IApiPolicyStatement>;
 		denyExclusions: Array<IApiAuthorizationIamDenyExclusion>;
 		hasExplicitDeny: boolean;
@@ -354,6 +399,7 @@ export class ApiAuthorizationIamEngine {
 			sourceType: EApiPolicySourceType;
 		}>;
 	} {
+		const allowRows: Map<IApiPolicyStatement, IApiAuthorizationIamResourceRows> = new Map<IApiPolicyStatement, IApiAuthorizationIamResourceRows>();
 		const allowStatements: Array<IApiPolicyStatement> = [];
 		const denyExclusions: Array<IApiAuthorizationIamDenyExclusion> = [];
 
@@ -395,11 +441,16 @@ export class ApiAuthorizationIamEngine {
 				if (statement.Effect === EApiPolicyEffect.ALLOW) {
 					allowStatements.push(statement);
 
+					if (statementMatch.resourceRows) {
+						allowRows.set(statement, statementMatch.resourceRows);
+					}
+
 					continue;
 				}
 
 				if (!statementMatch.exclusions) {
 					return {
+						allowRows,
 						allowStatements,
 						denyExclusions,
 						hasExplicitDeny: true,
@@ -412,6 +463,7 @@ export class ApiAuthorizationIamEngine {
 		}
 
 		return {
+			allowRows,
 			allowStatements,
 			denyExclusions,
 			hasExplicitDeny: false,
@@ -425,8 +477,10 @@ export class ApiAuthorizationIamEngine {
 
 	/**
 	 * Matches one statement against the request. A matched Deny denies the whole request, unless the resource is not
-	 * loaded yet: then its `resource.*` keys and, for list requests, its row-scoped Resource patterns become row
-	 * exclusions that the query planner compiles.
+	 * loaded yet: then its `resource.*` keys and, for list requests, the rows its target applies to become row exclusions
+	 * that the query planner compiles. A matched Allow on a list that applies to part of the rows carries them as a scope.
+	 * A `NotAction` or `NotResource` target applies where no pattern of it matches; a pattern it cannot read exactly makes
+	 * a Deny deny and an Allow grant nothing, so a negated target never fails open.
 	 * @template E - Entity type.
 	 * @template M - List pagination mode.
 	 * @param {object} options - Matching options.
@@ -459,54 +513,15 @@ export class ApiAuthorizationIamEngine {
 		// Allow and Deny patterns are globs alike: `*` and `?` anywhere, so neither matches less or more than it says.
 		const isActionMatched: boolean = statement.action.patterns.some((pattern: IApiAuthorizationIamPattern): boolean => ApiAuthorizationIamGlob.isMatched(pattern.tokens, options.action));
 
-		if (!isActionMatched) {
+		// A `NotAction` applies to every action none of its patterns matches.
+		if (isActionMatched === statement.action.isNegated) {
 			return { isMatched: false };
 		}
 
 		const context: Record<string, unknown> = ApiAuthorizationIamVariable.createContext(options.principal, options.requestMetadata, options.resource);
-		const resourcePatterns: Array<IApiAuthorizationIamPattern> = [];
-		let hasUnresolvedPattern: boolean = false;
+		const target: { constraintSets: Array<ReadonlyArray<IApiAuthorizationIamResourceConstraint>>; kind: EApiAuthorizationIamResourceClass } = this.resolveResourceTarget(statement, context, options);
 
-		for (const pattern of statement.resource.patterns) {
-			const parts: Array<IApiAuthorizationIamToken> | undefined = ApiAuthorizationIamVariable.resolveTokens(pattern.tokens, context);
-
-			if (parts) {
-				resourcePatterns.push({ source: pattern.source, tokens: parts });
-			} else {
-				hasUnresolvedPattern = true;
-			}
-		}
-
-		// An unresolved placeholder may hold any value, so only a pattern that covers every value matches the whole collection.
-		const isResourceMatched: boolean = resourcePatterns.some((pattern: IApiAuthorizationIamPattern): boolean => ApiAuthorizationIamGlob.isCovering(pattern.tokens, options.resourceSegments));
-		const resourceConstraintSets: Array<ReadonlyArray<IApiAuthorizationIamResourceConstraint>> = isResourceMatched ? [[]] : [];
-		let isResourceMappable: boolean = true;
-
-		// A pattern whose variable does not resolve names no resource: an Allow grants nothing by it, and a Deny fails closed.
-		if (hasUnresolvedPattern && isDeny) {
-			isResourceMappable = false;
-			resourceConstraintSets.push([]);
-		}
-
-		if (!isResourceMatched && isDeny && options.resource === undefined && (options.isListRequest || options.isCreateRequest)) {
-			for (const pattern of resourcePatterns) {
-				const literalPrefix: { isPrefix: boolean; value: string } | undefined = ApiAuthorizationIamGlob.readLiteralPrefix(pattern.tokens);
-
-				// A create names no row, so only a pattern with a wildcard before its end, which cannot be mapped, applies to it.
-				if (!options.isListRequest && literalPrefix) {
-					continue;
-				}
-
-				const patternMatch: { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined = literalPrefix ? this.resolveResourcePatternConstraints(literalPrefix, options.resourceSegments) : this.resolveWildcardPatternMatch(pattern, options.resourceSegments);
-
-				if (patternMatch) {
-					isResourceMappable &&= patternMatch.isMappable;
-					resourceConstraintSets.push(patternMatch.constraints);
-				}
-			}
-		}
-
-		if (resourceConstraintSets.length === 0) {
+		if (target.kind === EApiAuthorizationIamResourceClass.NONE) {
 			return { isMatched: false };
 		}
 
@@ -527,29 +542,43 @@ export class ApiAuthorizationIamEngine {
 			}
 		}
 
+		const isPartial: boolean = target.kind === EApiAuthorizationIamResourceClass.PARTIAL;
+
 		if (!isDeny) {
-			return {
-				isMatched:
-					!hasResourceCondition ||
-					this.queryPlanner.plan({
-						dialect: options.dialect,
-						principal: options.principal,
-						requestMetadata: options.requestMetadata,
-						resource: options.resource,
-						resourceDefinition: options.resourceDefinition,
-						statements: [options.statement],
-					}).isFullyCompilable,
-			};
+			const resourceRows: IApiAuthorizationIamResourceRows | undefined = isPartial ? { constraintSets: target.constraintSets, isNegated: statement.resource.isNegated } : undefined;
+
+			if (!hasResourceCondition && !resourceRows) {
+				return { isMatched: true };
+			}
+
+			const isCompilable: boolean = this.queryPlanner.plan({
+				dialect: options.dialect,
+				principal: options.principal,
+				requestMetadata: options.requestMetadata,
+				resource: options.resource,
+				resourceDefinition: options.resourceDefinition,
+				...(resourceRows ? { statementRows: new Map<IApiPolicyStatement, IApiAuthorizationIamResourceRows>([[options.statement, resourceRows]]) } : {}),
+				statements: [options.statement],
+			}).isFullyCompilable;
+
+			return { isMatched: isCompilable, ...(resourceRows ? { resourceRows } : {}) };
 		}
 
-		const isWholeRequestDeny: boolean = !isResourceMappable || (hasResourceCondition ? options.isCreateRequest : resourceConstraintSets.some((constraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>): boolean => constraints.length === 0));
+		const isWholeRequestDeny: boolean = target.kind === EApiAuthorizationIamResourceClass.AMBIGUOUS || (hasResourceCondition ? options.isCreateRequest : !isPartial);
 
 		if (isWholeRequestDeny) {
 			return { isMatched: true };
 		}
 
+		if (!isPartial) {
+			return { exclusions: [{ statement: options.statement }], isMatched: true };
+		}
+
+		// The rows of `Resource` patterns are excluded one pattern at a time; the rows `NotResource` keeps are those of any pattern.
+		const exclusionRows: Array<IApiAuthorizationIamResourceRows> = statement.resource.isNegated ? [{ constraintSets: target.constraintSets, isNegated: true }] : target.constraintSets.map((constraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>): IApiAuthorizationIamResourceRows => ({ constraintSets: [constraints], isNegated: false }));
+
 		return {
-			exclusions: resourceConstraintSets.map((resourceConstraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>) => ({ resourceConstraints, statement: options.statement })),
+			exclusions: exclusionRows.map((resourceRows: IApiAuthorizationIamResourceRows): IApiAuthorizationIamDenyExclusion => ({ resourceRows, statement: options.statement })),
 			isMatched: true,
 		};
 	}
@@ -638,76 +667,6 @@ export class ApiAuthorizationIamEngine {
 	}
 
 	/**
-	 * Maps a literal Deny resource pattern, optionally ending with one `*`, onto the unresolved placeholders of a collection resource.
-	 * @param {object} pattern - Literal form of a Resource pattern that does not cover the collection.
-	 * @param {boolean} pattern.isPrefix - Whether a trailing `*` makes the text a prefix.
-	 * @param {string} pattern.value - Literal text of the pattern.
-	 * @param {ReadonlyArray<IApiAuthorizationIamResourceSegment>} segments - Collection resource segments.
-	 * @returns {{ constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined} Placeholder constraints of the rows the pattern covers, `isMappable: false` when the placeholder values are ambiguous, or undefined when no row can match.
-	 */
-	private resolveResourcePatternConstraints(pattern: { isPrefix: boolean; value: string }, segments: ReadonlyArray<IApiAuthorizationIamResourceSegment>): { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined {
-		const isPrefixPattern: boolean = pattern.isPrefix;
-		const constraints: Array<IApiAuthorizationIamResourceConstraint> = [];
-		let remainder: string = pattern.value;
-
-		for (const [index, segment] of segments.entries()) {
-			if (segment.placeholder === undefined) {
-				if (remainder.startsWith(segment.value)) {
-					remainder = remainder.slice(segment.value.length);
-
-					continue;
-				}
-
-				return isPrefixPattern && segment.value.startsWith(remainder) ? { constraints, isMappable: true } : undefined;
-			}
-
-			const nextSegment: IApiAuthorizationIamResourceSegment | undefined = segments[index + 1];
-
-			if (!nextSegment) {
-				// An empty exact remainder names the rows whose placeholder renders as "", which a NULL value does.
-				if (remainder.length > 0 || !isPrefixPattern) {
-					constraints.push({ isPrefix: isPrefixPattern, placeholder: segment.placeholder, value: remainder });
-				}
-
-				return { constraints, isMappable: true };
-			}
-
-			if (nextSegment.placeholder !== undefined) {
-				return { constraints, isMappable: false };
-			}
-
-			if (isPrefixPattern) {
-				const slotPrefix: string = remainder;
-				const isSeparatorReachable: boolean = Array.from({ length: slotPrefix.length }, (_value: unknown, offset: number): string => slotPrefix.slice(offset)).some((suffix: string): boolean => suffix.includes(nextSegment.value) || nextSegment.value.startsWith(suffix));
-
-				if (isSeparatorReachable) {
-					return { constraints, isMappable: false };
-				}
-
-				constraints.push({ isPrefix: true, placeholder: segment.placeholder, value: remainder });
-
-				return { constraints, isMappable: true };
-			}
-
-			const separatorIndex: number = remainder.indexOf(nextSegment.value);
-
-			// A separator right at the slot names the rows whose placeholder renders as "".
-			if (separatorIndex === -1) {
-				return undefined;
-			}
-
-			if (remainder.includes(nextSegment.value, separatorIndex + 1)) {
-				return { constraints, isMappable: false };
-			}
-
-			constraints.push({ isPrefix: false, placeholder: segment.placeholder, value: remainder.slice(0, separatorIndex) });
-			remainder = remainder.slice(separatorIndex);
-		}
-
-		return remainder.length === 0 ? { constraints, isMappable: true } : undefined;
-	}
-
-	/**
 	 * Splits the resource path into literal segments and placeholders; placeholders resolved from the resource or
 	 * request parameters become literals, unresolved ones keep their name and render as `*`. On a loaded resource a
 	 * NULL, missing or empty value renders as `""`, so `item/` names the row whose `id` is NULL. A request parameter of the
@@ -776,14 +735,72 @@ export class ApiAuthorizationIamEngine {
 	}
 
 	/**
-	 * Matches a Deny resource pattern with a `*` before its end, or any `?`, against a collection resource. Such a
-	 * wildcard can span literals and placeholders alike, so it never maps to rows: when some row can match it the whole
-	 * request is denied.
-	 * @param {IApiAuthorizationIamPattern} pattern - Resource pattern that does not cover the collection.
-	 * @param {ReadonlyArray<IApiAuthorizationIamResourceSegment>} segments - Collection resource segments.
-	 * @returns {{ constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined} A not mappable match when some row can match the pattern, or undefined when no row can.
+	 * Reads what the `Resource` or `NotResource` target of a statement says about the request. A pattern whose variable
+	 * does not resolve names no resource: a `Resource` of an Allow grants nothing by it, and any other target fails closed,
+	 * since reading it as a miss would make a `NotResource` apply to every row.
+	 * @template E - Entity type.
+	 * @param {IApiAuthorizationIamStatement} statement - Statement read by the grammar.
+	 * @param {Record<string, unknown>} context - Evaluation context with the `principal`, `request` and `resource` roots.
+	 * @param {object} options - Matching options.
+	 * @param {IApiAuthorizationIamDialect} [options.dialect] - SQL dialect of the resource entity.
+	 * @param {boolean} options.isCreateRequest - Whether the request creates a resource.
+	 * @param {boolean} options.isListRequest - Whether the request lists resources.
+	 * @param {E} [options.resource] - Loaded resource, when available.
+	 * @param {IApiAuthorizationResourceDefinition<E>} options.resourceDefinition - IAM resource definition.
+	 * @param {ReadonlyArray<IApiAuthorizationIamResourceSegment>} options.resourceSegments - Request resource segments.
+	 * @returns {{ constraintSets: Array<ReadonlyArray<IApiAuthorizationIamResourceConstraint>>; kind: EApiAuthorizationIamResourceClass }} The class of the target as written, `NONE` when the statement does not apply, `ALL` for every row, `AMBIGUOUS` for a whole-request Deny, and for `PARTIAL` the constraints of each pattern that names rows.
 	 */
-	private resolveWildcardPatternMatch(pattern: IApiAuthorizationIamPattern, segments: ReadonlyArray<IApiAuthorizationIamResourceSegment>): { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined {
-		return ApiAuthorizationIamGlob.isOverlapping(pattern.tokens, segments) ? { constraints: [], isMappable: false } : undefined;
+	private resolveResourceTarget<E extends IApiBaseEntity>(
+		statement: IApiAuthorizationIamStatement,
+		context: Record<string, unknown>,
+		options: { dialect?: IApiAuthorizationIamDialect; isCreateRequest: boolean; isListRequest: boolean; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E>; resourceSegments: ReadonlyArray<IApiAuthorizationIamResourceSegment> },
+	): { constraintSets: Array<ReadonlyArray<IApiAuthorizationIamResourceConstraint>>; kind: EApiAuthorizationIamResourceClass } {
+		const isDeny: boolean = statement.effect === EApiPolicyEffect.DENY;
+		const isNegated: boolean = statement.resource.isNegated;
+		const classifications: Array<IApiAuthorizationIamResourceClassification> = [];
+		let hasUnresolvedPattern: boolean = false;
+
+		for (const pattern of statement.resource.patterns) {
+			const parts: Array<IApiAuthorizationIamToken> | undefined = ApiAuthorizationIamVariable.resolveTokens(pattern.tokens, context);
+
+			if (parts) {
+				classifications.push(this.classifyResourcePattern(parts, statement, options));
+			} else {
+				hasUnresolvedPattern = true;
+			}
+		}
+
+		// The class that makes the statement grant nothing, or deny the whole request.
+		const failedClosed: EApiAuthorizationIamResourceClass = isDeny ? EApiAuthorizationIamResourceClass.AMBIGUOUS : EApiAuthorizationIamResourceClass.NONE;
+
+		if (hasUnresolvedPattern && (isDeny || isNegated)) {
+			return { constraintSets: [], kind: failedClosed };
+		}
+
+		const hasKind = (kind: EApiAuthorizationIamResourceClass): boolean => classifications.some((classification: IApiAuthorizationIamResourceClassification): boolean => classification.kind === kind);
+		const constraintSets: Array<ReadonlyArray<IApiAuthorizationIamResourceConstraint>> = classifications.filter((classification: IApiAuthorizationIamResourceClassification): boolean => classification.kind === EApiAuthorizationIamResourceClass.PARTIAL).map((classification: IApiAuthorizationIamResourceClassification): ReadonlyArray<IApiAuthorizationIamResourceConstraint> => classification.constraints);
+		const hasRows: boolean = constraintSets.length > 0;
+
+		if (isNegated) {
+			if (hasKind(EApiAuthorizationIamResourceClass.ALL)) {
+				return { constraintSets: [], kind: EApiAuthorizationIamResourceClass.NONE };
+			}
+
+			if (hasKind(EApiAuthorizationIamResourceClass.AMBIGUOUS)) {
+				return { constraintSets: [], kind: failedClosed };
+			}
+
+			return hasRows ? { constraintSets, kind: EApiAuthorizationIamResourceClass.PARTIAL } : { constraintSets: [], kind: EApiAuthorizationIamResourceClass.ALL };
+		}
+
+		if (hasKind(EApiAuthorizationIamResourceClass.ALL)) {
+			return { constraintSets: [], kind: EApiAuthorizationIamResourceClass.ALL };
+		}
+
+		if (isDeny && hasKind(EApiAuthorizationIamResourceClass.AMBIGUOUS)) {
+			return { constraintSets: [], kind: EApiAuthorizationIamResourceClass.AMBIGUOUS };
+		}
+
+		return hasRows ? { constraintSets, kind: EApiAuthorizationIamResourceClass.PARTIAL } : { constraintSets: [], kind: EApiAuthorizationIamResourceClass.NONE };
 	}
 }

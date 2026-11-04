@@ -1,7 +1,8 @@
-import type { IApiAuthorizationIamResourceConstraint } from "@interface/class/api/authorization/iam/resource-constraint.interface";
+import type { IApiAuthorizationIamResourceRows } from "@interface/class/api/authorization/iam/resource-rows.interface";
 import type { IApiPolicyStatement } from "@interface/class/api/authorization/policy/document/statement.interface";
 
 export interface IApiAuthorizationIamDenyExclusion {
-	resourceConstraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>;
+	// Rows the target of the statement applies to; every row when absent.
+	resourceRows?: IApiAuthorizationIamResourceRows;
 	statement: IApiPolicyStatement;
 }
