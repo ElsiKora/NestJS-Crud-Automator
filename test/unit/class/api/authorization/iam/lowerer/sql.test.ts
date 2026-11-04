@@ -111,9 +111,10 @@ describe("IAM predicate lowering to SQL", () => {
 			`);
 		});
 
-		it.each([POSTGRES, COCKROACH])("holds for no row when no value is a canonical uuid, and for every non-NULL row when negated ($driverType)", (dialect: IApiAuthorizationIamDialect) => {
+		it.each([POSTGRES, COCKROACH])("lowers to a condition that matches no row when no value is a canonical uuid, and every non-NULL row when negated ($driverType)", (dialect: IApiAuthorizationIamDialect) => {
 			for (const value of [CANONICAL_UUID.toUpperCase(), `{${CANONICAL_UUID}}`, CANONICAL_UUID.replaceAll("-", ""), "not-a-uuid", ""]) {
-				expect(createIamLowerer(dialect).lower(textIn(UUID_CODE, [value]), 128)).toEqual({ branches: [], isCompilable: true });
+				// A branch that matches no row, not an empty predicate: the scope still compiles, as on every other database.
+				expect(renderIamLowererWhere(postgres, dialect, textIn(UUID_CODE, [value]))).toEqual({ parameters: [], where: "((((0=1))))" });
 				expect(renderIamLowererWhere(postgres, dialect, textIn(UUID_CODE, [value], true))?.where).toBe('((((NOT("IamLowererItemEntity"."code" IS NULL)))))');
 			}
 		});
@@ -121,13 +122,13 @@ describe("IAM predicate lowering to SQL", () => {
 		it('keeps the NULL-complete pair of a "" placeholder on a uuid column without binding ""', () => {
 			const pair = ApiAuthorizationIamPredicateBuilder.buildExactConstraint({ column: UUID_CODE, comparison: EApiAuthorizationIamPredicateComparison.TEXT, value: "" });
 
-			expect(renderIamLowererWhere(postgres, POSTGRES, pair.holds)).toEqual({ parameters: [], where: '(((("IamLowererItemEntity"."code" IS NULL))))' });
-			expect(renderIamLowererWhere(postgres, POSTGRES, pair.fails)).toEqual({ parameters: [], where: '((((NOT("IamLowererItemEntity"."code" IS NULL)))))' });
+			expect(renderIamLowererWhere(postgres, POSTGRES, pair.holds)).toEqual({ parameters: [], where: '(((("IamLowererItemEntity"."code" IS NULL))) OR (((0=1))))' });
+			expect(renderIamLowererWhere(postgres, POSTGRES, pair.fails)).toEqual({ parameters: [], where: '(((((NOT("IamLowererItemEntity"."code" IS NULL) AND NOT("IamLowererItemEntity"."code" IS NULL))))))' });
 		});
 
-		it("compares only declared values on an enum column, natively", () => {
+		it("compares only declared values on an enum column, natively, and matches no row for any other", () => {
 			expect(renderIamLowererWhere(postgres, POSTGRES, textIn(ENUM_NAME, ["alpha", "gamma"]))).toEqual({ parameters: ["alpha"], where: '(((("IamLowererItemEntity"."name" = $1))))' });
-			expect(createIamLowerer(POSTGRES).lower(textIn(ENUM_NAME, ["Alpha", "gamma"]), 128)).toEqual({ branches: [], isCompilable: true });
+			expect(renderIamLowererWhere(postgres, POSTGRES, textIn(ENUM_NAME, ["Alpha", "gamma"]))).toEqual({ parameters: [], where: "((((0=1))))" });
 			expect(renderIamLowererWhere(postgres, POSTGRES, textIn(ENUM_NAME, ["gamma"], true))?.where).toBe('((((NOT("IamLowererItemEntity"."name" IS NULL)))))');
 		});
 

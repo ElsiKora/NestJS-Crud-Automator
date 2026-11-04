@@ -92,9 +92,9 @@ const COMPILABLE_CASES: Array<[string, IPolicyCase, Array<string>]> = [
 	['Deny StringEquals kind "gamma", which the enum does not declare', deny("StringEquals", "kind", "gamma"), ALL_ROWS],
 ];
 
-// Values a uuid or enum column cannot hold: an Allow on them allows no row, in SQL as in memory, and never errors. PostgreSQL
-// refuses such a value, so the planner knows the Allow holds for no row and the list answers 403; the other databases compare
-// the value as text, which matches no row, so the list is empty.
+// Values a uuid or enum column cannot hold: an Allow on them allows no row, in SQL as in memory, and never errors. Every
+// database answers alike: PostgreSQL lowers the comparison to a condition that matches no row, the others compare text that
+// no row holds, so the list is an empty page.
 const NO_ROW_CASES: Array<[string, IPolicyCase]> = [
 	["Allow StringEquals operatorId in upper case", allow("StringEquals", "operatorId", OPERATOR_A.toUpperCase())],
 	['Allow StringEquals operatorId "not-a-uuid"', allow("StringEquals", "operatorId", "not-a-uuid")],
@@ -270,12 +270,10 @@ describe.each<{ database: TDatabase; databaseName: string; dialect: EApiAuthoriz
 		expect(await allowedInMemory(E2E_IAM_DIALECT_ITEM_AUTHORIZATION)).toEqual([]);
 	});
 
-	const noRowStatus: HttpStatus = dialect === EApiAuthorizationIamDialect.POSTGRES ? HttpStatus.FORBIDDEN : HttpStatus.OK;
-
 	it.each(NO_ROW_CASES)("allows no row, listed or loaded, for %s", async (_name: string, policyCase: IPolicyCase) => {
 		policy = policyCase;
 
-		expect(await listIds(ITEMS)).toEqual({ ids: [], statusCode: noRowStatus });
+		expect(await listIds(ITEMS)).toEqual({ ids: [], statusCode: HttpStatus.OK });
 		expect(await allowedInMemory(E2E_IAM_DIALECT_ITEM_AUTHORIZATION)).toEqual([]);
 	});
 
@@ -328,10 +326,11 @@ describe.each<{ database: TDatabase; databaseName: string; dialect: EApiAuthoriz
 			E2E_IAM_DIALECT_USER.operatorId = operatorId;
 
 			expect(await allowedInMemory(E2E_IAM_DIALECT_OPERATOR_AUTHORIZATION)).toEqual([]);
-			expect(await listIds(OPERATORS)).toEqual({ ids: [], statusCode: noRowStatus });
-			expect(await read("a")).toBe(noRowStatus === HttpStatus.OK ? HttpStatus.NOT_FOUND : HttpStatus.FORBIDDEN);
+			expect(await listIds(OPERATORS)).toEqual({ ids: [], statusCode: HttpStatus.OK });
+			expect(await read("a")).toBe(HttpStatus.NOT_FOUND);
 		});
 
+		// The planner refuses the value "" on every dialect before any lowering, because "" and NULL compare equal in memory but not in SQL.
 		it("denies the request for an empty operator attribute, which no scope compares", async () => {
 			E2E_IAM_DIALECT_USER.operatorId = "";
 

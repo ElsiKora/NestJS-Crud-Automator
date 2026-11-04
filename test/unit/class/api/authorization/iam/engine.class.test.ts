@@ -7,7 +7,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiAuthorizationDecisionType, EApiAuthorizationIamDialect, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { describe, expect, it } from "vitest";
-import { And, Column, Entity, Equal, IsNull, ManyToOne, Not, OneToMany, PrimaryColumn } from "typeorm";
+import { And, Column, Entity, Equal, In, IsNull, ManyToOne, Not, OneToMany, PrimaryColumn } from "typeorm";
 
 const describeEngineStringProperty = (description: string): PropertyDecorator =>
 	ApiPropertyDescribe({
@@ -604,31 +604,49 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect((await onDevices([allowOwnOperator], { principal: { ...principal, attributes: { operatorId: OPERATOR_ID } } })).scope).toEqual({ where: { operatorId: OPERATOR_ID } });
 		});
 
-		it.each([OPERATOR_ID.toUpperCase(), `{${OPERATOR_ID}}`, OPERATOR_ID.replaceAll("-", ""), "not-a-uuid", "operator-1"])("holds for no row on a uuid column for %s, in SQL and in memory", async (value: string) => {
-			expect((await onDevices([allowWhere("resource.operatorId", value)])).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		// A value no uuid row can hold lowers to a condition that matches no row, as the text comparison of another database
+		// would: the Allow still compiles, so a list is empty and a read answers 404, while a loaded row is not allowed in memory.
+		it.each([OPERATOR_ID.toUpperCase(), `{${OPERATOR_ID}}`, OPERATOR_ID.replaceAll("-", ""), "not-a-uuid", "operator-1"])("matches no row on a uuid column for %s, in SQL and in memory", async (value: string) => {
+			const decision = await onDevices([allowWhere("resource.operatorId", value)]);
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(decision.scope).toEqual({ where: { operatorId: In([]) } });
 			expect((await onDevices([allowWhere("resource.operatorId", value)], { action: "admin:item:read", resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 			// The Deny holds for no row, so it keeps every row, NULL ones included.
 			expect((await onDevices([allowAll, deny({ Condition: { StringEquals: { "resource.operatorId": value } } })])).scope).toEqual({ where: [{ operatorId: Not(IsNull()) }, { operatorId: IsNull() }] });
 			expect((await onDevices([allowAll, deny({ Condition: { StringEquals: { "resource.operatorId": value } } })], { action: "admin:item:read", resource: loaded })).effect).toBe(EApiPolicyEffect.ALLOW);
 		});
 
-		it("holds for no row on a uuid column when the principal attribute is not a canonical uuid", async () => {
-			expect((await onDevices([allowOwnOperator], { principal: { ...principal, attributes: { operatorId: OPERATOR_ID.toUpperCase() } } })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
-			expect((await onDevices([allowOwnOperator], { action: "admin:item:read", principal: { ...principal, attributes: { operatorId: OPERATOR_ID.toUpperCase() } }, resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		it("matches no row on a uuid column when the principal attribute is not a canonical uuid", async () => {
+			const upperCase: IApiAuthorizationPrincipal = { ...principal, attributes: { operatorId: OPERATOR_ID.toUpperCase() } };
+
+			expect((await onDevices([allowOwnOperator], { principal: upperCase })).scope).toEqual({ where: { operatorId: In([]) } });
+			expect((await onDevices([allowOwnOperator], { action: "admin:item:read", principal: upperCase, resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 		});
 
-		it('excludes only NULL ids for a "" placeholder on a uuid column', async () => {
-			expect((await onDevices([allowAll, deny({ Resource: ["gameport:admin:item/"] })])).scope).toEqual({ where: { id: Not(IsNull()) } });
+		it('excludes only NULL ids for a "" placeholder on a uuid column, and no row for another spelling of a UUID', async () => {
+			expect((await onDevices([allowAll, deny({ Resource: ["gameport:admin:item/"] })])).scope).toEqual({ where: { id: And(Not(IsNull()), Not(IsNull())) } });
 			expect((await onDevices([allowAll, deny({ Resource: ["gameport:admin:item/A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11"] })])).scope).toEqual({ where: [{ id: Not(IsNull()) }, { id: IsNull() }] });
 		});
 
-		it("compares a declared enum value natively and holds for no row on any other value", async () => {
+		it("compares a declared enum value natively and matches no row for any other value", async () => {
 			expect((await onDevices([allowWhere("resource.kind", "alpha")])).scope).toEqual({ where: { kind: "alpha" } });
-			expect((await onDevices([allowWhere("resource.kind", "gamma")])).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await onDevices([allowWhere("resource.kind", "gamma")])).scope).toEqual({ where: { kind: In([]) } });
 			expect((await onDevices([allowWhere("resource.kind", "Alpha")], { action: "admin:item:read", resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
-			// Every row, NULL included, differs from a value the column cannot hold, so the Deny keeps no row, as in memory.
-			expect((await onDevices([allowAll, deny({ Condition: { StringNotEquals: { "resource.kind": "gamma" } } })])).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			// Every row, NULL included, differs from a value the column cannot hold, so the Deny excludes every row, as in memory.
+			expect((await onDevices([allowAll, deny({ Condition: { StringNotEquals: { "resource.kind": "gamma" } } })])).scope).toEqual({ where: { kind: In([]) } });
 			expect((await onDevices([allowAll, deny({ Condition: { StringNotEquals: { "resource.kind": "gamma" } } })], { action: "admin:item:read", resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("compiles Allow keys that contradict each other on one query path into a scope on every dialect, which matches no row", async () => {
+			const contradiction: IApiPolicyStatement = { ...allowAll, Condition: { StringEquals: { "resource.kind": "alpha" }, StringEqualsIfExists: { "resource.kind": "beta" } } };
+
+			for (const dialect of [POSTGRES, { binaryCollation: "utf8mb4_0900_bin", driverType: "mysql", type: EApiAuthorizationIamDialect.MYSQL, version: "8.4.2" }, { driverType: "better-sqlite3", type: EApiAuthorizationIamDialect.SQLITE }]) {
+				const decision = await evaluate({ dialect, resourceDefinition: deviceResourceDefinition as unknown as IApiAuthorizationResourceDefinition<EngineItemEntity>, statements: [contradiction] });
+
+				expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+				expect(Object.keys(decision.scope?.where ?? {})).toEqual(["kind"]);
+			}
 		});
 	});
 
