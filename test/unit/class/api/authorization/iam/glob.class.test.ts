@@ -24,6 +24,12 @@ describe("ApiAuthorizationIamGlob", () => {
 			["a*b*c", "axxbyyc"],
 			["**", "x"],
 			["ns:item/?", "ns:item/?"],
+			["ns:item/?", "ns:item/1"],
+			["ns:item/?", "ns:item/🙂"],
+			["ns:?:read", "ns:a:read"],
+			["ns:item/${?}", "ns:item/?"],
+			["ns:item/${*}", "ns:item/*"],
+			["ns:${$}item", "ns:$item"],
 			["ns:ключ/*/ü", "ns:ключ/🙂/ü"],
 		])("matches %s against %s", (pattern: string, value: string) => {
 			expect(ApiAuthorizationIamGlob.isMatched(pattern, value)).toBe(true);
@@ -36,11 +42,19 @@ describe("ApiAuthorizationIamGlob", () => {
 			["ns:item/*/secret", "ns:item/secret"],
 			["ns:*-history", "ns:item-history/1"],
 			["a*b*c", "acb"],
-			["ns:item/?", "ns:item/1"],
+			["ns:item/?", "ns:item/12"],
+			["ns:item/?", "ns:item/"],
+			["ns:item/${?}", "ns:item/1"],
+			["ns:item/${*}", "ns:item/1"],
 			["ns:item/*", "ns:other/1"],
 			["x", ""],
 		])("does not match %s against %s", (pattern: string, value: string) => {
 			expect(ApiAuthorizationIamGlob.isMatched(pattern, value)).toBe(false);
+		});
+
+		it("refuses a pattern with a variable or a malformed ${...}", () => {
+			expect(() => ApiAuthorizationIamGlob.isMatched("ns:item/${principal.id}", "ns:item/1")).toThrow();
+			expect(() => ApiAuthorizationIamGlob.isMatched("ns:item/${", "ns:item/1")).toThrow();
 		});
 
 		it("matches a hostile pattern in bounded time", () => {
@@ -53,6 +67,45 @@ describe("ApiAuthorizationIamGlob", () => {
 		});
 	});
 
+	describe("isCovering", () => {
+		it.each([
+			["*", itemSegments],
+			["ns:item/*", itemSegments],
+			["ns:*", itemSegments],
+			["ns:tenant/*/item/*", tenantSegments],
+			["ns:tenant/*", tenantSegments],
+			["ns:item/1", [{ value: "ns:item/1" }]],
+			["ns:item/?", [{ value: "ns:item/1" }]],
+		])("covers every row of the collection with %s", (pattern: string, segments: Array<IApiAuthorizationIamResourceSegment>) => {
+			expect(ApiAuthorizationIamGlob.isCovering(pattern, segments)).toBe(true);
+		});
+
+		it.each([
+			["ns:item/?", itemSegments],
+			["ns:item/${*}", itemSegments],
+			["ns:item/1", itemSegments],
+			["ns:item/1*", itemSegments],
+			["ns:tenant/t-1/item/*", tenantSegments],
+			["ns:item/2", [{ value: "ns:item/1" }]],
+		])("does not cover every row of the collection with %s", (pattern: string, segments: Array<IApiAuthorizationIamResourceSegment>) => {
+			expect(ApiAuthorizationIamGlob.isCovering(pattern, segments)).toBe(false);
+		});
+	});
+
+	describe("readLiteralPrefix", () => {
+		it.each([
+			["ns:item/1", { isPrefix: false, value: "ns:item/1" }],
+			["ns:item/*", { isPrefix: true, value: "ns:item/" }],
+			["ns:item/${*}", { isPrefix: false, value: "ns:item/*" }],
+			["ns:item/${?}*", { isPrefix: true, value: "ns:item/?" }],
+			["ns:*/1", undefined],
+			["ns:item/?", undefined],
+			["ns:item/**", undefined],
+		])("reads %s", (pattern: string, expected: undefined | { isPrefix: boolean; value: string }) => {
+			expect(ApiAuthorizationIamGlob.readLiteralPrefix(ApiAuthorizationIamGlob.readTokens(pattern))).toEqual(expected);
+		});
+	});
+
 	describe("isOverlapping", () => {
 		it.each([
 			["ns:item/*-secret", itemSegments],
@@ -62,6 +115,9 @@ describe("ApiAuthorizationIamGlob", () => {
 			["ns:tenant/t-1*item-1", tenantSegments],
 			["ns:tenant/*/item/*/x", tenantSegments],
 			["ns:tenant/*/note/*", tenantSegments],
+			["ns:item/?", itemSegments],
+			["ns:item/${*}", itemSegments],
+			["ns:?tem/*", itemSegments],
 		])("finds a row of the collection for %s", (pattern: string, segments: Array<IApiAuthorizationIamResourceSegment>) => {
 			expect(ApiAuthorizationIamGlob.isOverlapping(pattern, segments)).toBe(true);
 		});
@@ -72,6 +128,8 @@ describe("ApiAuthorizationIamGlob", () => {
 			["other:*/1", itemSegments],
 			["ns:tenants*/item/*", tenantSegments],
 			["ns:item/x*", [{ value: "ns:item/abc" }]],
+			["ns:?tem/*", [{ value: "ns:tem/1" }]],
+			["ns:item/??", [{ value: "ns:item/1" }]],
 		])("finds no row of the collection for %s", (pattern: string, segments: Array<IApiAuthorizationIamResourceSegment>) => {
 			expect(ApiAuthorizationIamGlob.isOverlapping(pattern, segments)).toBe(false);
 		});

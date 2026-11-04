@@ -311,9 +311,21 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 			["a variable resolving to null", { StringEquals: { "resource.status": "${principal.attributes.nullValue}" } }],
 			["a variable resolving to an empty string", { StringEquals: { "resource.status": "${principal.attributes.emptyValue}" } }],
 			["an empty string", { StringEqualsIfExists: { "resource.status": "" } }],
-			["an object value", { StringEquals: { "resource.status": { nested: true } } }],
 		])("does not compile %s", (_name: string, condition: Record<string, Record<string, unknown>>) => {
 			expect(planAllow(condition)).toEqual({ isFullyCompilable: false });
+		});
+
+		it("reads a list of one value as that value", () => {
+			expect(planAllow({ StringEquals: { "resource.status": ["archived"] } })).toEqual(planAllow({ StringEquals: { "resource.status": "archived" } }));
+		});
+
+		it.each([
+			["an object value", { StringEquals: { "resource.status": { nested: true } } }, "iamPolicyConditionValueInvalid"],
+			["several values", { StringEquals: { "resource.status": ["a", "b"] } }, "iamPolicyNotSupportedYet"],
+			["an operator the engine does not evaluate yet", { StringLike: { "resource.status": "a*" } }, "iamPolicyNotSupportedYet"],
+		])("refuses a statement with %s", (_name: string, condition: Record<string, Record<string, unknown>>, code: string) => {
+			expect(() => planAllow(condition)).toThrow(code);
+			expect(() => planDeny([{ condition }])).toThrow(code);
 		});
 
 		it("returns no scope for statements without resource conditions", () => {
@@ -397,13 +409,11 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		});
 
 		it.each([
-			["an unsupported operator", { StringLike: { "resource.status": "a*" } }],
 			["a non-filterable field", { StringEquals: { "resource.secret": "value" } }],
 			["an unmapped field", { StringEquals: { "resource.unknown": "value" } }],
 			["an unresolved variable", { StringEquals: { "resource.status": "${principal.attributes.missing}" } }],
 			["a variable resolving to null", { StringNotEquals: { "resource.status": "${principal.attributes.nullValue}" } }],
 			["a variable resolving to an empty string", { StringEquals: { "resource.status": "${principal.attributes.emptyValue}" } }],
-			["an object value", { StringEquals: { "resource.status": ["a", "b"] } }],
 			["no resource condition", { StringEquals: { "principal.id": "user-1" } }],
 		])("is not compilable with %s", (_name: string, condition: Record<string, Record<string, unknown>>) => {
 			expect(planDeny([{ condition }])).toEqual({ isFullyCompilable: false });

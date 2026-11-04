@@ -961,7 +961,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 				Action: ["admin:item:list"],
 				Condition: {
 					StringEquals: {
-						"resource.name": "Hidden Item",
+						"resource.operatorId": "${principal.attributes.missingOperatorId}",
 					},
 				},
 				Effect: EApiPolicyEffect.DENY,
@@ -977,6 +977,24 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 
 		expect(await listItemIds()).toEqual({ ids: undefined, statusCode: 403 });
 		expect(ownGetResponse.statusCode).toBe(200);
+	});
+
+	it("refuses a stored document whose resource key the namespace does not map", async () => {
+		await itemService.repository.save({ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" });
+		await appendPolicyStatements([
+			{
+				Action: ["admin:item:list"],
+				Condition: {
+					StringEquals: {
+						"resource.name": "Hidden Item",
+					},
+				},
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/*"],
+			},
+		]);
+
+		expect((await listItemIds()).statusCode).toBe(500);
 	});
 
 	it("hides row-scoped Deny targets from GET_LIST without widening the Deny to reads", async () => {

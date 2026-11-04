@@ -174,11 +174,9 @@ describe("ApiAuthorizationIamEngine", () => {
 		});
 
 		it.each([
-			["an unsupported operator", { StringLike: { "resource.status": "a*" } }],
 			["a non-filterable field", { StringEquals: { "resource.secret": "value" } }],
 			["an unresolved variable", { StringEquals: { "resource.status": "${principal.attributes.missing}" } }],
 			["an empty string", { StringNotEquals: { "resource.status": "" } }],
-			["an object value", { StringEquals: { "resource.status": { nested: true } } }],
 		])("denies the whole request for a non-compilable Deny with %s", async (_name: string, condition: Record<string, Record<string, unknown>>) => {
 			const decision = await evaluate({ statements: [allowAll, deny({ Condition: condition })] });
 
@@ -199,12 +197,15 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 		});
 
-		it("fails closed on an unknown operator that bypassed document validation", async () => {
-			const denyDecision = await evaluate({ statements: [allowAll, deny({ Condition: { StringLike: { "principal.id": "other*" } } })] });
-			const allowDecision = await evaluate({ statements: [{ ...allowAll, Condition: { StringLike: { "principal.id": "user*" } } }] });
-
-			expect(denyDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
-			expect(allowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		it.each([
+			["an operator the engine does not evaluate yet", { StringLike: { "principal.id": "other*" } }, "iamPolicyNotSupportedYet"],
+			["an unknown operator", { StringMatches: { "principal.id": "other" } }, "iamPolicyConditionOperatorUnknown"],
+			["an unknown key", { StringEquals: { "user.id": "other" } }, "iamPolicyConditionKeyUnknown"],
+			["a whole-resource variable", { StringEquals: { "principal.attributes.missing": "${resource}" } }, "iamPolicyVariableUnknown"],
+			["a client-controlled variable", { StringEquals: { "resource.status": "${request.body.status}" } }, "iamPolicyVariableNotAllowed"],
+		])("refuses to evaluate a statement with %s that bypassed document validation", async (_name: string, condition: Record<string, Record<string, unknown>>, code: string) => {
+			await expect(evaluate({ statements: [allowAll, deny({ Condition: condition })] })).rejects.toThrow(code);
+			await expect(evaluate({ statements: [{ ...allowAll, Condition: condition }] })).rejects.toThrow(code);
 		});
 
 		it("denies the whole request for a Deny without resource keys", async () => {
@@ -229,7 +230,6 @@ describe("ApiAuthorizationIamEngine", () => {
 			["a StringNotEquals principal key", { StringNotEquals: { "principal.attributes.operatorId": "${resource.tenantId}" } }],
 			["a StringNotEqualsIfExists principal key", { StringNotEqualsIfExists: { "principal.attributes.operatorId": "${resource.tenantId}" } }],
 			["a StringEquals request key", { StringEquals: { "request.headers.x-tenant-id": "${resource.tenantId}" } }],
-			["a whole-resource variable", { StringEquals: { "principal.attributes.missing": "${resource}" } }],
 		];
 
 		const denyConditions: Array<[string, Record<string, Record<string, unknown>>]> = [
@@ -325,17 +325,24 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect(decision.effect).toBe(isDenied ? EApiPolicyEffect.DENY : EApiPolicyEffect.ALLOW);
 		});
 
-		it.each([
-			["a list", ["archived"]],
-			["an object", { value: "archived" }],
-			["null", null],
-		])("fails closed on %s operand in memory", async (_name: string, operand: unknown) => {
+		it("reads a list of one value as that value", async () => {
 			const options = { action: "admin:item:read", resource: { id: "item-1", operatorId: "operator-1", secret: "s", status: "archived", tenantId: "t" }, routeType: EApiRouteType.GET };
-			const denyDecision = await evaluate({ ...options, statements: [allowAll, deny({ Condition: { StringNotEquals: { "resource.status": operand } } })] });
-			const allowDecision = await evaluate({ ...options, statements: [{ ...allowAll, Condition: { StringEquals: { "resource.status": operand } } }] });
+			const denyDecision = await evaluate({ ...options, statements: [allowAll, deny({ Condition: { StringNotEquals: { "resource.status": ["archived"] } } })] });
+			const allowDecision = await evaluate({ ...options, statements: [{ ...allowAll, Condition: { StringEquals: { "resource.status": ["archived"] } } }] });
 
-			expect(denyDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
-			expect(allowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(denyDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect(allowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+		});
+
+		it.each([
+			["several values", ["archived", "active"], "iamPolicyNotSupportedYet"],
+			["an object", { value: "archived" }, "iamPolicyConditionValueInvalid"],
+			["null", null, "iamPolicyConditionValueInvalid"],
+		])("refuses to evaluate %s as an operand", async (_name: string, operand: unknown, code: string) => {
+			const options = { action: "admin:item:read", resource: { id: "item-1", operatorId: "operator-1", secret: "s", status: "archived", tenantId: "t" }, routeType: EApiRouteType.GET };
+
+			await expect(evaluate({ ...options, statements: [allowAll, deny({ Condition: { StringNotEquals: { "resource.status": operand } } })] })).rejects.toThrow(code);
+			await expect(evaluate({ ...options, statements: [{ ...allowAll, Condition: { StringEquals: { "resource.status": operand } } }] })).rejects.toThrow(code);
 		});
 	});
 
@@ -553,13 +560,35 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect(otherDecision.effect).toBe(EApiPolicyEffect.ALLOW);
 		});
 
-		it("keeps ? a literal character", async () => {
+		it("reads ? as exactly one character", async () => {
 			const statements: Array<IApiPolicyStatement> = [allowAll, deny({ Resource: ["gameport:admin:item/item-?"] })];
-			const literalDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-?" } }, routeType: EApiRouteType.GET, statements });
-			const otherDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements });
+			const readItem = async (id: string) => await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id } }, routeType: EApiRouteType.GET, statements });
 
-			expect(literalDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
-			expect(otherDecision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await readItem("item-?")).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect((await readItem("item-1")).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect((await readItem("item-🙂")).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect((await readItem("item-12")).effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await readItem("item-")).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("reads the ${*}, ${?} and ${$} escapes as literal characters", async () => {
+			const statements: Array<IApiPolicyStatement> = [allowAll, deny({ Resource: ["gameport:admin:item/a${?}b${*}c${$}"] })];
+			const readItem = async (id: string) => await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id } }, routeType: EApiRouteType.GET, statements });
+
+			expect((await readItem("a?b*c$")).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect((await readItem("axbyc$")).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("denies the whole list for a Resource with ? that matches some rows", async () => {
+			const decision = await evaluate({ statements: [allowAll, deny({ Resource: ["gameport:admin:item/item-?"] })] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("denies a create for a Resource with ? that some row could match", async () => {
+			const decision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Resource: ["gameport:admin:item/item-?"] })] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 		});
 
 		it("denies the whole list for an Action with an interior wildcard", async () => {
@@ -601,14 +630,29 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect(otherTypeDecision.effect).toBe(EApiPolicyEffect.ALLOW);
 		});
 
-		it("keeps an Allow with an interior wildcard unmatched", async () => {
-			const actionDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements: [{ ...allowAll, Action: ["admin:*:read"] }] });
-			const resourceDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements: [{ ...allowAll, Resource: ["gameport:*/item-1"] }] });
+		it("matches an Allow with an interior wildcard or ? as a glob", async () => {
+			const readOptions = { action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET };
+			const actionDecision = await evaluate({ ...readOptions, statements: [{ ...allowAll, Action: ["admin:*:read"] }] });
+			const questionMarkDecision = await evaluate({ ...readOptions, statements: [{ ...allowAll, Action: ["admin:item:rea?"] }] });
+			const resourceDecision = await evaluate({ ...readOptions, statements: [{ ...allowAll, Resource: ["gameport:*/item-1"] }] });
+			const otherRowDecision = await evaluate({ ...readOptions, statements: [{ ...allowAll, Resource: ["gameport:*/item-2"] }] });
 			const listDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:*:item/*"] }] });
 
-			expect(actionDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
-			expect(resourceDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
-			expect(listDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(actionDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect(questionMarkDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect(resourceDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect(otherRowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(listDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+		});
+
+		it("matches an Allow on a list only with a pattern that covers every row", async () => {
+			const questionMarkDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/?"] }] });
+			const escapedStarDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/${*}"] }] });
+			const rowDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/item-*"] }] });
+
+			expect(questionMarkDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(escapedStarDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect(rowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 		});
 	});
 

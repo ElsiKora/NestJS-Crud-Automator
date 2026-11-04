@@ -107,12 +107,12 @@ const DENY_EVERY_ROUTE_CASES: Array<[string, Array<IApiPolicyStatement>]> = [
 	["StringEquals on an object attribute", deny({ Condition: { StringEquals: { "principal.attributes.profile": "gold" } } })],
 ];
 
-// Allow statements whose key reads a list or an object, which must not grant anything.
+// Allow statements whose key reads a list or an object, or whose Resource cannot cover every row, which must not grant anything.
 const ALLOW_NOTHING_CASES: Array<[string, Array<IApiPolicyStatement>]> = [
 	["StringEquals on the principal role list", [{ ...ALLOW, Condition: { StringEquals: { "principal.roles": "admin" } } }]],
 	["StringNotEquals on the principal role list", [{ ...ALLOW, Condition: { StringNotEquals: { "principal.roles": "guest" } } }]],
 	["StringNotEqualsIfExists on an object attribute", [{ ...ALLOW, Condition: { StringNotEqualsIfExists: { "principal.attributes.profile": "silver" } } }]],
-	["an Action with an interior wildcard", [{ ...ALLOW, Action: ["failopen:*:*"] }]],
+	["a Resource with ? over one character of an unresolved row", [{ ...ALLOW, Resource: [`${NAMESPACE}/?`] }]],
 ];
 
 describe.each([
@@ -203,6 +203,24 @@ describe.each([
 		statements = policyStatements;
 
 		expect(await routeStatuses(ROWS[0]!)).toEqual(FORBIDDEN_EVERYWHERE);
+		expect(await storedIds()).toEqual(["own", "secret-1"]);
+	});
+
+	it.each([
+		["an Action with an interior wildcard", [{ ...ALLOW, Action: ["failopen:*:*"] }]],
+		["a Resource with an interior wildcard", [{ ...ALLOW, Resource: ["failopen:*/*"] }]],
+		["an Action with ?", [{ ...ALLOW, Action: ["failopen:ite?:*"] }]],
+	])("serves every route for an Allow with %s", async (_name: string, policyStatements: Array<IApiPolicyStatement>) => {
+		statements = policyStatements;
+
+		expect(await routeStatuses(ROWS[0]!)).toEqual({ CREATE: HttpStatus.CREATED, DELETE: HttpStatus.NO_CONTENT, GET: HttpStatus.OK, LIST: HttpStatus.OK, PATCH: HttpStatus.OK });
+	});
+
+	it("refuses the matching row and the whole collection for a Deny Resource with ?", async () => {
+		statements = deny({ Resource: [`${NAMESPACE}/secret-?`] });
+
+		expect(await routeStatuses(ROWS[1]!)).toEqual(FORBIDDEN_EVERYWHERE);
+		expect((await fastify.inject({ method: "GET", url: `${URL}/own` })).statusCode).toBe(HttpStatus.OK);
 		expect(await storedIds()).toEqual(["own", "secret-1"]);
 	});
 

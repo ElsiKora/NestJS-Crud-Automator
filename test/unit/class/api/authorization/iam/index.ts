@@ -2,4 +2,6 @@ export * from "./attachment";
 export * from "./document";
 export * from "./engine.class.test";
 export * from "./glob.class.test";
+export * from "./parser.class.test";
 export * from "./query-planner.class.test";
+export * from "./variable.class.test";

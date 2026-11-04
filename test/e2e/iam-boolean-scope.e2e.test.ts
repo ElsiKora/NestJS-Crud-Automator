@@ -65,31 +65,38 @@ const allow = (operator: string, field: string, value: unknown): IPolicyCase => 
 const deny = (operator: string, field: string, value: unknown): IPolicyCase => ({ namespace: "bool:item", statements: [ALLOW_ALL, statement(EApiPolicyEffect.DENY, { [operator]: { [`resource.${field}`]: value } })] });
 
 // Conditions that compile: every route keeps exactly the rows the in-memory evaluator allows.
-const COMPILABLE_CASES: Array<[string, IPolicyCase]> = BOOLEAN_FIELDS.flatMap((field: string): Array<[string, IPolicyCase]> => [
-	[`Allow StringEquals ${field} "true"`, allow("StringEquals", field, "true")],
-	[`Allow StringEquals ${field} false`, allow("StringEquals", field, false)],
-	[`Allow StringEquals ${field} \${principal.attributes.featured}`, allow("StringEquals", field, "${principal.attributes.featured}")],
-	[`Deny StringEquals ${field} "true"`, deny("StringEquals", field, "true")],
-	[`Deny StringEquals ${field} false`, deny("StringEquals", field, false)],
-	[`Deny StringNotEquals ${field} "false"`, deny("StringNotEquals", field, "false")],
-	[`Deny StringNotEquals ${field} \${principal.attributes.notFeatured}`, deny("StringNotEquals", field, "${principal.attributes.notFeatured}")],
-]);
+const COMPILABLE_CASES: Array<[string, IPolicyCase]> = [
+	...BOOLEAN_FIELDS.flatMap((field: string): Array<[string, IPolicyCase]> => [
+		[`Allow StringEquals ${field} "true"`, allow("StringEquals", field, "true")],
+		[`Allow StringEquals ${field} false`, allow("StringEquals", field, false)],
+		[`Allow StringEquals ${field} \${principal.attributes.featured}`, allow("StringEquals", field, "${principal.attributes.featured}")],
+		[`Deny StringEquals ${field} "true"`, deny("StringEquals", field, "true")],
+		[`Deny StringEquals ${field} false`, deny("StringEquals", field, false)],
+		[`Deny StringNotEquals ${field} "false"`, deny("StringNotEquals", field, "false")],
+		[`Deny StringNotEquals ${field} \${principal.attributes.notFeatured}`, deny("StringNotEquals", field, "${principal.attributes.notFeatured}")],
+	]),
+	// A list of one value reads as that value.
+	["Allow StringEquals isFeatured [true]", allow("StringEquals", "isFeatured", [true])],
+	['Deny StringEquals isFeatured ["true"]', deny("StringEquals", "isFeatured", ["true"])],
+];
 
 // Conditions that cannot compile: every route answers 403 before any row is read.
 const FAIL_CLOSED_CASES: Array<[string, IPolicyCase]> = [
+	...BOOLEAN_FIELDS.map((field: string): [string, IPolicyCase] => [`Deny StringNotEquals ${field} \${principal.attributes.numericFeatured}`, deny("StringNotEquals", field, "${principal.attributes.numericFeatured}")]),
+	["Deny StringEquals isFeatured ${principal.attributes.list}", deny("StringEquals", "isFeatured", "${principal.attributes.list}")],
+	["Allow StringEquals on a path TypeORM cannot resolve", allow("StringEquals", "ownerMissing", "true")],
+	["Deny StringEquals on a path TypeORM cannot resolve", deny("StringEquals", "ownerMissing", "true")],
+];
+
+// Values the policy grammar refuses on a boolean column: the document fails when the source returns it, so every route answers 500.
+const REFUSED_CASES: Array<[string, IPolicyCase]> = [
 	...BOOLEAN_FIELDS.flatMap((field: string): Array<[string, IPolicyCase]> => [
 		[`Allow StringEquals ${field} "1"`, allow("StringEquals", field, "1")],
 		[`Allow StringEquals ${field} "yes"`, allow("StringEquals", field, "yes")],
 		[`Deny StringEquals ${field} "TRUE"`, deny("StringEquals", field, "TRUE")],
 		[`Deny StringEquals ${field} 1`, deny("StringEquals", field, 1)],
-		[`Deny StringNotEquals ${field} \${principal.attributes.numericFeatured}`, deny("StringNotEquals", field, "${principal.attributes.numericFeatured}")],
 	]),
-	["Allow StringEquals isFeatured [true]", allow("StringEquals", "isFeatured", [true])],
-	['Deny StringEquals isFeatured ["true"]', deny("StringEquals", "isFeatured", ["true"])],
 	["Deny StringEquals isFeatured null", deny("StringEquals", "isFeatured", null)],
-	["Deny StringEquals isFeatured ${principal.attributes.list}", deny("StringEquals", "isFeatured", "${principal.attributes.list}")],
-	["Allow StringEquals on a path TypeORM cannot resolve", allow("StringEquals", "ownerMissing", "true")],
-	["Deny StringEquals on a path TypeORM cannot resolve", deny("StringEquals", "ownerMissing", "true")],
 ];
 
 const placeholderDeny = (resource: string): IPolicyCase => ({
@@ -232,6 +239,18 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 
 		for (const row of ITEM_ROWS) {
 			expect({ row: row.id, statuses: await rowStatuses(row) }).toEqual({ row: row.id, statuses: { DELETE: HttpStatus.FORBIDDEN, GET: HttpStatus.FORBIDDEN, PATCH: HttpStatus.FORBIDDEN, PUT: HttpStatus.FORBIDDEN } });
+		}
+
+		expect((await repository().find()).map((row: E2eIamBooleanItemEntity): string => row.id).sort()).toEqual(ITEM_ROWS.map((row: E2eIamBooleanItemEntity): string => row.id).sort());
+	});
+
+	it.each(REFUSED_CASES)("answers 500 on every route for %s", async (_name: string, policyCase: IPolicyCase) => {
+		policy = policyCase;
+
+		expect(await listIds(ITEMS)).toEqual({ ids: [], statusCode: HttpStatus.INTERNAL_SERVER_ERROR });
+
+		for (const row of ITEM_ROWS) {
+			expect({ row: row.id, statuses: await rowStatuses(row) }).toEqual({ row: row.id, statuses: { DELETE: HttpStatus.INTERNAL_SERVER_ERROR, GET: HttpStatus.INTERNAL_SERVER_ERROR, PATCH: HttpStatus.INTERNAL_SERVER_ERROR, PUT: HttpStatus.INTERNAL_SERVER_ERROR } });
 		}
 
 		expect((await repository().find()).map((row: E2eIamBooleanItemEntity): string => row.id).sort()).toEqual(ITEM_ROWS.map((row: E2eIamBooleanItemEntity): string => row.id).sort());
