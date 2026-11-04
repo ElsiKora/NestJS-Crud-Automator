@@ -1,10 +1,10 @@
-import type { IApiAuthorizationIamDialect, IApiAuthorizationPrincipal, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamDialect, IApiAuthorizationIamResourceConstraint, IApiAuthorizationIamResourceRows, IApiAuthorizationPrincipal, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
 import type { FindOperator } from "typeorm";
 
 import { ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiAuthorizationIamDialect, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
+import { EApiAuthorizationIamDialect, EApiAuthorizationIamTokenType, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { describe, expect, it, vi } from "vitest";
 import { And, ChildEntity, Column, Entity, Equal, IsNull, JoinTable, ManyToMany, ManyToOne, Not, OneToMany, PrimaryColumn, TableInheritance } from "typeorm";
@@ -235,10 +235,14 @@ const planAllow = (condition: Record<string, Record<string, unknown>>) =>
 		statements: [createStatement(EApiPolicyEffect.ALLOW, condition)],
 	});
 
-const planDeny = (exclusions: ReadonlyArray<{ condition?: Record<string, Record<string, unknown>>; resourceConstraints?: ReadonlyArray<{ isPrefix: boolean; placeholder: string; value: string }> }>) =>
+const exact = (placeholder: string, value: string): IApiAuthorizationIamResourceConstraint => ({ pattern: value === "" ? [] : [{ type: EApiAuthorizationIamTokenType.LITERAL, value }], placeholder });
+const prefix = (placeholder: string, value: string): IApiAuthorizationIamResourceConstraint => ({ pattern: [{ type: EApiAuthorizationIamTokenType.LITERAL, value }, { type: EApiAuthorizationIamTokenType.STAR }], placeholder });
+const rows = (constraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>, isNegated: boolean = false): IApiAuthorizationIamResourceRows => ({ constraintSets: [constraints], isNegated });
+
+const planDeny = (exclusions: ReadonlyArray<{ condition?: Record<string, Record<string, unknown>>; resourceRows?: IApiAuthorizationIamResourceRows }>) =>
 	new ApiAuthorizationIamQueryPlanner().planExclusion({
 		exclusions: exclusions.map((exclusion) => ({
-			resourceConstraints: exclusion.resourceConstraints ?? [],
+			...(exclusion.resourceRows ? { resourceRows: exclusion.resourceRows } : {}),
 			statement: createStatement(EApiPolicyEffect.DENY, exclusion.condition ?? {}),
 		})),
 		principal,
@@ -459,13 +463,13 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		});
 
 		it("compiles an exact resource-pattern constraint on the mapped field and keeps NULL placeholders", () => {
-			expect(planDeny([{ resourceConstraints: [{ isPrefix: false, placeholder: "id", value: "item-1" }] }]).scope).toEqual({
+			expect(planDeny([{ resourceRows: rows([exact("id", "item-1")]) }]).scope).toEqual({
 				where: [{ id: Not(Equal("item-1")) }, { id: IsNull() }],
 			});
 		});
 
 		it("compiles a prefix resource-pattern constraint into an escaped NOT LIKE that keeps NULL placeholders", () => {
-			const where = planDeny([{ resourceConstraints: [{ isPrefix: true, placeholder: "id", value: "a%b_c!" }] }]).scope?.where as [{ id: FindOperator<unknown> }, { id: FindOperator<unknown> }];
+			const where = planDeny([{ resourceRows: rows([prefix("id", "a%b_c!")]) }]).scope?.where as [{ id: FindOperator<unknown> }, { id: FindOperator<unknown> }];
 
 			expect(where[1]).toEqual({ id: IsNull() });
 
@@ -478,18 +482,18 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		});
 
 		it("combines resource-pattern constraints and resource conditions of one statement as OR branches", () => {
-			expect(planDeny([{ condition: { StringEqualsIfExists: { "resource.status": "archived" } }, resourceConstraints: [{ isPrefix: false, placeholder: "id", value: "item-1" }] }]).scope).toEqual({
+			expect(planDeny([{ condition: { StringEqualsIfExists: { "resource.status": "archived" } }, resourceRows: rows([exact("id", "item-1")]) }]).scope).toEqual({
 				where: [{ id: Not(Equal("item-1")) }, { id: IsNull() }, { status: Not(Equal("archived")) }, { status: IsNull() }],
 			});
 		});
 
 		it.each(["status", "operatorId", "externalId", "token"])("does not compile a prefix constraint on the non-text field %s", (placeholder: string) => {
-			expect(planDeny([{ resourceConstraints: [{ isPrefix: true, placeholder, value: "abc" }] }])).toEqual({ isFullyCompilable: false });
+			expect(planDeny([{ resourceRows: rows([prefix(placeholder, "abc")]) }])).toEqual({ isFullyCompilable: false });
 		});
 
 		it("compiles a prefix constraint on a text field inherited from an abstract base", () => {
 			const result = new ApiAuthorizationIamQueryPlanner().planExclusion({
-				exclusions: [{ resourceConstraints: [{ isPrefix: true, placeholder: "code", value: "abc" }], statement: createStatement(EApiPolicyEffect.DENY, {}) }],
+				exclusions: [{ resourceRows: rows([prefix("code", "abc")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }],
 				principal,
 				requestMetadata: {},
 				resourceDefinition: inheritedResourceDefinition,
@@ -504,7 +508,7 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		it("does not compile a prefix constraint on a non-text field inherited from an abstract base", () => {
 			expect(
 				new ApiAuthorizationIamQueryPlanner().planExclusion({
-					exclusions: [{ resourceConstraints: [{ isPrefix: true, placeholder: "inheritedExternalId", value: "1" }], statement: createStatement(EApiPolicyEffect.DENY, {}) }],
+					exclusions: [{ resourceRows: rows([prefix("inheritedExternalId", "1")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }],
 					principal,
 					requestMetadata: {},
 					resourceDefinition: inheritedResourceDefinition,
@@ -513,12 +517,12 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		});
 
 		it.each(["secret", "unknown"])("is not compilable when the placeholder maps to %s", (placeholder: string) => {
-			expect(planDeny([{ resourceConstraints: [{ isPrefix: false, placeholder, value: "x" }] }])).toEqual({ isFullyCompilable: false });
+			expect(planDeny([{ resourceRows: rows([exact(placeholder, "x")]) }])).toEqual({ isFullyCompilable: false });
 		});
 
 		it("reads the entity's own text column when an unrelated class shares the entity's name", () => {
 			const plan = new ApiAuthorizationIamQueryPlanner().planExclusion({
-				exclusions: [{ resourceConstraints: [{ isPrefix: true, placeholder: "code", value: "abc" }], statement: createStatement(EApiPolicyEffect.DENY, {}) }],
+				exclusions: [{ resourceRows: rows([prefix("code", "abc")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }],
 				principal,
 				requestMetadata: {},
 				resourceDefinition: { ...resourceDefinition, entity: PlannerShadowedEntity, fields: [{ isFilterable: true, path: "resource.code", queryPath: "code" }], resourcePath: "gameport:admin:item/{code}" } as unknown as IApiAuthorizationResourceDefinition<PlannerItemEntity>,
@@ -583,7 +587,7 @@ const planBooleanAllow = (condition: Record<string, Record<string, unknown>>) =>
 
 const planBooleanDeny = (condition: Record<string, Record<string, unknown>>) =>
 	new ApiAuthorizationIamQueryPlanner().planExclusion({
-		exclusions: [{ resourceConstraints: [], statement: createStatement(EApiPolicyEffect.DENY, condition) }],
+		exclusions: [{ statement: createStatement(EApiPolicyEffect.DENY, condition) }],
 		principal: booleanPrincipal,
 		requestMetadata: {},
 		resourceDefinition: booleanResourceDefinition,
@@ -731,7 +735,7 @@ const partResourceDefinition: IApiAuthorizationResourceDefinition<PlannerBoolean
 
 const planPartAllow = (condition: Record<string, Record<string, unknown>>) => new ApiAuthorizationIamQueryPlanner().plan({ principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, condition)] });
 
-const planPartDeny = (condition: Record<string, Record<string, unknown>>, resourceConstraints: ReadonlyArray<{ isPrefix: boolean; placeholder: string; value: string }> = []) => new ApiAuthorizationIamQueryPlanner().planExclusion({ exclusions: [{ resourceConstraints, statement: createStatement(EApiPolicyEffect.DENY, condition) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition });
+const planPartDeny = (condition: Record<string, Record<string, unknown>>, resourceConstraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint> = []) => new ApiAuthorizationIamQueryPlanner().planExclusion({ exclusions: [{ ...(resourceConstraints.length === 0 ? {} : { resourceRows: rows(resourceConstraints) }), statement: createStatement(EApiPolicyEffect.DENY, condition) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition });
 
 // Builds the nested where a query path compiles to.
 const nestWhere = (queryPath: string, value: unknown): Record<string, unknown> => queryPath.split(".").reduceRight<unknown>((inner: unknown, segment: string): Record<string, unknown> => ({ [segment]: inner }), value) as Record<string, unknown>;
@@ -766,11 +770,11 @@ describe("ApiAuthorizationIamQueryPlanner on boolean columns TypeORM maps", () =
 		["true", true],
 		["false", false],
 	])("binds an exact resource-pattern constraint %s on a boolean placeholder as the boolean %j", (value: string, expected: boolean) => {
-		expect(planPartDeny({}, [{ isPrefix: false, placeholder: "special", value }])).toEqual({ isFullyCompilable: true, scope: { where: [{ isSpecial: Not(Equal(expected)) }, { isSpecial: IsNull() }] } });
+		expect(planPartDeny({}, [exact("special", value)])).toEqual({ isFullyCompilable: true, scope: { where: [{ isSpecial: Not(Equal(expected)) }, { isSpecial: IsNull() }] } });
 	});
 
 	it.each(["1", "0", "TRUE", "yes", " true"])("does not compile an exact resource-pattern constraint %j on a boolean placeholder", (value: string) => {
-		expect(planPartDeny({}, [{ isPrefix: false, placeholder: "special", value }])).toEqual({ isFullyCompilable: false });
+		expect(planPartDeny({}, [exact("special", value)])).toEqual({ isFullyCompilable: false });
 	});
 
 	it.each([
@@ -790,8 +794,8 @@ describe("ApiAuthorizationIamQueryPlanner on boolean columns TypeORM maps", () =
 		const planner = new ApiAuthorizationIamQueryPlanner();
 
 		expect(planner.plan({ principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { [path]: value } })] })).toEqual({ isFullyCompilable: false });
-		expect(planner.planExclusion({ exclusions: [{ resourceConstraints: [], statement: createStatement(EApiPolicyEffect.DENY, { StringEquals: { [path]: value } }) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
-		expect(planner.planExclusion({ exclusions: [{ resourceConstraints: [{ isPrefix: false, placeholder: "status", value: "active" }], statement: createStatement(EApiPolicyEffect.DENY, {}) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
+		expect(planner.planExclusion({ exclusions: [{ statement: createStatement(EApiPolicyEffect.DENY, { StringEquals: { [path]: value } }) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
+		expect(planner.planExclusion({ exclusions: [{ resourceRows: rows([exact("status", "active")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
 	});
 
 	it("reads the TypeORM metadata of one entity and path once", () => {

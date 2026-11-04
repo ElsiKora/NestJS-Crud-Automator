@@ -1,4 +1,4 @@
-import type { IApiAuthorizationIamCondition, IApiAuthorizationIamNetwork, IApiAuthorizationIamOperand, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamCondition, IApiAuthorizationIamNetwork, IApiAuthorizationIamOperand, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamPredicate } from "@type/class/api/authorization/iam";
 
 import { ApiAuthorizationIamDecimal, ApiAuthorizationIamGlob, ApiAuthorizationIamNetwork, ApiAuthorizationIamOperator, ApiAuthorizationIamParser, ApiAuthorizationIamPredicateBuilder, ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam";
@@ -286,6 +286,7 @@ describe("ApiAuthorizationIamPredicateBuilder", () => {
 
 	describe("resource-pattern constraints", () => {
 		const CODE: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("code");
+		const RANK: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("rank", { family: EApiAuthorizationIamColumnFamily.NUMERIC, type: "int" });
 
 		it.each([
 			["a value on a text column", EApiAuthorizationIamPredicateComparison.TEXT, "x", [null, "", "x", "y"], [false, false, true, false]],
@@ -298,7 +299,7 @@ describe("ApiAuthorizationIamPredicateBuilder", () => {
 		});
 
 		it("splits every row for a prefix, which a NULL never starts", () => {
-			const pair: IApiAuthorizationIamPredicatePair = ApiAuthorizationIamPredicateBuilder.buildPrefixConstraint({ column: CODE, prefix: "ab" });
+			const pair: IApiAuthorizationIamPredicatePair = ApiAuthorizationIamPredicateBuilder.buildPatternConstraint({ column: CODE, pattern: [{ type: EApiAuthorizationIamTokenType.LITERAL, value: "ab" }, { type: EApiAuthorizationIamTokenType.STAR }] });
 
 			expect(pair.holds).toEqual({ column: CODE, isNegated: false, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern: [{ type: EApiAuthorizationIamTokenType.LITERAL, value: "ab" }, { type: EApiAuthorizationIamTokenType.STAR }] });
 			expect([null, "", "ab", "abc", "b"].map((code: null | string): Array<boolean> => [isSelected(pair.holds, { code }), isSelected(pair.fails, { code })])).toEqual([
@@ -310,8 +311,32 @@ describe("ApiAuthorizationIamPredicateBuilder", () => {
 			]);
 		});
 
-		it("holds for every row with the empty prefix", () => {
-			expect(ApiAuthorizationIamPredicateBuilder.buildPrefixConstraint({ column: CODE, prefix: "" })).toEqual({ fails: { kind: EApiAuthorizationIamPredicateKind.FALSE }, holds: { kind: EApiAuthorizationIamPredicateKind.TRUE } });
+		it("holds for every row with a pattern of wildcards alone", () => {
+			expect(ApiAuthorizationIamPredicateBuilder.buildPatternConstraint({ column: CODE, pattern: [{ type: EApiAuthorizationIamTokenType.STAR }] })).toEqual({ fails: { kind: EApiAuthorizationIamPredicateKind.FALSE }, holds: { kind: EApiAuthorizationIamPredicateKind.TRUE } });
+		});
+
+		it.each([
+			["a suffix", [{ type: EApiAuthorizationIamTokenType.STAR }, { type: EApiAuthorizationIamTokenType.LITERAL, value: "ab" }], [null, "", "ab", "xab", "abx"], [false, false, true, true, false]],
+			["one character", [{ type: EApiAuthorizationIamTokenType.LITERAL, value: "a" }, { type: EApiAuthorizationIamTokenType.QUESTION_MARK }], [null, "", "a", "ab", "abc"], [false, false, false, true, false]],
+		] as Array<[string, Array<IApiAuthorizationIamToken>, Array<null | string>, Array<boolean>]>)("splits every row for %s, which a NULL never matches", (_name: string, pattern: Array<IApiAuthorizationIamToken>, values: Array<null | string>, expected: Array<boolean>) => {
+			const pair: IApiAuthorizationIamPredicatePair = ApiAuthorizationIamPredicateBuilder.buildPatternConstraint({ column: CODE, pattern });
+
+			expect(values.map((code: null | string): Array<boolean> => [isSelected(pair.holds, { code }), isSelected(pair.fails, { code })])).toEqual(expected.map((isHeld: boolean): Array<boolean> => [isHeld, !isHeld]));
+		});
+
+		it("splits every row for a canonical integer, which a NULL never renders", () => {
+			const pair: IApiAuthorizationIamPredicatePair = ApiAuthorizationIamPredicateBuilder.buildIntegerConstraint({ column: RANK, value: "7" });
+
+			expect([null, "7", "8", "-7"].map((rank: null | string): Array<boolean> => [isSelected(pair.holds, { rank }), isSelected(pair.fails, { rank })])).toEqual([
+				[false, true],
+				[true, false],
+				[false, true],
+				[false, true],
+			]);
+		});
+
+		it.each(["07", "-0", "+7", "7.0", "1e3", "abc", " 7"])("holds for no row with %j, which no integer renders as", (value: string) => {
+			expect(ApiAuthorizationIamPredicateBuilder.buildIntegerConstraint({ column: RANK, value })).toEqual({ fails: { kind: EApiAuthorizationIamPredicateKind.TRUE }, holds: { kind: EApiAuthorizationIamPredicateKind.FALSE } });
 		});
 	});
 

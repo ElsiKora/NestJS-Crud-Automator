@@ -159,11 +159,40 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["an unknown variable in Resource", { Resource: ["gameport:admin:item/${user.id}"] }, "document.Statement[0].Resource[0]", codes.VARIABLE_UNKNOWN],
 			["a request.time variable in Resource", { Resource: ["gameport:admin:item/${request.time}"] }, "document.Statement[0].Resource[0]", codes.VARIABLE_NOT_ALLOWED],
 			["a resource variable in Resource", { Resource: ["gameport:admin:item/${resource.id}"] }, "document.Statement[0].Resource[0]", codes.VARIABLE_NOT_ALLOWED],
-			["NotAction", { Action: undefined, NotAction: ["admin:item:read"] }, "document.Statement[0].NotAction", codes.NOT_SUPPORTED_YET],
-			["NotResource", { NotResource: ["gameport:admin:item/1"], Resource: undefined }, "document.Statement[0].NotResource", codes.NOT_SUPPORTED_YET],
+			["an empty NotAction", { Action: undefined, NotAction: [] }, "document.Statement[0].NotAction", codes.ACTION_MISSING],
+			["a scalar NotAction", { Action: undefined, NotAction: "admin:item:read" }, "document.Statement[0].NotAction", codes.SHORTHAND_NOT_ALLOWED],
+			["an object NotAction", { Action: undefined, NotAction: {} }, "document.Statement[0].NotAction", codes.PATTERN_INVALID],
+			["a non-string NotAction pattern", { Action: undefined, NotAction: [5] }, "document.Statement[0].NotAction[0]", codes.PATTERN_INVALID],
+			["a NotAction outside the namespace", { Action: undefined, NotAction: ["other:item:read"] }, "document.Statement[0].NotAction[0]", codes.PATTERN_OUTSIDE_NAMESPACE],
+			["a variable in NotAction", { Action: undefined, NotAction: ["admin:item:${principal.id}"] }, "document.Statement[0].NotAction[0]", codes.VARIABLE_NOT_ALLOWED],
+			["an empty NotResource", { NotResource: [], Resource: undefined }, "document.Statement[0].NotResource", codes.RESOURCE_MISSING],
+			["a scalar NotResource", { NotResource: "gameport:admin:item/1", Resource: undefined }, "document.Statement[0].NotResource", codes.SHORTHAND_NOT_ALLOWED],
+			["an object NotResource", { NotResource: {}, Resource: undefined }, "document.Statement[0].NotResource", codes.PATTERN_INVALID],
+			["an empty NotResource pattern", { NotResource: [""], Resource: undefined }, "document.Statement[0].NotResource[0]", codes.PATTERN_INVALID],
+			["a client-controlled variable in NotResource", { NotResource: ["gameport:admin:item/${request.query.id}"], Resource: undefined }, "document.Statement[0].NotResource[0]", codes.VARIABLE_NOT_ALLOWED],
+			["an unknown variable in NotResource", { NotResource: ["gameport:admin:item/${user.id}"], Resource: undefined }, "document.Statement[0].NotResource[0]", codes.VARIABLE_UNKNOWN],
+			["a resource variable in NotResource", { NotResource: ["gameport:admin:item/${resource.id}"], Resource: undefined }, "document.Statement[0].NotResource[0]", codes.VARIABLE_NOT_ALLOWED],
 			["a non-object Condition", { Condition: "x" }, "document.Statement[0].Condition", codes.CONDITION_INVALID],
 		])("refuses a statement with %s", (_name: string, statement: Record<string, unknown>, property: string, code: string) => {
 			expect(inspectStatement(statement)).toEqual([[property, code]]);
+		});
+
+		it.each([
+			["NotAction", { Action: undefined, NotAction: ["admin:item:read"] }],
+			["NotAction with a wildcard", { Action: undefined, NotAction: ["admin:*:read", "*:delete"] }],
+			["NotResource", { NotResource: ["gameport:admin:item/1"], Resource: undefined }],
+			["NotResource with a wildcard", { NotResource: ["gameport:admin:item/a*", "gameport:*:item/?"], Resource: undefined }],
+			["NotResource with a variable and a default", { NotResource: ["gameport:admin:item/${principal.attributes.itemId, 'none'}"], Resource: undefined }],
+			["NotAction and NotResource", { Action: undefined, NotAction: ["admin:item:read"], NotResource: ["gameport:admin:item/1"], Resource: undefined }],
+		])("accepts a statement with %s", (_name: string, statement: Record<string, unknown>) => {
+			expect(inspectStatement(statement)).toEqual([]);
+		});
+
+		it("reports both conflicts of one statement", () => {
+			expect(inspectStatement({ NotAction: ["admin:item:read"], NotResource: ["gameport:admin:item/1"] })).toEqual([
+				["document.Statement[0]", codes.ACTION_CONFLICT],
+				["document.Statement[0]", codes.RESOURCE_CONFLICT],
+			]);
 		});
 
 		it.each([

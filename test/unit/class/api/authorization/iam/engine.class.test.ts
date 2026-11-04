@@ -785,10 +785,13 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect((await readItem("axbyc$")).effect).toBe(EApiPolicyEffect.ALLOW);
 		});
 
-		it("denies the whole list for a Resource with ? that matches some rows", async () => {
+		it("excludes the rows a Resource with ? matches from a list", async () => {
 			const decision = await evaluate({ statements: [allowAll, deny({ Resource: ["gameport:admin:item/item-?"] })] });
+			const where = decision.scope?.where as [{ id: FindOperator<unknown> }, { id: FindOperator<unknown> }];
 
-			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(Object.values(where[0].id.objectLiteralParameters ?? {})).toEqual(["item-_"]);
+			expect(where[1]).toEqual({ id: IsNull() });
 		});
 
 		it("denies a create for a Resource with ? that some row could match", async () => {
@@ -806,11 +809,19 @@ describe("ApiAuthorizationIamEngine", () => {
 		it.each([
 			["a suffix", "gameport:tenant/t-1/item/*-secret"],
 			["a wildcard before the placeholders", "gameport:*/item/item-1"],
-			["a wildcard across both placeholders", "gameport:tenant/t-1*item-1"],
-		])("denies the whole list for a Resource with %s that matches some rows", async (_name: string, pattern: string) => {
+		])("denies the whole list for a Resource with %s that has no one mapping to rows", async (_name: string, pattern: string) => {
 			const decision = await evaluate({ resourceDefinition: tenantResourceDefinition, statements: [allowAnyResource, deny({ Resource: [pattern] })] });
 
 			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("excludes the rows a wildcard across both placeholders matches, since one pattern per slot says each", async () => {
+			const decision = await evaluate({ resourceDefinition: tenantResourceDefinition, statements: [allowAnyResource, deny({ Resource: ["gameport:tenant/t-1*item-1"] })] });
+			const where = decision.scope?.where as Array<{ id?: FindOperator<unknown>; tenantId?: FindOperator<unknown> }>;
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(where.flatMap((branch) => Object.values(branch.tenantId?.objectLiteralParameters ?? {}))).toEqual(["t-1%"]);
+			expect(where.flatMap((branch) => Object.values(branch.id?.objectLiteralParameters ?? {}))).toEqual(["%item-1"]);
 		});
 
 		it("denies the whole list for a Resource with an interior wildcard that covers every row", async () => {
@@ -851,14 +862,19 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect(listDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
 		});
 
-		it("matches an Allow on a list only with a pattern that covers every row", async () => {
+		it("grants nothing on a list for an Allow glob the portable dialect cannot match exactly", async () => {
 			const questionMarkDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/?"] }] });
-			const escapedStarDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/${*}"] }] });
 			const rowDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/item-*"] }] });
 
 			expect(questionMarkDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
-			expect(escapedStarDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 			expect(rowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		});
+
+		it("scopes a list to the literal row an escaped wildcard names", async () => {
+			const decision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/${*}"] }] });
+
+			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
+			expect(decision.scope).toEqual({ where: { id: Equal("*") } });
 		});
 	});
 

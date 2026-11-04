@@ -43,6 +43,15 @@ describe("ApiAuthorizationIamParser", () => {
 			});
 		});
 
+		it("reads NotAction and NotResource as negated targets", () => {
+			const statement = ApiAuthorizationIamParser.readStatement({ Effect: EApiPolicyEffect.DENY, NotAction: ["admin:item:read"], NotResource: ["gameport:admin:item/${principal.id}"] });
+
+			expect(statement.action.isNegated).toBe(true);
+			expect(statement.action.patterns.map((pattern) => pattern.source)).toEqual(["admin:item:read"]);
+			expect(statement.resource.isNegated).toBe(true);
+			expect(statement.resource.patterns.map((pattern) => pattern.source)).toEqual(["gameport:admin:item/${principal.id}"]);
+		});
+
 		it("reads a statement object once", () => {
 			const input = { Action: ["admin:item:read"], Effect: EApiPolicyEffect.DENY, Resource: ["*"] };
 
