@@ -268,6 +268,30 @@ export class WithdrawalService extends ApiServiceBase<WithdrawalEntity> {
 
 `@ApiFunctionStep` keeps normal method calls and does not require a context argument. It only provides transaction/context handling; it does not register a custom action, dispatch function subscribers, create route metadata, or expose Swagger/authorization metadata. Step context intentionally exposes only `eventManager`, `repository`, and `getRepository`; use `@ApiFunctionCustom` plus `getApiFunctionContext()` when you need `operations`.
 
+### Transaction-Bound Values
+
+A value that belongs to one command, such as its authority scope, can be bound to the Automator transaction the command runs in, so domain services read it without an `EntityManager` argument:
+
+```typescript filename="authority.ts" copy
+import { ApiFunctionTransactionScope } from "@elsikora/nestjs-crud-automator";
+
+export const AUTHORITY: unique symbol = Symbol("authority");
+
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "settle-round" }, async () => {
+	ApiFunctionTransactionScope.setValue<IAuthority>(AUTHORITY, authority);
+	await roundService.settle(round);
+});
+
+// Inside roundService.settle, a REQUIRED or MANDATORY function or step it calls, or a function subscriber of its writes:
+const authority: IAuthority | undefined = ApiFunctionTransactionScope.getValue<IAuthority>(AUTHORITY);
+```
+
+- `setValue(key, value)` binds the value to the current Automator transaction and throws when none is active. Keys are symbols.
+- `getValue(key)` returns it to everything that runs in that same transaction: the owner, every `REQUIRED` or `MANDATORY` function and step that joined it (with `context.eventManager`, the service repository bound to it, and its function subscribers), and a `runWithDataSource` on the same `DataSource`, which joins it. It returns `undefined` outside any transaction, in a different transaction, and after the transaction committed or rolled back.
+- `runWithValue(key, value, callback)` binds the value for the callback and puts back the previous value, or its absence, when the callback settles, also when it throws. The value belongs to the transaction, not to the callback's async context, so other work running in parallel in the same transaction sees it too.
+
+The current transaction is the one the async context of the call runs in, the same one `runWithDataSource` joins. A transaction that a call opens on another `DataSource` inside it is a different transaction with values of its own, and a call back into the first `DataSource` joins the first transaction and sees its values again; a call on another `DataSource` that opens no transaction sees no value and cannot bind one. Values are released when the transaction ends, before `onAfterCommit` and `onAfterRollback` run, and are never shared between transactions: two transactions running in parallel each see only their own value under the same key. Route subscribers of a generated route run outside the transaction the route owns, so they see no value bound inside it.
+
 ## Observable Services
 
 Enable function-level subscribers by marking the service as observable:

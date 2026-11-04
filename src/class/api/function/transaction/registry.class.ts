@@ -25,6 +25,8 @@ export class ApiFunctionTransactionRegistry {
 
 	private isObservationClosed: boolean = false;
 
+	private isValueStoreClosed: boolean = false;
+
 	private readonly MEASUREMENTS: Array<{ durationMs?: number; selectorIndex: number; startedAtMs?: number; status?: EApiFunctionTransactionEventStatus }> = [];
 
 	private readonly OBSERVATION?: Readonly<IApiFunctionTransactionObservationOptions>;
@@ -32,6 +34,8 @@ export class ApiFunctionTransactionRegistry {
 	private observationDroppedCount: number = 0;
 
 	private readonly TRANSACTION: IApiFunctionTransaction;
+
+	private readonly VALUES: Map<symbol, unknown> = new Map<symbol, unknown>();
 
 	private readonly WORK_AFTER_SETTLEMENT: Array<() => Promise<void>> = [];
 
@@ -135,6 +139,15 @@ export class ApiFunctionTransactionRegistry {
 		}
 
 		return index;
+	}
+
+	/**
+	 * Releases the values bound to this transaction once it has ended, so code that still holds its async context reads none and binds none.
+	 * @returns {void}
+	 */
+	public closeValues(): void {
+		this.isValueStoreClosed = true;
+		this.VALUES.clear();
 	}
 
 	/**
@@ -250,6 +263,40 @@ export class ApiFunctionTransactionRegistry {
 	}
 
 	/**
+	 * Returns the value bound to this transaction under a key.
+	 * @param {symbol} key - Key the value is bound under.
+	 * @returns {unknown} The bound value, or undefined when none is bound or the transaction has ended.
+	 */
+	public getValue(key: symbol): unknown {
+		return this.VALUES.get(key);
+	}
+
+	/**
+	 * Tells whether a value is bound to this transaction under a key.
+	 * @param {symbol} key - Key the value is bound under.
+	 * @returns {boolean} Whether a value is bound under the key.
+	 */
+	public hasValue(key: symbol): boolean {
+		return this.VALUES.has(key);
+	}
+
+	/**
+	 * Puts back what a key held before, or removes the key when it held nothing; after the transaction has ended there is nothing to put back.
+	 * @param {symbol} key - Key the value is bound under.
+	 * @param {{ value: unknown } | undefined} previous - The value the key held before, or undefined when it held none.
+	 * @returns {void}
+	 */
+	public restoreValue(key: symbol, previous: { value: unknown } | undefined): void {
+		if (this.isValueStoreClosed) return;
+
+		if (previous) {
+			this.VALUES.set(key, previous.value);
+		} else {
+			this.VALUES.delete(key);
+		}
+	}
+
+	/**
 	 * Publishes the bounded projection once after the owning transaction lifecycle settles.
 	 * @param {EApiFunctionTransactionOutcome} outcome Settled database outcome.
 	 */
@@ -279,6 +326,21 @@ export class ApiFunctionTransactionRegistry {
 		} catch {
 			// Diagnostic callbacks never participate in transaction error handling.
 		}
+	}
+
+	/**
+	 * Binds a value to this transaction under a key.
+	 * @param {symbol} key - Key the value is bound under.
+	 * @param {unknown} value - Value to bind.
+	 * @returns {void}
+	 * @throws {Error} When the transaction has ended.
+	 */
+	public setValue(key: symbol, value: unknown): void {
+		if (this.isValueStoreClosed) {
+			throw ErrorException("Cannot bind a value to an Automator transaction that has ended");
+		}
+
+		this.VALUES.set(key, value);
 	}
 
 	public succeedEvent(sequence: number): void {

@@ -426,6 +426,22 @@ export class OrderMetricsSubscriber extends ApiFunctionSubscriberBase<OrderEntit
 
 `runWithEntityManager` is join-only in the current 3.x contract. Post-commit hooks run after the outer owner confirms COMMIT and cannot replace results. Transaction events are payload-free metadata; keep outbox bodies in application-owned state.
 
+## Transaction-Bound Command State
+
+```ts
+export const AUTHORITY: unique symbol = Symbol("authority");
+
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "settle-round" }, async () => {
+	ApiFunctionTransactionScope.setValue<IAuthority>(AUTHORITY, authority);
+	await roundService.settle(round);
+});
+
+// In roundService.settle, a joined REQUIRED/MANDATORY function or step, or a function subscriber of its writes:
+const current: IAuthority | undefined = ApiFunctionTransactionScope.getValue<IAuthority>(AUTHORITY);
+```
+
+The value is visible only inside that transaction and released at commit or rollback. A transaction of another `DataSource` opened inside sees none. Use `runWithValue(AUTHORITY, narrowed, callback)` to narrow it for one call; it puts back the previous value afterwards.
+
 ## Selected Native Execution Durations
 
 ```ts

@@ -106,6 +106,8 @@ export class ApiFunctionContextStorage {
 				callback,
 			);
 		} finally {
+			registry.closeValues();
+
 			if (ApiFunctionContextStorage.TRANSACTION_REGISTRIES.get(entityManager) === registry) {
 				ApiFunctionContextStorage.TRANSACTION_REGISTRIES.delete(entityManager);
 			}

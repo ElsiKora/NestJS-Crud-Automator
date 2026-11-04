@@ -1,6 +1,8 @@
 import type { IApiFunctionTransactionObservationOptions } from "@interface/class/api/function";
 import type { EntityManager } from "typeorm";
 
+import { AsyncResource } from "node:async_hooks";
+
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionCommitUnknownOutcomeException, ApiFunctionTransactionRollbackException } from "@class/api/function/transaction/exception";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
@@ -313,5 +315,173 @@ describe("ApiFunctionTransactionScope", () => {
 		expect(firstObserver).toHaveBeenCalledWith(expect.objectContaining({ measurements: [expect.objectContaining({ selectorIndex: 0 })] }));
 		expect(secondObserver).toHaveBeenCalledWith(expect.objectContaining({ measurements: [] }));
 		expect(contexts).toEqual([undefined, undefined]);
+	});
+
+	describe("transaction values", () => {
+		const KEY: unique symbol = Symbol("authority");
+
+		const runFunction = async <R>(mode: EApiFunctionTransactionMode, entityManager: EntityManager, callback: () => Promise<R>): Promise<R> => await ApiFunctionExecuteWithTransaction({ callback, entity: class {}, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "participant", mode, repository: { manager: entityManager } as never });
+
+		it("refuses to bind a value outside an Automator transaction and reads none there", async () => {
+			expect(() => ApiFunctionTransactionScope.setValue(KEY, "value")).toThrow("ApiFunctionTransactionScope.setValue requires an active Automator transaction");
+			await expect(ApiFunctionTransactionScope.runWithValue(KEY, "value", async () => undefined)).rejects.toThrow("ApiFunctionTransactionScope.runWithValue requires an active Automator transaction");
+			expect(ApiFunctionTransactionScope.getValue(KEY)).toBeUndefined();
+		});
+
+		it("refuses a key that is not a symbol", async () => {
+			const { dataSource } = createTransactionFixture();
+
+			await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "key" }, async () => {
+				expect(() => ApiFunctionTransactionScope.setValue("authority" as unknown as symbol, "value")).toThrow("ApiFunctionTransactionScope.setValue requires a symbol key");
+			});
+		});
+
+		it("shows the value to every participant that joined the transaction", async () => {
+			const { dataSource, entityManager } = createTransactionFixture();
+			const seen: Array<unknown> = [];
+
+			await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "owner" }, async () => {
+				ApiFunctionTransactionScope.setValue(KEY, "owner");
+				await runFunction(EApiFunctionTransactionMode.REQUIRED, entityManager, async () => {
+					seen.push(ApiFunctionTransactionScope.getValue(KEY));
+					await runFunction(EApiFunctionTransactionMode.MANDATORY, entityManager, async () => {
+						seen.push(ApiFunctionTransactionScope.getValue(KEY));
+						ApiFunctionTransactionScope.setValue(KEY, "participant");
+					});
+				});
+				await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "joined" }, async (joined: EntityManager) => {
+					seen.push(ApiFunctionTransactionScope.getValue(KEY));
+					await ApiFunctionTransactionScope.runWithEntityManager(joined, async () => {
+						seen.push(ApiFunctionTransactionScope.getValue(KEY));
+					});
+				});
+			});
+
+			expect(seen).toEqual(["owner", "owner", "participant", "participant"]);
+			expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
+		});
+
+		it("keeps the values of a transaction another DataSource opens inside it apart", async () => {
+			const outer = createTransactionFixture();
+			const inner = createTransactionFixture();
+			const seen: Array<unknown> = [];
+
+			await ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "outer" }, async () => {
+				ApiFunctionTransactionScope.setValue(KEY, "outer");
+				await ApiFunctionTransactionScope.runWithDataSource(inner.dataSource, { name: "inner" }, async () => {
+					seen.push(ApiFunctionTransactionScope.getValue(KEY));
+					ApiFunctionTransactionScope.setValue(KEY, "inner");
+					await ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "back" }, async () => {
+						seen.push(ApiFunctionTransactionScope.getValue(KEY));
+					});
+					seen.push(ApiFunctionTransactionScope.getValue(KEY));
+				});
+				seen.push(ApiFunctionTransactionScope.getValue(KEY));
+			});
+
+			expect(seen).toEqual([undefined, "outer", "inner", "outer"]);
+		});
+
+		it("reads none and binds none after a hop to another DataSource without a transaction", async () => {
+			const outer = createTransactionFixture();
+			const inner = createTransactionFixture();
+			const seen: Array<unknown> = [];
+
+			await ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "outer" }, async () => {
+				ApiFunctionTransactionScope.setValue(KEY, "outer");
+				await runFunction(EApiFunctionTransactionMode.SUPPORTS, inner.entityManager, async () => {
+					seen.push(ApiFunctionTransactionScope.getValue(KEY));
+					expect(() => ApiFunctionTransactionScope.setValue(KEY, "hop")).toThrow("requires an active Automator transaction");
+					await runFunction(EApiFunctionTransactionMode.REQUIRED, outer.entityManager, async () => {
+						seen.push(ApiFunctionTransactionScope.getValue(KEY));
+					});
+				});
+			});
+
+			expect(seen).toEqual([undefined, "outer"]);
+			expect(inner.dataSource.createQueryRunner).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			["commit", async (): Promise<void> => undefined],
+			[
+				"rollback",
+				async (): Promise<void> => {
+					throw new Error("rolled back");
+				},
+			],
+		])("releases the values after %s, also for work that keeps the async context of the transaction", async (_outcome: string, finish: () => Promise<void>) => {
+			const { dataSource } = createTransactionFixture();
+			let read: (() => unknown) | undefined;
+			let write: (() => void) | undefined;
+
+			await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "settled" }, async () => {
+				ApiFunctionTransactionScope.setValue(KEY, "value");
+				read = AsyncResource.bind(() => ApiFunctionTransactionScope.getValue(KEY));
+				write = AsyncResource.bind(() => ApiFunctionTransactionScope.setValue(KEY, "late"));
+				expect(read()).toBe("value");
+				await finish();
+			}).catch(() => undefined);
+
+			expect(read?.()).toBeUndefined();
+			expect(() => write?.()).toThrow("Cannot bind a value to an Automator transaction that has ended");
+			expect(ApiFunctionTransactionScope.getValue(KEY)).toBeUndefined();
+			await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "next" }, async () => {
+				expect(ApiFunctionTransactionScope.getValue(KEY)).toBeUndefined();
+			});
+		});
+
+		it("gives two parallel transactions their own value under the same key", async () => {
+			const first = createTransactionFixture();
+			const second = createTransactionFixture();
+			let bound: number = 0;
+			let unblock: (() => void) | undefined;
+			const barrier: Promise<void> = new Promise<void>((resolve) => {
+				unblock = resolve;
+			});
+
+			// Both transactions bind their value before either reads it.
+			const run = async (dataSource: typeof first.dataSource, value: string): Promise<unknown> =>
+				await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: value }, async () => {
+					ApiFunctionTransactionScope.setValue(KEY, value);
+					bound += 1;
+
+					if (bound === 2) unblock?.();
+					await barrier;
+
+					return ApiFunctionTransactionScope.getValue(KEY);
+				});
+
+			await expect(Promise.all([run(first.dataSource, "first"), run(second.dataSource, "second")])).resolves.toEqual(["first", "second"]);
+		});
+
+		it("puts back the previous value or its absence after runWithValue, also when the callback throws", async () => {
+			const { dataSource } = createTransactionFixture();
+			const seen: Array<unknown> = [];
+			const error: Error = new Error("callback failed");
+
+			await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "restore" }, async () => {
+				await ApiFunctionTransactionScope.runWithValue(KEY, "first", async () => {
+					seen.push(ApiFunctionTransactionScope.getValue(KEY));
+					await expect(
+						ApiFunctionTransactionScope.runWithValue(KEY, "second", async () => {
+							seen.push(ApiFunctionTransactionScope.getValue(KEY));
+
+							throw error;
+						}),
+					).rejects.toBe(error);
+					seen.push(ApiFunctionTransactionScope.getValue(KEY));
+				});
+				seen.push(ApiFunctionTransactionScope.getValue(KEY), ApiFunctionContextStorage.getTransactionRegistry()?.hasValue(KEY));
+			});
+
+			expect(seen).toEqual(["first", "second", "first", undefined, false]);
+		});
+
+		it("returns the callback result of runWithValue", async () => {
+			const { dataSource } = createTransactionFixture();
+
+			await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "result" }, async () => await ApiFunctionTransactionScope.runWithValue(KEY, 1, async () => ApiFunctionTransactionScope.getValue<number>(KEY)))).resolves.toBe(1);
+		});
 	});
 });

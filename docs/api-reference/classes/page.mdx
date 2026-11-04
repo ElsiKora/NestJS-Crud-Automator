@@ -256,6 +256,11 @@ Public helper for running code inside an external TypeORM transaction while maki
 
 - `runWithDataSource(dataSource, { name }, callback)` opens a named TypeORM transaction and passes its owning `EntityManager` to the callback. Inside an active Automator transaction on the same `DataSource` it joins that transaction and refuses an `observation`; on another `DataSource` it opens its own transaction, which does not roll back with the active one.
 - `runWithEntityManager(entityManager, callback)` joins only the manager already bound to an active Automator transaction.
+- `setValue<T>(key: symbol, value: T): void` binds a value to the current Automator transaction, the one the async context of the call runs in and `runWithDataSource` joins. It throws when no Automator transaction is active.
+- `getValue<T>(key: symbol): T | undefined` returns that value inside the same transaction, also to `REQUIRED` and `MANDATORY` participants and a `runWithDataSource` that joined it, and `undefined` outside any transaction, in a transaction of another `DataSource` opened inside it, and after commit or rollback.
+- `runWithValue<T, R>(key: symbol, value: T, callback: () => Promise<R>): Promise<R>` binds the value for the callback and puts back the previous value, or its absence, afterwards, also when the callback throws. It throws when no Automator transaction is active.
+
+Values are released when the transaction ends, before `onAfterCommit` and `onAfterRollback` run. See [Transaction-Bound Values](/docs/nestjs-crud-automator/core-concepts/services#transaction-bound-values).
 
 Only service-bound decorated function execution, including generated `@ApiFunction` flows and `@ApiFunctionCustom`, has real CRUD `operations`; transaction scopes created without a decorated service expose `getRepository` and transaction metadata but reject CRUD operations because there is no owning service context.
 
