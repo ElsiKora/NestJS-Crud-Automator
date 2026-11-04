@@ -1,3 +1,14 @@
+# [5.1.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.0.3...v5.1.0) (2026-11-04)
+
+### Bug Fixes
+
+- **authorization:** fail closed on iam deny wildcards and list values ([71c53e6](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/71c53e6afd08f660f6a727c1e2c32dbb1384cc46))
+- **property:** convert number and boolean text only where the request carries text ([6dc301c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/6dc301c7f1e2fefb5398e334d7425f641e52e1b2))
+
+### Features
+
+- **function:** bind values to the current transaction ([c9a8f0f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/c9a8f0f6f895145cd227b0186da59d866a846e64))
+
 ## [5.0.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.0.2...v5.0.3) (2026-11-03)
 
 ### Bug Fixes
