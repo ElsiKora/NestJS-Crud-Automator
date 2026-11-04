@@ -575,7 +575,7 @@ export class PolicySaveSubscriber extends ApiRouteSubscriberBase<PolicyEntity> {
 
 	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PolicyEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PolicyEntity>["result"]> {
 		// 400 with one `AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT` code per path, such as
-		// `document.Statement[0].Condition.StringLike` → `iamPolicyNotSupportedYet`.
+		// `document.Statement[0].Condition.NumericEquals["resource.name"]` → `iamPolicyConditionKeyTypeMismatch`.
 		this.validator.assertSavable(context.result.body.document, { namespace: context.result.body.namespace });
 
 		return context.result;
@@ -584,6 +584,36 @@ export class PolicySaveSubscriber extends ApiRouteSubscriberBase<PolicyEntity> {
 ```
 
 Run it after bootstrap: `resource.*` keys are checked against the `resourceDefinition` fields every IAM controller of the namespace registered. On a DTO, `@IsApiPolicyDocument({ namespace: "admin:item" })` runs the same check as one `isApiPolicyDocument` constraint.
+
+## IAM Operator Families
+
+```ts
+const document: IApiPolicyDocument = {
+	Statement: [
+		{
+			Action: ["admin:item:*"],
+			Condition: {
+				// Compile into the scope, exactly, on PostgreSQL, MySQL, MariaDB and SQLite.
+				DateLessThan: { "resource.publishedAt": "${request.time}" },
+				NumericGreaterThanEquals: { "resource.price": "10.50" },
+				StringLike: { "resource.slug": "${principal.attributes.prefix, 'public'}-*" },
+				// Holds for a row whose owner relation is missing; a NULL column of a present owner takes the base operator.
+				StringEqualsIfExists: { "resource.ownerTenant": "${principal.attributes.tenantId}" },
+			},
+			Effect: EApiPolicyEffect.ALLOW,
+			Resource: ["admin:item/*"],
+		},
+		{
+			Action: ["admin:item:*"],
+			// Evaluated in memory on every database. Only as sound as `trust proxy`.
+			Condition: { NotIpAddress: { "request.sourceIp": "10.0.0.0/8" } },
+			Effect: EApiPolicyEffect.DENY,
+			Resource: ["*"],
+		},
+	],
+	Version: "2012-10-17",
+};
+```
 
 ## Function Subscriber
 
