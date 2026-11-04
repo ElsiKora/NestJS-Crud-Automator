@@ -35,7 +35,7 @@ export class ApiAuthorizationIamPortableLowerer {
 	 * @returns {{ branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean }} The OR branches (one empty branch for every row, none for no row), or a non-compilable result when the branches exceed the cap or an atom is not exact.
 	 */
 	public lower<E>(predicate: TApiAuthorizationIamPredicate, maxBranches: number): { branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean } {
-		const atomBranches: Array<Array<TApiAuthorizationIamPredicateAtom>> | undefined = ApiAuthorizationIamPredicateNormalForm.toBranches(this.refinePredicate(predicate), maxBranches);
+		const atomBranches: Array<Array<TApiAuthorizationIamPredicateAtom>> | undefined = ApiAuthorizationIamPredicateNormalForm.toBranches(predicate, maxBranches);
 
 		if (!atomBranches) {
 			return { isCompilable: false };
@@ -171,17 +171,6 @@ export class ApiAuthorizationIamPortableLowerer {
 	}
 
 	/**
-	 * Rewrites one atom before the normal form, for a dialect whose column type refuses some values instead of
-	 * comparing them: the rewrite may replace the atom with a constant or another atom that holds for the same rows.
-	 * Portable SQL compares every value it binds, so the atom stays as it is.
-	 * @param {TApiAuthorizationIamPredicateAtom} atom - Atom.
-	 * @returns {TApiAuthorizationIamPredicate} The atom, or the node that replaces it.
-	 */
-	protected refineAtom(atom: TApiAuthorizationIamPredicateAtom): TApiAuthorizationIamPredicate {
-		return atom;
-	}
-
-	/**
 	 * Writes a condition at a nested query path of a WHERE branch.
 	 * @param {Record<string, unknown>} where - WHERE branch.
 	 * @param {string} queryPath - Entity query path such as `status` or `operator.id`.
@@ -309,21 +298,5 @@ export class ApiAuthorizationIamPortableLowerer {
 				return "%";
 			}
 		}
-	}
-
-	/**
-	 * Rewrites every atom of a predicate with `refineAtom`, folding the constants a rewrite yields.
-	 * @param {TApiAuthorizationIamPredicate} predicate - Predicate.
-	 * @returns {TApiAuthorizationIamPredicate} The rewritten predicate.
-	 */
-	private refinePredicate(predicate: TApiAuthorizationIamPredicate): TApiAuthorizationIamPredicate {
-		if (predicate.kind === EApiAuthorizationIamPredicateKind.AND || predicate.kind === EApiAuthorizationIamPredicateKind.OR) {
-			const children: Array<TApiAuthorizationIamPredicate> = predicate.children.map((child: TApiAuthorizationIamPredicate): TApiAuthorizationIamPredicate => this.refinePredicate(child));
-
-			return predicate.kind === EApiAuthorizationIamPredicateKind.AND ? ApiAuthorizationIamPredicateBuilder.and(children) : ApiAuthorizationIamPredicateBuilder.or(children);
-		}
-
-		// Every atom reads a column; a constant reads none.
-		return "column" in predicate ? this.refineAtom(predicate) : predicate;
 	}
 }

@@ -1,9 +1,10 @@
 import type { IApiAuthorizationIamColumn, IApiAuthorizationIamPredicateIn, IApiAuthorizationIamPredicateLike, IApiAuthorizationIamPredicateLowered } from "@interface/class/api/authorization";
-import type { TApiAuthorizationIamPredicate, TApiAuthorizationIamPredicateAtom, TApiAuthorizationIamPredicateValue } from "@type/class/api/authorization/iam";
+import type { TApiAuthorizationIamPredicateValue } from "@type/class/api/authorization/iam";
 
 import { ApiAuthorizationIamPortableLowerer } from "@class/api/authorization/iam/lowerer/portable.class";
 import { AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT, AUTHORIZATION_IAM_DIALECT_CONSTANT } from "@constant/class/authorization";
-import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind } from "@enum/class/authorization";
+import { EApiAuthorizationIamColumnFamily } from "@enum/class/authorization";
+import { In, IsNull, Not } from "typeorm";
 
 // TypeORM driver type of CockroachDB, which shares the PostgreSQL lowering but has no `"C"` collation or `citext` cast to rely on.
 const IAM_POSTGRES_LOWERER_COCKROACH_DRIVER_TYPE: string = "cockroachdb";
@@ -17,11 +18,13 @@ const IAM_POSTGRES_LOWERER_COCKROACH_DRIVER_TYPE: string = "cockroachdb";
  * - fixed-length `char(n)` fails closed: PostgreSQL ignores the trailing spaces it pads with, and the value read back keeps them.
  *
  * A `uuid` or enum column refuses a value it cannot hold with an error instead of comparing it, and a `uuid` reads
- * other spellings of a UUID, such as upper case, as the lower-case one it reads back. So before the normal form a
- * value such a column never reads back is taken out of each comparison, which then holds for no row when none is
- * left: on a `uuid` column every value but a lower-case UUID in 8-4-4-4-12 groups, on an enum column every value it
- * does not declare. The rest compare natively, so an index on the column still serves them. An enum column whose
- * values TypeORM does not declare compares its `text` cast.
+ * other spellings of a UUID, such as upper case, as the lower-case one it reads back. So the lowering leaves out of
+ * each comparison every value such a column never reads back: on a `uuid` column every value but a lower-case UUID
+ * in 8-4-4-4-12 groups, on an enum column every value it does not declare. The rest compare natively, so an index on
+ * the column still serves them. With none left, the comparison lowers to a condition that matches no row, or for a
+ * negated one every row that is not NULL, exactly as the text comparison of another database would; the predicate
+ * itself is not changed, so no Allow becomes statically empty here. An enum column whose values TypeORM does not
+ * declare compares its `text` cast.
  */
 export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPortableLowerer {
 	/**
@@ -43,13 +46,21 @@ export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPorta
 	 */
 	protected override lowerTextIn(atom: IApiAuthorizationIamPredicateIn): IApiAuthorizationIamPredicateLowered {
 		const column: IApiAuthorizationIamColumn | undefined = atom.column.field.column;
+		const isStored: ((value: TApiAuthorizationIamPredicateValue) => boolean) | undefined = this.readStoredValueCheck(column);
 
-		if (column?.family === EApiAuthorizationIamColumnFamily.ENUM) {
-			return column.enumValues === undefined ? this.createRawIn(atom, readIamPostgresTextCast) : this.lowerNativeIn(atom);
+		if (isStored) {
+			const values: Array<TApiAuthorizationIamPredicateValue> = atom.values.filter((value: TApiAuthorizationIamPredicateValue): boolean => isStored(value));
+
+			if (values.length === 0) {
+				// TypeORM writes an empty `In` as `0=1`; a NULL column is in neither set, as the atom says.
+				return { isExact: true, operand: atom.isNegated ? Not(IsNull()) : In([]) };
+			}
+
+			return this.lowerNativeIn({ ...atom, values });
 		}
 
-		if (column?.family === EApiAuthorizationIamColumnFamily.UUID) {
-			return this.lowerNativeIn(atom);
+		if (column?.family === EApiAuthorizationIamColumnFamily.ENUM) {
+			return this.createRawIn(atom, readIamPostgresTextCast);
 		}
 
 		const expression: ((columnAlias: string) => string) | undefined = this.readTextExpression(column);
@@ -59,36 +70,6 @@ export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPorta
 		}
 
 		return column?.collation === undefined && column?.type !== "citext" ? this.lowerNativeIn(atom) : this.createRawIn(atom, expression);
-	}
-
-	/**
-	 * Takes the values a `uuid` or declared enum column never reads back out of a text comparison on it: with none
-	 * left, a positive comparison holds for no row, and a negated one for every row that is not NULL.
-	 * @param {TApiAuthorizationIamPredicateAtom} atom - Atom.
-	 * @returns {TApiAuthorizationIamPredicate} The atom, the atom with fewer values, `FALSE`, or `NOT_NULL` on its column.
-	 */
-	protected override refineAtom(atom: TApiAuthorizationIamPredicateAtom): TApiAuthorizationIamPredicate {
-		if (atom.kind !== EApiAuthorizationIamPredicateKind.IN || atom.comparison !== EApiAuthorizationIamPredicateComparison.TEXT) {
-			return atom;
-		}
-
-		const isStored: ((value: TApiAuthorizationIamPredicateValue) => boolean) | undefined = this.readStoredValueCheck(atom.column.field.column);
-
-		if (!isStored) {
-			return atom;
-		}
-
-		const values: Array<TApiAuthorizationIamPredicateValue> = atom.values.filter((value: TApiAuthorizationIamPredicateValue): boolean => isStored(value));
-
-		if (values.length === atom.values.length) {
-			return atom;
-		}
-
-		if (values.length > 0) {
-			return { ...atom, values };
-		}
-
-		return atom.isNegated ? { column: atom.column, kind: EApiAuthorizationIamPredicateKind.NOT_NULL } : { kind: EApiAuthorizationIamPredicateKind.FALSE };
 	}
 
 	/**
