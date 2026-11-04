@@ -115,8 +115,11 @@ function AuthorizationIamReadColumn(column: TTypeOrmColumnMetadataArguments, isB
 		family = EApiAuthorizationIamColumnFamily.BOOLEAN;
 	}
 
+	const enumValues: ReadonlyArray<string> | undefined = family === EApiAuthorizationIamColumnFamily.ENUM ? AuthorizationIamReadEnumValues(column.options.enum) : undefined;
+
 	return {
 		...(typeof column.options.collation === "string" ? { collation: column.options.collation } : {}),
+		...(enumValues === undefined ? {} : { enumValues }),
 		family,
 		hasTransformer: column.options.transformer !== undefined,
 		isArray: family === EApiAuthorizationIamColumnFamily.ARRAY,
@@ -125,6 +128,31 @@ function AuthorizationIamReadColumn(column: TTypeOrmColumnMetadataArguments, isB
 		isPrimary,
 		...(type === undefined ? {} : { type }),
 	};
+}
+
+/**
+ * Reads the values an enum column declares, the way TypeORM reads its `enum` option: a list as it is, and of an enum
+ * object the values of its non-numeric keys that are not functions, since a numeric TypeScript enum also maps each
+ * number back to its name. Each value is read as the text the database stores.
+ * @param {unknown} declared - The `enum` option of the column decorator.
+ * @returns {ReadonlyArray<string> | undefined} The text of each declared value, or undefined when the option declares none.
+ */
+function AuthorizationIamReadEnumValues(declared: unknown): ReadonlyArray<string> | undefined {
+	if (Array.isArray(declared)) {
+		return declared.length > 0 ? declared.map(String) : undefined;
+	}
+
+	if (!declared || typeof declared !== "object") {
+		return undefined;
+	}
+
+	const record: Record<string, unknown> = declared as Record<string, unknown>;
+
+	const values: Array<string> = Object.keys(record)
+		.filter((key: string): boolean => Number.isNaN(Number(key)) && typeof record[key] !== "function")
+		.map((key: string): string => String(record[key]));
+
+	return values.length > 0 ? values : undefined;
 }
 
 /**

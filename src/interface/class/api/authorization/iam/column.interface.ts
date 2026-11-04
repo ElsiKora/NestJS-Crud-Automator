@@ -6,6 +6,8 @@ import type { EApiAuthorizationIamColumnFamily } from "@enum/class/authorization
 export interface IApiAuthorizationIamColumn {
 	// Collation the column declares, when it declares one.
 	collation?: string;
+	// Text of each value an enum column declares, as TypeORM reads its `enum` option; absent when the decorator declares none.
+	enumValues?: ReadonlyArray<string>;
 	// What the column holds.
 	family: EApiAuthorizationIamColumnFamily;
 	// Whether the column declares a TypeORM value transformer, which `Raw` conditions bypass.

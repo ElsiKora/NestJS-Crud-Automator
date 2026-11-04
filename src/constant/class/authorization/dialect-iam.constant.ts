@@ -1,6 +1,6 @@
 /**
- * What the IAM dialect registry reads from a DataSource and its server.
- * Internal: the dialect registry is its only user.
+ * What the IAM dialect registry reads from a DataSource and its server, and what the dialect lowerers rely on.
+ * Internal: the dialect registry and the lowerers are its only users.
  */
 export const AUTHORIZATION_IAM_DIALECT_CONSTANT: {
 	readonly MARIADB_BINARY_COLLATION: string;
@@ -10,6 +10,7 @@ export const AUTHORIZATION_IAM_DIALECT_CONSTANT: {
 	readonly MYSQL_CONNECTION_CHARSET: string;
 	readonly MYSQL_DRIVER_TYPES: ReadonlySet<string>;
 	readonly MYSQL_PROBE_QUERY: string;
+	readonly POSTGRES_CANONICAL_UUID_PATTERN: RegExp;
 } = Object.freeze({
 	// NO PAD binary collation of MariaDB: code-point equality where trailing spaces count.
 	MARIADB_BINARY_COLLATION: "utf8mb4_nopad_bin",
@@ -25,4 +26,6 @@ export const AUTHORIZATION_IAM_DIALECT_CONSTANT: {
 	MYSQL_DRIVER_TYPES: new Set<string>(["mariadb", "mysql"]),
 	// The one-time version probe of a MySQL-family DataSource.
 	MYSQL_PROBE_QUERY: "SELECT VERSION() AS version, @@character_set_connection AS charset",
+	// The text PostgreSQL and CockroachDB read a `uuid` back as: lower-case hexadecimal in 8-4-4-4-12 groups.
+	POSTGRES_CANONICAL_UUID_PATTERN: /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u,
 });
