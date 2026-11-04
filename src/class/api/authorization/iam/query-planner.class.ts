@@ -1,22 +1,23 @@
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationIamDenyExclusion, IApiAuthorizationIamQueryField, IApiAuthorizationIamResourceConstraint, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyStatement } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamCondition, IApiAuthorizationIamConditionValue, IApiAuthorizationIamDenyExclusion, IApiAuthorizationIamQueryField, IApiAuthorizationIamResourceConstraint, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyStatement } from "@interface/class/api/authorization";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm";
 
 import { Buffer } from "node:buffer";
 
+import { ApiAuthorizationIamParser } from "@class/api/authorization/iam/parser.class";
+import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
-import { EApiPolicyConditionOperator } from "@enum/class/authorization";
+import { EApiPolicyConditionOperatorFamily } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
 import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query-field.utility";
-import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { And, Equal, FindOperator, IsNull, Not, Raw } from "typeorm";
 
@@ -34,7 +35,7 @@ export class ApiAuthorizationIamQueryPlanner {
 
 		for (const statement of options.statements) {
 			const compiledStatement: { branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean } = this.compileStatementWhere({
-				condition: statement.Condition,
+				conditions: ApiAuthorizationIamParser.readStatement(statement).conditions,
 				principal: options.principal,
 				requestMetadata: options.requestMetadata,
 				resource: options.resource,
@@ -94,7 +95,7 @@ export class ApiAuthorizationIamQueryPlanner {
 
 		for (const exclusion of options.exclusions) {
 			const compiledExclusion: { branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean } = this.compileStatementExclusion({
-				condition: exclusion.statement.Condition,
+				conditions: ApiAuthorizationIamParser.readStatement(exclusion.statement).conditions,
 				principal: options.principal,
 				requestMetadata: options.requestMetadata,
 				resource: options.resource,
@@ -155,7 +156,7 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * @template E - Entity type.
 	 * @template M - List pagination mode.
 	 * @param {object} options - Compilation options.
-	 * @param {Record<string, Record<string, unknown>>} [options.condition] - Statement condition.
+	 * @param {ReadonlyArray<IApiAuthorizationIamCondition>} options.conditions - Condition keys of the statement, read by the grammar.
 	 * @param {IApiAuthorizationPrincipal} options.principal - Principal used to resolve `${...}` condition values.
 	 * @param {IApiAuthorizationRequestMetadata<E, M>} options.requestMetadata - Request metadata used to resolve `${...}` condition values.
 	 * @param {E} [options.resource] - Loaded resource, when available.
@@ -164,7 +165,7 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * @returns {{ branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean }} Exclusion branches, or a non-compilable result.
 	 */
 	private compileStatementExclusion<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: {
-		condition?: Record<string, Record<string, unknown>>;
+		conditions: ReadonlyArray<IApiAuthorizationIamCondition>;
 		principal: IApiAuthorizationPrincipal;
 		requestMetadata: IApiAuthorizationRequestMetadata<E, M>;
 		resource?: E;
@@ -191,30 +192,22 @@ export class ApiAuthorizationIamQueryPlanner {
 			branches.push(this.createWhere(fieldDefinition.queryPath, constraint.isPrefix ? this.createPrefixExclusion(constraint.value) : Not(Equal(columnValue.value))), this.createWhere(fieldDefinition.queryPath, IsNull()));
 		}
 
-		for (const [operator, operands] of Object.entries(options.condition ?? {})) {
-			for (const [path, rawValue] of Object.entries(operands)) {
-				if (!path.startsWith("resource.")) {
-					continue;
-				}
+		for (const condition of options.conditions) {
+			if (!condition.key.startsWith("resource.")) {
+				continue;
+			}
 
-				const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = this.resolveFilterableField(options.resourceDefinition, path);
+			const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = this.resolveFilterableField(options.resourceDefinition, condition.key);
+			const resolvedValue: unknown = this.resolveConditionValue(condition, options);
+			const columnValue: { isComparable: boolean; value?: unknown } = fieldDefinition && this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, resolvedValue) : { isComparable: false };
+			const negatedBranches: Array<Array<[string, unknown]>> | undefined = fieldDefinition && columnValue.isComparable ? this.negateConditionOperator(condition, fieldDefinition.queryPath, this.resolveField(options.resourceDefinition.entity, fieldDefinition.queryPath), columnValue.value) : undefined;
 
-				const resolvedValue: unknown = this.resolveConditionValue(rawValue, {
-					principal: options.principal,
-					request: options.requestMetadata,
-					resource: options.resource,
-				});
+			if (!negatedBranches) {
+				return { isCompilable: false };
+			}
 
-				const columnValue: { isComparable: boolean; value?: unknown } = fieldDefinition && this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, resolvedValue) : { isComparable: false };
-				const negatedBranches: Array<Array<[string, unknown]>> | undefined = fieldDefinition && columnValue.isComparable ? this.negateConditionOperator(operator, fieldDefinition.queryPath, this.resolveField(options.resourceDefinition.entity, fieldDefinition.queryPath), columnValue.value) : undefined;
-
-				if (!negatedBranches) {
-					return { isCompilable: false };
-				}
-
-				for (const negatedBranch of negatedBranches) {
-					branches.push(this.createBranchWhere(negatedBranch));
-				}
+			for (const negatedBranch of negatedBranches) {
+				branches.push(this.createBranchWhere(negatedBranch));
 			}
 		}
 
@@ -228,57 +221,44 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * @template E - Entity type.
 	 * @template M - List pagination mode.
 	 * @param {object} options - Compilation options.
-	 * @param {Record<string, Record<string, unknown>>} [options.condition] - Statement condition.
+	 * @param {ReadonlyArray<IApiAuthorizationIamCondition>} options.conditions - Condition keys of the statement, read by the grammar.
 	 * @param {IApiAuthorizationPrincipal} options.principal - Principal used to resolve `${...}` condition values.
 	 * @param {IApiAuthorizationRequestMetadata<E, M>} options.requestMetadata - Request metadata used to resolve `${...}` condition values.
 	 * @param {E} [options.resource] - Loaded resource, when available.
 	 * @param {IApiAuthorizationResourceDefinition<E>} options.resourceDefinition - IAM resource definition with the filterable field mappings.
 	 * @returns {{ branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean }} Allow branches, none when the statement has no `resource.*` key, or a non-compilable result.
 	 */
-	private compileStatementWhere<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { condition?: Record<string, Record<string, unknown>>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): { branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean } {
-		if (!options.condition) {
-			return {
-				isCompilable: true,
-			};
-		}
-
+	private compileStatementWhere<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { conditions: ReadonlyArray<IApiAuthorizationIamCondition>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): { branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean } {
 		let branches: Array<Array<[string, unknown]>> = [[]];
 		let hasResourceCondition: boolean = false;
 
-		for (const [operator, operands] of Object.entries(options.condition)) {
-			for (const [path, rawValue] of Object.entries(operands)) {
-				if (!path.startsWith("resource.")) {
-					continue;
-				}
+		for (const condition of options.conditions) {
+			if (!condition.key.startsWith("resource.")) {
+				continue;
+			}
 
-				hasResourceCondition = true;
+			hasResourceCondition = true;
 
-				const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = this.resolveFilterableField(options.resourceDefinition, path);
+			const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = this.resolveFilterableField(options.resourceDefinition, condition.key);
 
-				if (!fieldDefinition) {
-					return { isCompilable: false };
-				}
+			if (!fieldDefinition) {
+				return { isCompilable: false };
+			}
 
-				const resolvedValue: unknown = this.resolveConditionValue(rawValue, {
-					principal: options.principal,
-					request: options.requestMetadata,
-					resource: options.resource,
-				});
+			const resolvedValue: unknown = this.resolveConditionValue(condition, options);
+			const columnValue: { isComparable: boolean; value?: unknown } = this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, resolvedValue) : { isComparable: false };
+			const keyBranches: Array<Array<[string, unknown]>> | undefined = columnValue.isComparable ? this.resolveConditionBranches(condition, fieldDefinition.queryPath, this.resolveField(options.resourceDefinition.entity, fieldDefinition.queryPath), columnValue.value) : undefined;
 
-				const columnValue: { isComparable: boolean; value?: unknown } = this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, resolvedValue) : { isComparable: false };
-				const keyBranches: Array<Array<[string, unknown]>> | undefined = columnValue.isComparable ? this.resolveConditionBranches(operator, fieldDefinition.queryPath, this.resolveField(options.resourceDefinition.entity, fieldDefinition.queryPath), columnValue.value) : undefined;
+			if (!keyBranches) {
+				return { isCompilable: false };
+			}
 
-				if (!keyBranches) {
-					return { isCompilable: false };
-				}
+			branches = branches.flatMap((branch: Array<[string, unknown]>): Array<Array<[string, unknown]>> => keyBranches.map((keyBranch: Array<[string, unknown]>): Array<[string, unknown]> => [...branch, ...keyBranch]));
 
-				branches = branches.flatMap((branch: Array<[string, unknown]>): Array<Array<[string, unknown]>> => keyBranches.map((keyBranch: Array<[string, unknown]>): Array<[string, unknown]> => [...branch, ...keyBranch]));
+			if (branches.length > AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES) {
+				iamQueryPlannerLogger.warn(`IAM query scope for resource type "${options.resourceDefinition.resourceType}" exceeds ${AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES} where branches.`);
 
-				if (branches.length > AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES) {
-					iamQueryPlannerLogger.warn(`IAM query scope for resource type "${options.resourceDefinition.resourceType}" exceeds ${AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES} where branches.`);
-
-					return { isCompilable: false };
-				}
+				return { isCompilable: false };
 			}
 		}
 
@@ -404,51 +384,40 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * semantics: a NULL column is a present value that compares as an empty string, while a path through a missing
 	 * relation is a missing key at any depth. The IfExists operators hold for a missing key, so a Deny on one keeps
 	 * a NULL column only while the relation it sits on is present.
-	 * @param {string} operator - Condition operator.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
 	 * @param {string} queryPath - Entity query path of the key.
 	 * @param {IApiAuthorizationIamQueryField} field - Resolved query path.
 	 * @param {unknown} value - Resolved scalar condition value.
 	 * @returns {Array<Array<[string, unknown]>> | undefined} OR branches of ANDed column conditions, or undefined when the key cannot compile.
 	 */
-	private negateConditionOperator(operator: string, queryPath: string, field: IApiAuthorizationIamQueryField, value: unknown): Array<Array<[string, unknown]>> | undefined {
-		if (!EnumIsValue(EApiPolicyConditionOperator, operator)) {
+	private negateConditionOperator(condition: IApiAuthorizationIamCondition, queryPath: string, field: IApiAuthorizationIamQueryField, value: unknown): Array<Array<[string, unknown]>> | undefined {
+		if (condition.family !== EApiPolicyConditionOperatorFamily.STRING) {
 			return undefined;
 		}
 
-		switch (operator) {
-			case EApiPolicyConditionOperator.STRING_EQUALS: {
-				return [[[queryPath, Not(Equal(value))]], [[queryPath, IsNull()]]];
-			}
-
-			case EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS: {
-				if (!field.isOptional) {
-					return [[[queryPath, Not(Equal(value))]], [[queryPath, IsNull()]]];
-				}
-
-				if (!field.presencePath) {
-					return undefined;
-				}
-
-				// A NULL primary key is the missing relation itself, which the key holds for.
-				return field.presencePath === queryPath
-					? [[[queryPath, Not(Equal(value))]]]
-					: [
-							[[queryPath, Not(Equal(value))]],
-							[
-								[queryPath, IsNull()],
-								[field.presencePath, Not(IsNull())],
-							],
-						];
-			}
-
-			case EApiPolicyConditionOperator.STRING_NOT_EQUALS: {
-				return [[[queryPath, Equal(value)]]];
-			}
-
-			case EApiPolicyConditionOperator.STRING_NOT_EQUALS_IF_EXISTS: {
-				return [[[queryPath, Equal(value)]]];
-			}
+		// A negated key fails exactly where the column equals the value; a NULL column compares as "", which no compilable value is.
+		if (condition.isNegated) {
+			return [[[queryPath, Equal(value)]]];
 		}
+
+		if (!condition.isIfExists || !field.isOptional) {
+			return [[[queryPath, Not(Equal(value))]], [[queryPath, IsNull()]]];
+		}
+
+		if (!field.presencePath) {
+			return undefined;
+		}
+
+		// A NULL primary key is the missing relation itself, which the key holds for.
+		return field.presencePath === queryPath
+			? [[[queryPath, Not(Equal(value))]]]
+			: [
+					[[queryPath, Not(Equal(value))]],
+					[
+						[queryPath, IsNull()],
+						[field.presencePath, Not(IsNull())],
+					],
+				];
 	}
 
 	/**
@@ -496,68 +465,58 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * Resolves one Allow resource condition key into the OR branches of rows that pass it. A plain StringEquals needs the
 	 * column to equal the value; StringEqualsIfExists also holds for a row whose path crosses a missing relation, which
 	 * the in-memory evaluator reads as a missing key.
-	 * @param {string} operator - Condition operator.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
 	 * @param {string} queryPath - Entity query path of the key.
 	 * @param {IApiAuthorizationIamQueryField} field - Resolved query path.
 	 * @param {unknown} value - Resolved scalar condition value.
 	 * @returns {Array<Array<[string, unknown]>> | undefined} OR branches of ANDed column conditions, or undefined when the key cannot compile.
 	 */
-	private resolveConditionBranches(operator: string, queryPath: string, field: IApiAuthorizationIamQueryField, value: unknown): Array<Array<[string, unknown]>> | undefined {
-		if (operator === (EApiPolicyConditionOperator.STRING_EQUALS as string) || (operator === (EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS as string) && !field.isOptional)) {
+	private resolveConditionBranches(condition: IApiAuthorizationIamCondition, queryPath: string, field: IApiAuthorizationIamQueryField, value: unknown): Array<Array<[string, unknown]>> | undefined {
+		if (condition.family !== EApiPolicyConditionOperatorFamily.STRING || condition.isNegated) {
+			return undefined;
+		}
+
+		if (!condition.isIfExists || !field.isOptional) {
 			return [[[queryPath, value]]];
 		}
 
-		if (operator !== (EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS as string) || !field.presencePath) {
+		if (!field.presencePath) {
 			return undefined;
 		}
 
 		return [[[queryPath, value]], [[field.presencePath, IsNull()]]];
 	}
 
-	private resolveConditionValue(
-		value: unknown,
-		context: {
-			principal: IApiAuthorizationPrincipal;
-			request: {
-				body?: unknown;
-				headers?: Record<string, string>;
-				ip?: string;
-				parameters?: unknown;
-				query?: unknown;
-			};
-			resource?: IApiBaseEntity;
-		},
-	): unknown {
-		if (typeof value !== "string") {
-			return value;
-		}
+	/**
+	 * Resolves the value of a condition key against the request: a literal as written, a variable to the context value at its path.
+	 * @template E - Entity type.
+	 * @template M - List pagination mode.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {object} context - Evaluation context.
+	 * @param {IApiAuthorizationPrincipal} context.principal - Principal.
+	 * @param {IApiAuthorizationRequestMetadata<E, M>} context.requestMetadata - Request metadata.
+	 * @param {E} [context.resource] - Loaded resource, when available.
+	 * @returns {unknown} The resolved value, or undefined when the key has no value.
+	 */
+	private resolveConditionValue<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(condition: IApiAuthorizationIamCondition, context: { principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E }): unknown {
+		// The grammar gives a key one value until several values reach the planner.
+		const conditionValue: IApiAuthorizationIamConditionValue | undefined = condition.values[0];
 
-		const matcher: null | RegExpMatchArray = /^\$\{(.+)\}$/.exec(value);
-
-		if (!matcher) {
-			return value;
-		}
-
-		const matchedPath: string | undefined = matcher[1];
-
-		if (!matchedPath) {
+		if (!conditionValue) {
 			return undefined;
 		}
 
-		return this.resolvePathValue(
-			{
-				principal: context.principal,
-				request: {
-					body: context.request.body,
-					headers: context.request.headers,
-					ip: context.request.ip,
-					parameters: context.request.parameters,
-					query: context.request.query,
-				},
-				resource: context.resource,
+		return ApiAuthorizationIamVariable.resolveValue(conditionValue, {
+			principal: context.principal,
+			request: {
+				body: context.requestMetadata.body,
+				headers: context.requestMetadata.headers,
+				ip: context.requestMetadata.ip,
+				parameters: context.requestMetadata.parameters,
+				query: context.requestMetadata.query,
 			},
-			matchedPath,
-		);
+			resource: context.resource,
+		});
 	}
 
 	/**
@@ -593,19 +552,5 @@ export class ApiAuthorizationIamQueryPlanner {
 	 */
 	private resolveFilterableField<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, path: string): IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined {
 		return resourceDefinition.fields.find((field: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => field.path === path && field.isFilterable);
-	}
-
-	private resolvePathValue(source: unknown, path: string): unknown {
-		let currentValue: unknown = source;
-
-		for (const segment of path.split(".").filter(Boolean)) {
-			if (!this.isRecord(currentValue)) {
-				return undefined;
-			}
-
-			currentValue = currentValue[segment];
-		}
-
-		return currentValue;
 	}
 }

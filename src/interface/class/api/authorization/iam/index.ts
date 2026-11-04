@@ -1,5 +1,11 @@
+export { type IApiAuthorizationIamContextKey } from "./context-key.interface";
 export { type IApiAuthorizationIamDenyExclusion } from "./deny-exclusion.interface";
+export { type IApiAuthorizationIamFailure } from "./failure.interface";
+export { type IApiAuthorizationIamOperatorDefinition } from "./operator-definition.interface";
 export { type IApiAuthorizationIamQueryField } from "./query-field.interface";
 export { type IApiAuthorizationIamResourceConstraint } from "./resource-constraint.interface";
 export { type IApiAuthorizationIamResourceSegment } from "./resource-segment.interface";
+export type * from "./statement";
 export { type IApiAuthorizationIamStatementMatch } from "./statement-match.interface";
+export { type IApiAuthorizationIamToken } from "./token.interface";
+export { type IApiAuthorizationIamVariable } from "./variable.interface";

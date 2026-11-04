@@ -1,5 +1,5 @@
 export { EApiPolicyAttachmentType } from "./attachment-type.enum";
-export { EApiPolicyConditionOperator } from "./condition-operator.enum";
+export * from "./condition";
 export { EApiPolicyOnType } from "./on-type.enum";
 export { EApiPolicySourceType } from "./source-type.enum";
 export { EApiPolicyStatus } from "./status.enum";

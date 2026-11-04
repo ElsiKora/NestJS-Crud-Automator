@@ -6,7 +6,7 @@ import type { Type } from "@nestjs/common";
 import type { InstanceWrapper } from "@nestjs/core/internal";
 
 import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
-import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache } from "@class/api/authorization/iam";
+import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache, ApiAuthorizationIamResourceDefinitionRegistry } from "@class/api/authorization/iam";
 import { ApiAuthorizationParametersRuleRegistry } from "@class/api/authorization/parameters-rule-registry.class";
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
 import { AUTHORIZATION_GATEWAY_METADATA_CONSTANT, AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT, AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
@@ -518,6 +518,8 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			}
 
 			this.validateResourceDefinition(metatype.name, authorization.resourceDefinition);
+			// Policy document validation checks `resource.*` keys against the fields each namespace maps.
+			ApiAuthorizationIamResourceDefinitionRegistry.getInstance().register(authorization.resourceDefinition);
 		}
 
 		this.applyRouteParameterRules(controllerWrapper, metatype, authorization.defaultMode, authorization.resourceDefinition?.resourcePath, authorization.policyNamespace);

@@ -1,15 +1,63 @@
-import type { IApiPolicyDocumentRecord } from "@interface/class/api/authorization";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthorizationIamFailure, IApiAuthorizationIamStatement, IApiAuthorizationResourceDefinition, IApiPolicyDocumentRecord } from "@interface/class/api/authorization";
+import type { ValidationError } from "class-validator";
 
-import { EApiPolicyConditionOperator, EApiPolicyEffect } from "@enum/class/authorization";
+import { ApiAuthorizationIamParser } from "@class/api/authorization/iam/parser.class";
+import { ApiAuthorizationIamResourceDefinitionRegistry } from "@class/api/authorization/iam/registry.class";
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { Injectable } from "@nestjs/common";
-import { EnumIsValue } from "@utility/enum/is-value.utility";
+import { ApiControllerParametersCreateFailure } from "@utility/api/controller/parameters/create-failure.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const iamDocumentValidatorLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationIamDocumentValidator");
 
+/**
+ * Validates IAM policy documents against the one policy grammar, at save and at load. `inspect` and `assertSavable`
+ * serve a host's save path; `validate` runs on every document a document source returns.
+ */
 @Injectable()
 export class ApiAuthorizationIamDocumentValidator {
+	/**
+	 * Throws when a policy document fails the grammar, so a host refuses to store it. Call it in the create or update
+	 * service of the policy table, or in a BEFORE route subscriber.
+	 * @param {unknown} input - Policy document, as the client sent it.
+	 * @param {object} options - Namespace-aware checks.
+	 * @param {string} options.namespace - Namespace the document is stored for.
+	 * @throws {ApiRequestValidationException} With one failure per problem, each carrying a constraint code from `AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT`.
+	 */
+	public assertSavable(input: unknown, options: { namespace: string }): void {
+		const failures: Array<ValidationError> = this.inspect(input, options);
+
+		if (failures.length > 0) {
+			throw new ApiRequestValidationException(failures);
+		}
+	}
+
+	/**
+	 * Reports every failure of a policy document against the grammar, without throwing. A `resource.*` key must map to
+	 * a filterable field of a resource definition registered for the namespace at bootstrap, so a namespace no IAM
+	 * controller of the application serves maps no key.
+	 * @param {unknown} input - Policy document.
+	 * @param {object} options - Namespace-aware checks.
+	 * @param {string} options.namespace - Namespace the document is stored for.
+	 * @returns {Array<ValidationError>} One failure per problem: `property` is its path, such as `document.Statement[2].Condition.StringLike["resource.name"]`, and `constraints` holds its code.
+	 */
+	public inspect(input: unknown, options: { namespace: string }): Array<ValidationError> {
+		const result: { failures: Array<IApiAuthorizationIamFailure>; statements: Array<IApiAuthorizationIamStatement> } = ApiAuthorizationIamParser.readDocument(input, {
+			namespace: options.namespace,
+			resourceDefinitions: ApiAuthorizationIamResourceDefinitionRegistry.getInstance().get(options.namespace),
+		});
+
+		return result.failures.map((failure: IApiAuthorizationIamFailure): ValidationError => ApiControllerParametersCreateFailure(failure.property, failure.code, failure.message));
+	}
+
+	/**
+	 * Validates one loaded policy document record: its record fields, and its document against the grammar. The
+	 * `resource.*` keys are checked against the namespace's resource definitions once bootstrap registered any.
+	 * @param {IApiPolicyDocumentRecord} record - Record a document source returned.
+	 * @throws {Error} When the record or its document is invalid; the request answers 500.
+	 */
 	public validate(record: IApiPolicyDocumentRecord): void {
 		if (typeof record.id !== "string" || record.id.length === 0) {
 			iamDocumentValidatorLogger.error("Policy document record id must be a non-empty string");
@@ -35,92 +83,28 @@ export class ApiAuthorizationIamDocumentValidator {
 			throw ErrorException(`Policy document "${record.id}" version must be a non-empty string`);
 		}
 
-		if (typeof record.document?.Version !== "string" || record.document.Version.length === 0) {
-			iamDocumentValidatorLogger.error(`Policy document "${record.id}" Version must be a non-empty string`);
+		const registry: ApiAuthorizationIamResourceDefinitionRegistry = ApiAuthorizationIamResourceDefinitionRegistry.getInstance();
+		const resourceDefinitions: ReadonlyArray<IApiAuthorizationResourceDefinition<IApiBaseEntity>> | undefined = registry.has(record.namespace) ? registry.get(record.namespace) : undefined;
+		const result: { failures: Array<IApiAuthorizationIamFailure>; statements: Array<IApiAuthorizationIamStatement> } = ApiAuthorizationIamParser.readDocument(record.document, { namespace: record.namespace, resourceDefinitions });
 
-			throw ErrorException(`Policy document "${record.id}" Version must be a non-empty string`);
-		}
+		if (result.failures.length > 0) {
+			const message: string = `Policy document "${record.id}" is invalid: ${ApiAuthorizationIamParser.formatFailures(result.failures)}`;
+			iamDocumentValidatorLogger.error(message);
 
-		if (!Array.isArray(record.document.Statement)) {
-			iamDocumentValidatorLogger.error(`Policy document "${record.id}" Statement must be an array`);
-
-			throw ErrorException(`Policy document "${record.id}" Statement must be an array`);
-		}
-
-		for (const statement of record.document.Statement as ReadonlyArray<unknown>) {
-			this.validateStatement(record.id, statement);
+			throw ErrorException(message);
 		}
 	}
 
+	/**
+	 * Validates every loaded policy document record.
+	 * @param {ReadonlyArray<IApiPolicyDocumentRecord>} records - Records a document source returned.
+	 * @throws {Error} When a record or its document is invalid.
+	 */
 	public validateMany(records: ReadonlyArray<IApiPolicyDocumentRecord>): void {
 		iamDocumentValidatorLogger.verbose(`Validating ${records.length} IAM policy documents.`);
 
 		for (const record of records) {
 			this.validate(record);
-		}
-	}
-
-	private isRecord(value: unknown): value is Record<string, unknown> {
-		return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-	}
-
-	private validateStatement(documentId: string, statement: unknown): void {
-		if (!this.isRecord(statement)) {
-			iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains an invalid statement`);
-
-			throw ErrorException(`Policy document "${documentId}" contains an invalid statement`);
-		}
-
-		const action: unknown = statement.Action;
-		const resource: unknown = statement.Resource;
-		const effect: unknown = statement.Effect;
-		const condition: unknown = statement.Condition;
-
-		if (!Array.isArray(action) || action.some((entry: unknown) => typeof entry !== "string" || entry.length === 0)) {
-			iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains a statement with invalid Action entries`);
-
-			throw ErrorException(`Policy document "${documentId}" contains a statement with invalid Action entries`);
-		}
-
-		if (!Array.isArray(resource) || resource.some((entry: unknown) => typeof entry !== "string" || entry.length === 0)) {
-			iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains a statement with invalid Resource entries`);
-
-			throw ErrorException(`Policy document "${documentId}" contains a statement with invalid Resource entries`);
-		}
-
-		if (effect !== EApiPolicyEffect.ALLOW && effect !== EApiPolicyEffect.DENY) {
-			iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains a statement with invalid Effect "${String(effect)}"`);
-
-			throw ErrorException(`Policy document "${documentId}" contains a statement with invalid Effect "${String(effect)}"`);
-		}
-
-		if (condition !== undefined && !this.isRecord(condition)) {
-			iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains an invalid Condition object`);
-
-			throw ErrorException(`Policy document "${documentId}" contains an invalid Condition object`);
-		}
-
-		if (condition && this.isRecord(condition)) {
-			for (const [operator, value] of Object.entries(condition)) {
-				if (!EnumIsValue(EApiPolicyConditionOperator, operator)) {
-					iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains an unsupported Condition operator "${operator}"`);
-
-					throw ErrorException(`Policy document "${documentId}" contains an unsupported Condition operator "${operator}"`);
-				}
-
-				if (!this.isRecord(value)) {
-					iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains an invalid Condition operand map`);
-
-					throw ErrorException(`Policy document "${documentId}" contains an invalid Condition operand map`);
-				}
-
-				// A list, object or null operand keeps the document valid and fails closed when evaluated: the key fails for an Allow and holds for a Deny, whose other keys still decide.
-				for (const [path, operand] of Object.entries(value)) {
-					if (typeof operand !== "string" && typeof operand !== "number" && typeof operand !== "boolean") {
-						iamDocumentValidatorLogger.warn(`Policy document "${documentId}" contains a non-scalar Condition operand for "${path}"; the key fails closed: it fails for an Allow and holds for a Deny`);
-					}
-				}
-			}
 		}
 	}
 }

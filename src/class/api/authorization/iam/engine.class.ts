@@ -1,12 +1,33 @@
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationDecision, IApiAuthorizationIamDenyExclusion, IApiAuthorizationIamResourceConstraint, IApiAuthorizationIamResourceSegment, IApiAuthorizationIamStatementMatch, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyAttachment, IApiPolicyDocumentRecord, IApiPolicyStatement, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
+import type {
+	IApiAuthorizationDecision,
+	IApiAuthorizationIamCondition,
+	IApiAuthorizationIamConditionValue,
+	IApiAuthorizationIamDenyExclusion,
+	IApiAuthorizationIamPattern,
+	IApiAuthorizationIamResourceConstraint,
+	IApiAuthorizationIamResourceSegment,
+	IApiAuthorizationIamStatement,
+	IApiAuthorizationIamStatementMatch,
+	IApiAuthorizationIamToken,
+	IApiAuthorizationPrincipal,
+	IApiAuthorizationRequestMetadata,
+	IApiAuthorizationResourceDefinition,
+	IApiAuthorizationScope,
+	IApiPolicyAttachment,
+	IApiPolicyDocumentRecord,
+	IApiPolicyStatement,
+	IApiResolvedPolicyAttachments,
+} from "@interface/class/api/authorization";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
 import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class";
+import { ApiAuthorizationIamParser } from "@class/api/authorization/iam/parser.class";
 import { ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam/query-planner.class";
+import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
-import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiPolicyConditionOperator, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
+import { EApiAuthorizationDecisionType, EApiAuthorizationIamTokenType, EApiAuthorizationMode, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
@@ -14,7 +35,6 @@ import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query
 import { AuthorizationIsCreateRoute } from "@utility/authorization/is-create-route.utility";
 import { AuthorizationIsListRoute } from "@utility/authorization/is-list-route.utility";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
-import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
@@ -324,24 +344,22 @@ export class ApiAuthorizationIamEngine {
 		};
 	}
 
-	private evaluateOperator(operator: EApiPolicyConditionOperator, actualValue: unknown, expectedValue: unknown): boolean {
-		switch (operator) {
-			case EApiPolicyConditionOperator.STRING_EQUALS: {
-				return this.normalizeComparable(actualValue) === this.normalizeComparable(expectedValue);
-			}
-
-			case EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS: {
-				return actualValue === undefined ? true : this.normalizeComparable(actualValue) === this.normalizeComparable(expectedValue);
-			}
-
-			case EApiPolicyConditionOperator.STRING_NOT_EQUALS: {
-				return this.normalizeComparable(actualValue) !== this.normalizeComparable(expectedValue);
-			}
-
-			case EApiPolicyConditionOperator.STRING_NOT_EQUALS_IF_EXISTS: {
-				return actualValue === undefined ? true : this.normalizeComparable(actualValue) !== this.normalizeComparable(expectedValue);
-			}
+	/**
+	 * Evaluates one String condition key in memory: both sides compare as canonical text, a missing or null value as an
+	 * empty string. `IfExists` holds for a missing value; a negated operator holds where the positive one fails.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {unknown} actualValue - Value the key reads.
+	 * @param {unknown} expectedValue - Resolved condition value.
+	 * @returns {boolean} Whether the key holds.
+	 */
+	private evaluateOperator(condition: IApiAuthorizationIamCondition, actualValue: unknown, expectedValue: unknown): boolean {
+		if (condition.isIfExists && actualValue === undefined) {
+			return true;
 		}
+
+		const isEqual: boolean = this.normalizeComparable(actualValue) === this.normalizeComparable(expectedValue);
+
+		return condition.isNegated ? !isEqual : isEqual;
 	}
 
 	private isRecord(value: unknown): value is Record<string, unknown> {
@@ -349,12 +367,12 @@ export class ApiAuthorizationIamEngine {
 	}
 
 	/**
-	 * Tells whether a condition value is a `${resource}` or `${resource.*}` variable.
-	 * @param {unknown} value - Raw condition value.
+	 * Tells whether a condition value is a `${resource.*}` variable.
+	 * @param {IApiAuthorizationIamConditionValue} value - Condition value read by the grammar.
 	 * @returns {boolean} Whether the value reads the resource.
 	 */
-	private isResourceVariable(value: unknown): boolean {
-		return typeof value === "string" && /^\$\{resource(?:\..+)?\}$/.test(value);
+	private isResourceVariable(value: IApiAuthorizationIamConditionValue): boolean {
+		return value.parts.some((part: IApiAuthorizationIamToken): boolean => part.type === EApiAuthorizationIamTokenType.VARIABLE && (part.variable?.path.startsWith("resource.") ?? false));
 	}
 
 	/**
@@ -364,30 +382,6 @@ export class ApiAuthorizationIamEngine {
 	 */
 	private isStructuredValue(value: unknown): boolean {
 		return typeof value === "object" && value !== null && AuthorizationSerializeValue(value) === undefined;
-	}
-
-	/**
-	 * Matches an Allow Action or Resource pattern: `*` alone, a trailing `*` as a prefix, or an exact value. Any other
-	 * `*` makes the pattern match nothing, so an Allow never grants more than these forms; Deny patterns use
-	 * {@link ApiAuthorizationIamGlob.isMatched} instead.
-	 * @param {string} pattern - Allow pattern.
-	 * @param {string} value - Concrete action or resource string.
-	 * @returns {boolean} Whether the pattern matches the value.
-	 */
-	private matchesWildcardPattern(pattern: string, value: string): boolean {
-		if (pattern === "*") {
-			return true;
-		}
-
-		if (!pattern.includes("*")) {
-			return pattern === value;
-		}
-
-		if (!pattern.endsWith("*")) {
-			return false;
-		}
-
-		return value.startsWith(pattern.slice(0, -1));
 	}
 
 	/**
@@ -419,28 +413,30 @@ export class ApiAuthorizationIamEngine {
 		resourceSegments: ReadonlyArray<IApiAuthorizationIamResourceSegment>;
 		statement: IApiPolicyStatement;
 	}): IApiAuthorizationIamStatementMatch {
-		const isDeny: boolean = options.statement.Effect === EApiPolicyEffect.DENY;
-		// A Deny pattern is a glob with `*` anywhere, so it never matches less than it says; an Allow keeps its narrower forms.
-		const matchesPattern: (pattern: string, value: string) => boolean = (pattern: string, value: string): boolean => (isDeny ? ApiAuthorizationIamGlob.isMatched(pattern, value) : this.matchesWildcardPattern(pattern, value));
-		const isActionMatched: boolean = options.statement.Action.some((pattern: string) => matchesPattern(pattern, options.action));
+		const statement: IApiAuthorizationIamStatement = ApiAuthorizationIamParser.readStatement(options.statement);
+		const isDeny: boolean = statement.effect === EApiPolicyEffect.DENY;
+		// Allow and Deny patterns are globs alike: `*` and `?` anywhere, so neither matches less or more than it says.
+		const isActionMatched: boolean = statement.action.patterns.some((pattern: IApiAuthorizationIamPattern): boolean => ApiAuthorizationIamGlob.isMatched(pattern.tokens, options.action));
 
 		if (!isActionMatched) {
 			return { isMatched: false };
 		}
 
-		const resourceString: string = options.resourceSegments.map((segment: IApiAuthorizationIamResourceSegment): string => segment.value).join("");
-		const isResourceMatched: boolean = options.statement.Resource.some((pattern: string) => matchesPattern(pattern, resourceString));
+		// An unresolved placeholder may hold any value, so only a pattern that covers every value matches the whole collection.
+		const isResourceMatched: boolean = statement.resource.patterns.some((pattern: IApiAuthorizationIamPattern): boolean => ApiAuthorizationIamGlob.isCovering(pattern.tokens, options.resourceSegments));
 		const resourceConstraintSets: Array<ReadonlyArray<IApiAuthorizationIamResourceConstraint>> = isResourceMatched ? [[]] : [];
 		let isResourceMappable: boolean = true;
 
 		if (!isResourceMatched && isDeny && options.resource === undefined && (options.isListRequest || options.isCreateRequest)) {
-			for (const pattern of options.statement.Resource) {
+			for (const pattern of statement.resource.patterns) {
+				const literalPrefix: { isPrefix: boolean; value: string } | undefined = ApiAuthorizationIamGlob.readLiteralPrefix(pattern.tokens);
+
 				// A create names no row, so only a pattern with a wildcard before its end, which cannot be mapped, applies to it.
-				if (!options.isListRequest && !pattern.slice(0, -1).includes("*")) {
+				if (!options.isListRequest && literalPrefix) {
 					continue;
 				}
 
-				const patternMatch: { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined = this.resolveResourcePatternConstraints(pattern, options.resourceSegments);
+				const patternMatch: { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined = literalPrefix ? this.resolveResourcePatternConstraints(literalPrefix, options.resourceSegments) : this.resolveWildcardPatternMatch(pattern, options.resourceSegments);
 
 				if (patternMatch) {
 					isResourceMappable &&= patternMatch.isMappable;
@@ -477,66 +473,60 @@ export class ApiAuthorizationIamEngine {
 
 		let hasResourceCondition: boolean = false;
 
-		for (const [operator, operands] of Object.entries(options.statement.Condition ?? {})) {
-			for (const [path, rawExpectedValue] of Object.entries(operands)) {
-				if (path.startsWith("resource.") && options.resource === undefined) {
-					hasResourceCondition = true;
+		for (const condition of statement.conditions) {
+			const path: string = condition.key;
 
+			if (path.startsWith("resource.") && options.resource === undefined) {
+				hasResourceCondition = true;
+
+				continue;
+			}
+
+			// The grammar gives a key one value until several values reach the engine.
+			const conditionValue: IApiAuthorizationIamConditionValue | undefined = condition.values[0];
+
+			// A `${resource.*}` value has no resource to read before the row is loaded, so it fails closed: it holds for a Deny and fails an Allow.
+			if (!conditionValue || (options.resource === undefined && this.isResourceVariable(conditionValue))) {
+				if (isDeny) {
 					continue;
 				}
 
-				// Validated documents only carry known operators; an unknown one still fails closed: it holds for a Deny and fails an Allow.
-				if (!EnumIsValue(EApiPolicyConditionOperator, operator)) {
-					if (isDeny) {
-						continue;
-					}
+				return { isMatched: false };
+			}
 
-					return { isMatched: false };
+			const expectedValue: unknown = ApiAuthorizationIamVariable.resolveValue(conditionValue, evaluationContext);
+
+			// A variable that resolves to a list or an object has no text to compare, so it fails closed; one that resolves to null still compares as "".
+			if (typeof expectedValue === "object" && expectedValue !== null && !(expectedValue instanceof Date)) {
+				if (isDeny) {
+					continue;
 				}
 
-				// A `${resource.*}` value has no resource to read before the row is loaded, so it fails closed: it holds for a Deny and fails an Allow.
-				if (options.resource === undefined && this.isResourceVariable(rawExpectedValue)) {
-					if (isDeny) {
-						continue;
-					}
+				return { isMatched: false };
+			}
 
-					return { isMatched: false };
+			const actualValue: { isDeclared: boolean; isReadable: boolean; value?: unknown } = path.startsWith("resource.") ? this.readResourceValue(options.resourceDefinition, options.resource, path) : { isDeclared: true, isReadable: true, value: this.resolvePathValue(evaluationContext, path) };
+
+			// A `resource.*` key with no field mapping, or one through a to-many relation, has no single column, so it fails closed as the SQL scope does: it holds for a Deny and fails an Allow.
+			if (!actualValue.isReadable) {
+				if (isDeny) {
+					continue;
 				}
 
-				const expectedValue: unknown = this.resolveConditionValue(rawExpectedValue, evaluationContext);
+				return { isMatched: false };
+			}
 
-				// A literal null, list or object operand has no text to compare, so it fails closed like an unknown operator; a variable resolving to null still compares as "".
-				if (rawExpectedValue === null || (typeof expectedValue === "object" && expectedValue !== null && !(expectedValue instanceof Date))) {
-					if (isDeny) {
-						continue;
-					}
-
-					return { isMatched: false };
+			// A list or object value, such as `principal.roles`, has no one text to compare, so the key fails closed: it holds for a Deny and fails an Allow.
+			if (this.isStructuredValue(actualValue.value)) {
+				if (isDeny) {
+					continue;
 				}
 
-				const actualValue: { isDeclared: boolean; isReadable: boolean; value?: unknown } = path.startsWith("resource.") ? this.readResourceValue(options.resourceDefinition, options.resource, path) : { isDeclared: true, isReadable: true, value: this.resolvePathValue(evaluationContext, path) };
+				return { isMatched: false };
+			}
 
-				// A `resource.*` key with no field mapping, or one through a to-many relation, has no single column, so it fails closed as the SQL scope does: it holds for a Deny and fails an Allow.
-				if (!actualValue.isReadable) {
-					if (isDeny) {
-						continue;
-					}
-
-					return { isMatched: false };
-				}
-
-				// A list or object value, such as `principal.roles`, has no one text to compare, so the key fails closed: it holds for a Deny and fails an Allow.
-				if (this.isStructuredValue(actualValue.value)) {
-					if (isDeny) {
-						continue;
-					}
-
-					return { isMatched: false };
-				}
-
-				if (!this.evaluateOperator(operator, actualValue.value, expectedValue)) {
-					return { isMatched: false };
-				}
+			if (!this.evaluateOperator(condition, actualValue.value, expectedValue)) {
+				return { isMatched: false };
 			}
 		}
 
@@ -626,52 +616,6 @@ export class ApiAuthorizationIamEngine {
 		return text === "" ? undefined : text;
 	}
 
-	private resolveConditionValue(
-		value: unknown,
-		context: {
-			principal: IApiAuthorizationPrincipal;
-			request: {
-				body?: unknown;
-				headers?: Record<string, string>;
-				ip?: string;
-				parameters?: unknown;
-				query?: unknown;
-			};
-			resource?: IApiBaseEntity;
-		},
-	): unknown {
-		if (typeof value !== "string") {
-			return value;
-		}
-
-		const matcher: null | RegExpMatchArray = /^\$\{(.+)\}$/.exec(value);
-
-		if (!matcher) {
-			return value;
-		}
-
-		const matchedPath: string | undefined = matcher[1];
-
-		if (!matchedPath) {
-			return undefined;
-		}
-
-		return this.resolvePathValue(
-			{
-				principal: context.principal,
-				request: {
-					body: context.request.body,
-					headers: context.request.headers,
-					ip: context.request.ip,
-					parameters: context.request.parameters,
-					query: context.request.query,
-				},
-				resource: context.resource,
-			},
-			matchedPath,
-		);
-	}
-
 	private resolveDocumentRecord(policyId: string, documentMap: Map<string, IApiPolicyDocumentRecord>, policyNamespace: string): IApiPolicyDocumentRecord {
 		const document: IApiPolicyDocumentRecord | undefined = documentMap.get(policyId);
 
@@ -705,21 +649,17 @@ export class ApiAuthorizationIamEngine {
 	}
 
 	/**
-	 * Maps a Deny resource pattern onto the unresolved placeholders of a collection resource.
-	 * @param {string} pattern - Statement Resource pattern that does not match the collection resource string.
+	 * Maps a literal Deny resource pattern, optionally ending with one `*`, onto the unresolved placeholders of a collection resource.
+	 * @param {object} pattern - Literal form of a Resource pattern that does not cover the collection.
+	 * @param {boolean} pattern.isPrefix - Whether a trailing `*` makes the text a prefix.
+	 * @param {string} pattern.value - Literal text of the pattern.
 	 * @param {ReadonlyArray<IApiAuthorizationIamResourceSegment>} segments - Collection resource segments.
 	 * @returns {{ constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined} Placeholder constraints of the rows the pattern covers, `isMappable: false` when the placeholder values are ambiguous, or undefined when no row can match.
-	 * A pattern with a `*` before its end never maps: that `*` can span literals and placeholders alike, so when some
-	 * row can match it the whole request is denied.
 	 */
-	private resolveResourcePatternConstraints(pattern: string, segments: ReadonlyArray<IApiAuthorizationIamResourceSegment>): { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined {
-		const isPrefixPattern: boolean = pattern.endsWith("*");
+	private resolveResourcePatternConstraints(pattern: { isPrefix: boolean; value: string }, segments: ReadonlyArray<IApiAuthorizationIamResourceSegment>): { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined {
+		const isPrefixPattern: boolean = pattern.isPrefix;
 		const constraints: Array<IApiAuthorizationIamResourceConstraint> = [];
-		let remainder: string = isPrefixPattern ? pattern.slice(0, -1) : pattern;
-
-		if (remainder.includes("*")) {
-			return ApiAuthorizationIamGlob.isOverlapping(pattern, segments) ? { constraints, isMappable: false } : undefined;
-		}
+		let remainder: string = pattern.value;
 
 		for (const [index, segment] of segments.entries()) {
 			if (segment.placeholder === undefined) {
@@ -838,5 +778,17 @@ export class ApiAuthorizationIamEngine {
 		appendLiteral(resourceDefinition.resourcePath.slice(literalStart));
 
 		return segments;
+	}
+
+	/**
+	 * Matches a Deny resource pattern with a `*` before its end, or any `?`, against a collection resource. Such a
+	 * wildcard can span literals and placeholders alike, so it never maps to rows: when some row can match it the whole
+	 * request is denied.
+	 * @param {IApiAuthorizationIamPattern} pattern - Resource pattern that does not cover the collection.
+	 * @param {ReadonlyArray<IApiAuthorizationIamResourceSegment>} segments - Collection resource segments.
+	 * @returns {{ constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined} A not mappable match when some row can match the pattern, or undefined when no row can.
+	 */
+	private resolveWildcardPatternMatch(pattern: IApiAuthorizationIamPattern, segments: ReadonlyArray<IApiAuthorizationIamResourceSegment>): { constraints: Array<IApiAuthorizationIamResourceConstraint>; isMappable: boolean } | undefined {
+		return ApiAuthorizationIamGlob.isOverlapping(pattern.tokens, segments) ? { constraints: [], isMappable: false } : undefined;
 	}
 }
