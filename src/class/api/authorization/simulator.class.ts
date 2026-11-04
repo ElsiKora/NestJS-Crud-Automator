@@ -21,13 +21,14 @@ export class ApiAuthorizationSimulator {
 		resource?: E;
 		routeAuthorization?: IApiControllerRouteAuthorizationProperties;
 		routeType?: EApiRouteType;
+		time?: Date;
 	}): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		return await this.runtime.evaluate({
 			action: options.action,
 			authorization: options.authorization,
 			entity: options.entity,
 			principal: options.principal,
-			requestMetadata: options.requestMetadata ?? {},
+			requestMetadata: { ...options.requestMetadata, ...(options.time === undefined ? {} : { time: options.time }) },
 			resource: options.resource,
 			routeAuthorization: options.routeAuthorization,
 			routeType: options.routeType,

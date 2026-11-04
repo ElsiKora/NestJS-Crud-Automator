@@ -1,8 +1,7 @@
 /**
  * Every IAM condition operator a policy document can name: each base operator, and its `IfExists` form where the
  * grammar has one. `Null` has no `IfExists` form. A qualifier (`ForAnyValue:`, `ForAllValues:`) is written in front of
- * the operator and is not part of it; see `EApiPolicyConditionQualifier`. An operator the engine does not evaluate yet
- * fails document validation with `iamPolicyNotSupportedYet`.
+ * the operator and is not part of it; see `EApiPolicyConditionQualifier`.
  */
 export enum EApiPolicyConditionOperator {
 	ARN_EQUALS = "ArnEquals",

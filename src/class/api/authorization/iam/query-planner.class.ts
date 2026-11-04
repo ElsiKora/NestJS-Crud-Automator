@@ -1,19 +1,36 @@
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationIamCondition, IApiAuthorizationIamConditionValue, IApiAuthorizationIamDenyExclusion, IApiAuthorizationIamDialect, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair, IApiAuthorizationIamQueryField, IApiAuthorizationIamResourceConstraint, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyStatement } from "@interface/class/api/authorization";
+import type {
+	IApiAuthorizationIamCondition,
+	IApiAuthorizationIamDenyExclusion,
+	IApiAuthorizationIamDialect,
+	IApiAuthorizationIamOperand,
+	IApiAuthorizationIamPredicateColumn,
+	IApiAuthorizationIamPredicatePair,
+	IApiAuthorizationIamQueryField,
+	IApiAuthorizationIamResourceConstraint,
+	IApiAuthorizationIamToken,
+	IApiAuthorizationPrincipal,
+	IApiAuthorizationRequestMetadata,
+	IApiAuthorizationResourceDefinition,
+	IApiAuthorizationScope,
+	IApiPolicyStatement,
+} from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamPredicate, TApiAuthorizationIamPredicateValue } from "@type/class/api/authorization/iam";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm";
 
+import { ApiAuthorizationIamDecimal } from "@class/api/authorization/iam/decimal.class";
 import { ApiAuthorizationIamMysqlLowerer, ApiAuthorizationIamPortableLowerer, ApiAuthorizationIamPostgresLowerer, ApiAuthorizationIamSqliteLowerer } from "@class/api/authorization/iam/lowerer";
+import { ApiAuthorizationIamOperator } from "@class/api/authorization/iam/operator.class";
 import { ApiAuthorizationIamParser } from "@class/api/authorization/iam/parser.class";
 import { ApiAuthorizationIamPredicateBuilder } from "@class/api/authorization/iam/predicate";
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { MetadataStorage } from "@class/metadata-storage.class";
-import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
+import { AUTHORIZATION_IAM_SCOPE_CONSTANT, AUTHORIZATION_POLICY_CONDITION_OPERATOR_CONSTANT } from "@constant/class/authorization";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
-import { EApiAuthorizationIamDialect, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind } from "@enum/class/authorization";
+import { EApiAuthorizationIamDialect, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamPredicateOperator, EApiPolicyConditionOperatorFamily } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
@@ -30,6 +47,9 @@ const iamQueryPlannerFieldCache: WeakMap<object, Map<string, IApiAuthorizationIa
 // The dialect of a scope planned without one: the SQL every database evaluates alike, as 5.1.0 emitted it.
 const IAM_QUERY_PLANNER_PORTABLE_DIALECT: IApiAuthorizationIamDialect = Object.freeze({ type: EApiAuthorizationIamDialect.PORTABLE });
 
+// A NUL character, which PostgreSQL refuses in text.
+const IAM_QUERY_PLANNER_NUL: string = "\u0000";
+
 /**
  * Compiles matched IAM statements into TypeORM scopes. Each `resource.*` condition key and each row-scoped
  * resource-pattern constraint becomes a NULL-complete pair of predicates (see `ApiAuthorizationIamPredicateBuilder`):
@@ -39,6 +59,32 @@ const IAM_QUERY_PLANNER_PORTABLE_DIALECT: IApiAuthorizationIamDialect = Object.f
  */
 @Injectable()
 export class ApiAuthorizationIamQueryPlanner {
+	/**
+	 * Tells whether a `resource.*` key compiles for a dialect, in both directions. A key that does not fails closed on a
+	 * loaded resource too, where memory alone could read it, so a row decides alike whichever way it reached the check.
+	 * @template E - Entity type.
+	 * @template M - List pagination mode.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {object} options - Planning options.
+	 * @param {IApiAuthorizationIamDialect} [options.dialect] - SQL dialect of the resource entity; portable when absent.
+	 * @param {IApiAuthorizationPrincipal} options.principal - Principal used to resolve `${...}` condition values.
+	 * @param {IApiAuthorizationRequestMetadata<E, M>} options.requestMetadata - Request metadata used to resolve `${...}` condition values.
+	 * @param {E} [options.resource] - Loaded resource, when available.
+	 * @param {IApiAuthorizationResourceDefinition<E>} options.resourceDefinition - IAM resource definition with the filterable field mappings.
+	 * @returns {boolean} Whether both `holds` and `fails` of the key lower exactly.
+	 */
+	public isConditionCompilable<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(condition: IApiAuthorizationIamCondition, options: { dialect?: IApiAuthorizationIamDialect; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): boolean {
+		const pair: IApiAuthorizationIamPredicatePair | undefined = this.buildConditionPair(condition, options);
+
+		if (!pair) {
+			return false;
+		}
+
+		const lowerer: ApiAuthorizationIamPortableLowerer = this.createLowerer(options.dialect ?? IAM_QUERY_PLANNER_PORTABLE_DIALECT);
+
+		return lowerer.lower<E>(pair.holds, AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES).isCompilable && lowerer.lower<E>(pair.fails, AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES).isCompilable;
+	}
+
 	/**
 	 * Compiles matched Allow statements into the scope of rows they allow: the OR of every statement's branches. A
 	 * statement without a `resource.*` key allows every row, so the scope is then unrestricted.
@@ -157,8 +203,8 @@ export class ApiAuthorizationIamQueryPlanner {
 
 	/**
 	 * Builds the pair of one `resource.*` condition key. The key needs a filterable field mapping on a column TypeORM
-	 * maps and a String operator can compare (see `ApiAuthorizationIamPredicateBuilder.isStringComparable`), and a
-	 * non-empty scalar value: a boolean column takes `true` or `false`, any other column the canonical text of the value.
+	 * maps and its operator family fits (see `ApiAuthorizationIamPredicateBuilder.isOperatorFitting`), and a value the
+	 * family can read: `""` and a NUL character compare in no database as they do in memory, so they do not compile.
 	 * @template E - Entity type.
 	 * @template M - List pagination mode.
 	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
@@ -178,24 +224,20 @@ export class ApiAuthorizationIamQueryPlanner {
 
 		const field: IApiAuthorizationIamQueryField = this.resolveField(context.resourceDefinition.entity, fieldDefinition.queryPath);
 
-		if (!field.isResolvable || !ApiAuthorizationIamPredicateBuilder.isStringComparable(field)) {
+		if (!field.isResolvable || !ApiAuthorizationIamPredicateBuilder.isOperatorFitting(condition.family, field)) {
 			return undefined;
 		}
 
-		const resolvedValue: unknown = this.resolveConditionValue(condition, context);
-		const value: TApiAuthorizationIamPredicateValue | undefined = this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(field, fieldDefinition.queryPath, resolvedValue) : undefined;
+		const operand: IApiAuthorizationIamOperand | undefined = ApiAuthorizationIamOperator.readOperand(condition, ApiAuthorizationIamVariable.createContext(context.principal, context.requestMetadata, context.resource));
 
-		if (value === undefined) {
+		if (!operand) {
 			return undefined;
 		}
 
-		return ApiAuthorizationIamPredicateBuilder.buildCondition({
-			column: { field, queryPath: fieldDefinition.queryPath },
-			comparison: field.isBoolean ? EApiAuthorizationIamPredicateComparison.BOOLEAN : EApiAuthorizationIamPredicateComparison.TEXT,
-			condition,
-			presence: field.presencePath === undefined ? undefined : { field: this.resolveField(context.resourceDefinition.entity, field.presencePath), queryPath: field.presencePath },
-			values: [value],
-		});
+		const column: IApiAuthorizationIamPredicateColumn = { field, queryPath: fieldDefinition.queryPath };
+		const presence: IApiAuthorizationIamPredicateColumn | undefined = field.presencePath === undefined ? undefined : { field: this.resolveField(context.resourceDefinition.entity, field.presencePath), queryPath: field.presencePath };
+
+		return this.buildOperandPair(condition, operand, column, presence);
 	}
 
 	/**
@@ -284,8 +326,61 @@ export class ApiAuthorizationIamQueryPlanner {
 	}
 
 	/**
+	 * Builds the pair of one key from its resolved operand, by the operator family.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {IApiAuthorizationIamOperand} operand - Operand of the key.
+	 * @param {IApiAuthorizationIamPredicateColumn} column - Column the key reads.
+	 * @param {IApiAuthorizationIamPredicateColumn} [presence] - Presence column of an optional path.
+	 * @returns {IApiAuthorizationIamPredicatePair | undefined} The pair, or undefined when the key cannot compile.
+	 */
+	private buildOperandPair(condition: IApiAuthorizationIamCondition, operand: IApiAuthorizationIamOperand, column: IApiAuthorizationIamPredicateColumn, presence: IApiAuthorizationIamPredicateColumn | undefined): IApiAuthorizationIamPredicatePair | undefined {
+		const comparison: EApiAuthorizationIamPredicateOperator | undefined = AUTHORIZATION_POLICY_CONDITION_OPERATOR_CONSTANT.OPERATORS.get(condition.operator)?.comparison;
+
+		switch (condition.family) {
+			case EApiPolicyConditionOperatorFamily.ARN: {
+				return operand.pattern && this.isPatternBindable(operand.pattern) ? ApiAuthorizationIamPredicateBuilder.buildArn({ column, condition, pattern: operand.pattern, presence }) : undefined;
+			}
+
+			case EApiPolicyConditionOperatorFamily.BOOL: {
+				return operand.isTrue === undefined ? undefined : ApiAuthorizationIamPredicateBuilder.buildCondition({ column, comparison: EApiAuthorizationIamPredicateComparison.BOOLEAN, condition, presence, values: [operand.isTrue] });
+			}
+
+			case EApiPolicyConditionOperatorFamily.DATE: {
+				// A calendar date compares only with a `date` column, and an instant with every other: neither reads as the other.
+				return operand.date && comparison !== undefined && operand.date.isCalendar === (column.field.column?.type === "date") ? ApiAuthorizationIamPredicateBuilder.buildCompare({ column, comparison: EApiAuthorizationIamPredicateComparison.DATE, condition, operator: comparison, presence, value: operand.date.text }) : undefined;
+			}
+
+			case EApiPolicyConditionOperatorFamily.IP_ADDRESS: {
+				return operand.network ? ApiAuthorizationIamPredicateBuilder.buildIpContained({ column, condition, presence, range: operand.network.text }) : undefined;
+			}
+
+			case EApiPolicyConditionOperatorFamily.NULL: {
+				return operand.isTrue === undefined ? undefined : ApiAuthorizationIamPredicateBuilder.buildNull({ column, isNull: operand.isTrue });
+			}
+
+			case EApiPolicyConditionOperatorFamily.NUMERIC: {
+				return operand.decimal && comparison !== undefined ? ApiAuthorizationIamPredicateBuilder.buildCompare({ column, comparison: EApiAuthorizationIamPredicateComparison.NUMERIC, condition, operator: comparison, presence, value: ApiAuthorizationIamDecimal.toText(operand.decimal) }) : undefined;
+			}
+
+			case EApiPolicyConditionOperatorFamily.STRING: {
+				const value: TApiAuthorizationIamPredicateValue | undefined = this.isBindableText(operand.text) ? this.resolveColumnValue(column.field, column.queryPath, operand.text) : undefined;
+
+				return value === undefined ? undefined : ApiAuthorizationIamPredicateBuilder.buildCondition({ column, comparison: column.field.isBoolean ? EApiAuthorizationIamPredicateComparison.BOOLEAN : EApiAuthorizationIamPredicateComparison.TEXT, condition, presence, values: [value] });
+			}
+
+			case EApiPolicyConditionOperatorFamily.STRING_IGNORE_CASE: {
+				return this.isBindableText(operand.text) ? ApiAuthorizationIamPredicateBuilder.buildCondition({ column, comparison: EApiAuthorizationIamPredicateComparison.TEXT_IGNORE_CASE, condition, presence, values: [operand.text] }) : undefined;
+			}
+
+			case EApiPolicyConditionOperatorFamily.STRING_LIKE: {
+				return operand.pattern && this.isPatternBindable(operand.pattern) ? ApiAuthorizationIamPredicateBuilder.buildLike({ column, condition, pattern: operand.pattern, presence }) : undefined;
+			}
+		}
+	}
+
+	/**
 	 * Builds the rows one matched Allow statement allows: the AND of the `holds` of its `resource.*` keys, `TRUE` when
-	 * it has none. A negated key does not compile in an Allow scope, as in 5.1.0.
+	 * it has none.
 	 * @template E - Entity type.
 	 * @template M - List pagination mode.
 	 * @param {ReadonlyArray<IApiAuthorizationIamCondition>} conditions - Condition keys of the statement, read by the grammar.
@@ -304,7 +399,7 @@ export class ApiAuthorizationIamQueryPlanner {
 				continue;
 			}
 
-			const pair: IApiAuthorizationIamPredicatePair | undefined = condition.isNegated ? undefined : this.buildConditionPair(condition, context);
+			const pair: IApiAuthorizationIamPredicatePair | undefined = this.buildConditionPair(condition, context);
 
 			if (!pair) {
 				return undefined;
@@ -348,13 +443,22 @@ export class ApiAuthorizationIamQueryPlanner {
 	}
 
 	/**
-	 * Accepts only condition values whose SQL comparison matches the in-memory evaluator, which normalizes
-	 * `null`, `undefined`, and `""` to the same empty string and cannot compare objects.
-	 * @param {unknown} value - Resolved condition value.
-	 * @returns {boolean} True for non-empty scalar values.
+	 * Accepts only text whose SQL comparison matches the in-memory evaluator: `""` reads as a missing value there, and
+	 * PostgreSQL refuses a NUL character instead of comparing it.
+	 * @param {string | undefined} text - Resolved text.
+	 * @returns {boolean} True for non-empty text without a NUL character.
 	 */
-	private isCompilableValue(value: unknown): boolean {
-		return value !== undefined && value !== null && value !== "" && typeof value !== "object";
+	private isBindableText(text: string | undefined): text is string {
+		return text !== undefined && text !== "" && !text.includes(IAM_QUERY_PLANNER_NUL);
+	}
+
+	/**
+	 * Accepts only a pattern whose literals every database can bind.
+	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} pattern - Resolved pattern tokens.
+	 * @returns {boolean} True when no literal holds a NUL character.
+	 */
+	private isPatternBindable(pattern: ReadonlyArray<IApiAuthorizationIamToken>): boolean {
+		return pattern.every((token: IApiAuthorizationIamToken): boolean => !(token.value ?? "").includes(IAM_QUERY_PLANNER_NUL));
 	}
 
 	/**
@@ -409,38 +513,6 @@ export class ApiAuthorizationIamQueryPlanner {
 		} catch {
 			return undefined;
 		}
-	}
-
-	/**
-	 * Resolves the value of a condition key against the request: a literal as written, a variable to the context value at its path.
-	 * @template E - Entity type.
-	 * @template M - List pagination mode.
-	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
-	 * @param {object} context - Evaluation context.
-	 * @param {IApiAuthorizationPrincipal} context.principal - Principal.
-	 * @param {IApiAuthorizationRequestMetadata<E, M>} context.requestMetadata - Request metadata.
-	 * @param {E} [context.resource] - Loaded resource, when available.
-	 * @returns {unknown} The resolved value, or undefined when the key has no value.
-	 */
-	private resolveConditionValue<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(condition: IApiAuthorizationIamCondition, context: { principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E }): unknown {
-		// The grammar gives a key one value until several values reach the planner.
-		const conditionValue: IApiAuthorizationIamConditionValue | undefined = condition.values[0];
-
-		if (!conditionValue) {
-			return undefined;
-		}
-
-		return ApiAuthorizationIamVariable.resolveValue(conditionValue, {
-			principal: context.principal,
-			request: {
-				body: context.requestMetadata.body,
-				headers: context.requestMetadata.headers,
-				ip: context.requestMetadata.ip,
-				parameters: context.requestMetadata.parameters,
-				query: context.requestMetadata.query,
-			},
-			resource: context.resource,
-		});
 	}
 
 	/**

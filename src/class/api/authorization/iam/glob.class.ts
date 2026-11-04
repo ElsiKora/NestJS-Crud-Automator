@@ -13,6 +13,9 @@ const IAM_GLOB_QUESTION_MARK: number = -2;
 // Template symbol of an unresolved placeholder: any value a row can hold. Only a pattern `*` covers it.
 const IAM_GLOB_PLACEHOLDER: number = -3;
 
+// Code point of `:`, which separates the segments of an Arn value.
+const IAM_GLOB_SEGMENT_SEPARATOR: number = 58;
+
 /**
  * Matches IAM `Action` and `Resource` patterns with glob semantics. `*` matches any sequence of characters, the empty
  * one and `:` or `/` included, at any position; `?` matches exactly one Unicode code point; every other character
@@ -90,6 +93,30 @@ export class ApiAuthorizationIamGlob {
 		}
 
 		return reachable[templateSymbols.length] === true;
+	}
+
+	/**
+	 * Tells whether a pattern matches a value segment by segment, as an Arn operator does: both split on `:`, the counts
+	 * of their segments must be equal, and `*` and `?` stay within one segment.
+	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} pattern - Pattern tokens; an escaped or substituted `*` or `?` is a literal.
+	 * @param {string} value - Concrete value.
+	 * @returns {boolean} Whether every segment of the value matches its segment of the pattern.
+	 */
+	public static isSegmentMatched(pattern: ReadonlyArray<IApiAuthorizationIamToken>, value: string): boolean {
+		const symbols: Array<number> = ApiAuthorizationIamGlob.readPatternSymbols(pattern);
+		const patternSegments: Array<Array<number>> = [[]];
+
+		for (const symbol of symbols) {
+			if (symbol === IAM_GLOB_SEGMENT_SEPARATOR) {
+				patternSegments.push([]);
+			} else {
+				patternSegments.at(-1)?.push(symbol);
+			}
+		}
+
+		const valueSegments: Array<string> = value.split(":");
+
+		return patternSegments.length === valueSegments.length && patternSegments.every((segment: ReadonlyArray<number>, index: number): boolean => ApiAuthorizationIamGlob.matchSymbols(segment, ApiAuthorizationIamGlob.readCodePoints(valueSegments[index] ?? "")));
 	}
 
 	/**

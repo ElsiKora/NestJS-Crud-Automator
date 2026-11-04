@@ -1,9 +1,13 @@
 export * from "./attachment";
+export { ApiAuthorizationIamDateValue } from "./date-value.class";
+export { ApiAuthorizationIamDecimal } from "./decimal.class";
 export { ApiAuthorizationIamDialectRegistry } from "./dialect-registry.class";
 export * from "./document";
 export { ApiAuthorizationIamEngine } from "./engine.class";
 export { ApiAuthorizationIamGlob } from "./glob.class";
 export * from "./lowerer";
+export { ApiAuthorizationIamNetwork } from "./network.class";
+export { ApiAuthorizationIamOperator } from "./operator.class";
 export { ApiAuthorizationIamParser } from "./parser.class";
 export * from "./predicate";
 export { ApiAuthorizationIamQueryPlanner } from "./query-planner.class";

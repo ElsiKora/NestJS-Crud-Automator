@@ -3,9 +3,9 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type {
 	IApiAuthorizationDecision,
 	IApiAuthorizationIamCondition,
-	IApiAuthorizationIamConditionValue,
 	IApiAuthorizationIamDenyExclusion,
 	IApiAuthorizationIamDialect,
+	IApiAuthorizationIamOperand,
 	IApiAuthorizationIamPattern,
 	IApiAuthorizationIamQueryField,
 	IApiAuthorizationIamResourceConstraint,
@@ -25,12 +25,12 @@ import type {
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
 import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class";
+import { ApiAuthorizationIamOperator } from "@class/api/authorization/iam/operator.class";
 import { ApiAuthorizationIamParser } from "@class/api/authorization/iam/parser.class";
-import { ApiAuthorizationIamPredicateBuilder } from "@class/api/authorization/iam/predicate";
 import { ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam/query-planner.class";
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
-import { EApiAuthorizationDecisionType, EApiAuthorizationIamTokenType, EApiAuthorizationMode, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
+import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiPolicyConditionOperatorFamily, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
@@ -78,7 +78,9 @@ export class ApiAuthorizationIamEngine {
 	}): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		iamEngineLogger.verbose(`Evaluating IAM authorization for principal "${options.principal.id}" action "${options.action}" with ${options.documents.length} documents.`);
 
-		const resourceSegments: Array<IApiAuthorizationIamResourceSegment> = this.resolveResourceSegments(options.resourceDefinition, options.requestMetadata, options.resource);
+		// One request reads one time, so every key and scope of it compares with the same instant.
+		const requestMetadata: IApiAuthorizationRequestMetadata<E, M> = options.requestMetadata.time ? options.requestMetadata : { ...options.requestMetadata, time: new Date() };
+		const resourceSegments: Array<IApiAuthorizationIamResourceSegment> = this.resolveResourceSegments(options.resourceDefinition, requestMetadata, options.resource);
 		const isCreateRequest: boolean = AuthorizationIsCreateRoute(options.routeType, options.action, options.policyNamespace);
 		const isListRequest: boolean = AuthorizationIsListRoute(options.routeType, options.action, options.policyNamespace);
 		const documentMap: Map<string, IApiPolicyDocumentRecord> = new Map<string, IApiPolicyDocumentRecord>(options.documents.map((document: IApiPolicyDocumentRecord): [string, IApiPolicyDocumentRecord] => [document.id, document]));
@@ -105,7 +107,7 @@ export class ApiAuthorizationIamEngine {
 			isCreateRequest,
 			isListRequest,
 			principal: options.principal,
-			requestMetadata: options.requestMetadata,
+			requestMetadata,
 			resource: options.resource,
 			resourceDefinition: options.resourceDefinition,
 			resourceSegments,
@@ -129,7 +131,7 @@ export class ApiAuthorizationIamEngine {
 			isCreateRequest,
 			isListRequest,
 			principal: options.principal,
-			requestMetadata: options.requestMetadata,
+			requestMetadata,
 			resource: options.resource,
 			resourceDefinition: options.resourceDefinition,
 			resourceSegments,
@@ -141,7 +143,7 @@ export class ApiAuthorizationIamEngine {
 		} = this.queryPlanner.plan({
 			dialect: options.dialect,
 			principal: options.principal,
-			requestMetadata: options.requestMetadata,
+			requestMetadata,
 			resource: options.resource,
 			resourceDefinition: options.resourceDefinition,
 			statements: identityEvaluation.allowStatements,
@@ -156,7 +158,7 @@ export class ApiAuthorizationIamEngine {
 				: this.queryPlanner.plan({
 						dialect: options.dialect,
 						principal: options.principal,
-						requestMetadata: options.requestMetadata,
+						requestMetadata,
 						resource: options.resource,
 						resourceDefinition: options.resourceDefinition,
 						statements: boundaryEvaluation.allowStatements,
@@ -177,7 +179,7 @@ export class ApiAuthorizationIamEngine {
 			dialect: options.dialect,
 			exclusions: [...identityEvaluation.denyExclusions, ...boundaryEvaluation.denyExclusions],
 			principal: options.principal,
-			requestMetadata: options.requestMetadata,
+			requestMetadata,
 			resource: options.resource,
 			resourceDefinition: options.resourceDefinition,
 		});
@@ -284,6 +286,51 @@ export class ApiAuthorizationIamEngine {
 		};
 	}
 
+	/**
+	 * Evaluates one condition key in memory, as `ApiAuthorizationIamOperator` says. A `resource.*` key reads the column its
+	 * field mapping declares, and compares only if its SQL scope could: otherwise the row would decide one way when loaded
+	 * and another when listed. A key on a path TypeORM does not map has no column type to check, so only String and Null
+	 * read it.
+	 * @template E - Entity type.
+	 * @template M - List pagination mode.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {unknown} context - Evaluation context with the `principal`, `request` and `resource` roots.
+	 * @param {object} options - Matching options.
+	 * @param {IApiAuthorizationIamDialect} [options.dialect] - SQL dialect of the resource entity.
+	 * @param {IApiAuthorizationPrincipal} options.principal - Evaluated principal.
+	 * @param {IApiAuthorizationRequestMetadata<E, M>} options.requestMetadata - Request metadata.
+	 * @param {E} [options.resource] - Loaded resource, when available.
+	 * @param {IApiAuthorizationResourceDefinition<E>} options.resourceDefinition - IAM resource definition.
+	 * @returns {boolean | undefined} Whether the key holds, or undefined when it cannot be read, which fails it closed.
+	 */
+	private evaluateCondition<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(condition: IApiAuthorizationIamCondition, context: unknown, options: { dialect?: IApiAuthorizationIamDialect; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): boolean | undefined {
+		const operand: IApiAuthorizationIamOperand | undefined = ApiAuthorizationIamOperator.readOperand(condition, context);
+
+		if (!operand) {
+			return undefined;
+		}
+
+		if (!condition.key.startsWith("resource.")) {
+			return ApiAuthorizationIamOperator.evaluate(condition, ApiAuthorizationIamVariable.readPath(context, condition.key), operand, false);
+		}
+
+		// A `resource.*` key with no field mapping, or one through a to-many relation, has no single column.
+		const actualValue: { isDeclared: boolean; isReadable: boolean; value?: unknown } = this.readResourceValue(options.resourceDefinition, options.resource, condition.key);
+
+		if (!actualValue.isReadable) {
+			return undefined;
+		}
+
+		const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = options.resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === condition.key);
+		const field: IApiAuthorizationIamQueryField | undefined = fieldDefinition ? AuthorizationIamReadQueryField(options.resourceDefinition.entity, fieldDefinition.queryPath) : undefined;
+
+		if (field?.isResolvable) {
+			return this.queryPlanner.isConditionCompilable(condition, options) ? ApiAuthorizationIamOperator.evaluate(condition, actualValue.value, operand, true) : undefined;
+		}
+
+		return condition.family === EApiPolicyConditionOperatorFamily.STRING || condition.family === EApiPolicyConditionOperatorFamily.NULL ? ApiAuthorizationIamOperator.evaluate(condition, actualValue.value, operand, false) : undefined;
+	}
+
 	private evaluateDocumentSet<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: {
 		action: string;
 		dialect?: IApiAuthorizationIamDialect;
@@ -372,65 +419,8 @@ export class ApiAuthorizationIamEngine {
 		};
 	}
 
-	/**
-	 * Evaluates one String condition key in memory: both sides compare as canonical text, a missing or null value as an
-	 * empty string. `IfExists` holds for a missing value; a negated operator holds where the positive one fails.
-	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
-	 * @param {unknown} actualValue - Value the key reads.
-	 * @param {unknown} expectedValue - Resolved condition value.
-	 * @returns {boolean} Whether the key holds.
-	 */
-	private evaluateOperator(condition: IApiAuthorizationIamCondition, actualValue: unknown, expectedValue: unknown): boolean {
-		if (condition.isIfExists && actualValue === undefined) {
-			return true;
-		}
-
-		const isEqual: boolean = this.normalizeComparable(actualValue) === this.normalizeComparable(expectedValue);
-
-		return condition.isNegated ? !isEqual : isEqual;
-	}
-
 	private isRecord(value: unknown): value is Record<string, unknown> {
 		return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-	}
-
-	/**
-	 * Tells whether a condition value is a `${resource.*}` variable.
-	 * @param {IApiAuthorizationIamConditionValue} value - Condition value read by the grammar.
-	 * @returns {boolean} Whether the value reads the resource.
-	 */
-	private isResourceVariable(value: IApiAuthorizationIamConditionValue): boolean {
-		return value.parts.some((part: IApiAuthorizationIamToken): boolean => part.type === EApiAuthorizationIamTokenType.VARIABLE && (part.variable?.path.startsWith("resource.") ?? false));
-	}
-
-	/**
-	 * Tells whether a String operator may compare a `resource.*` key of a loaded resource. A key whose field mapping
-	 * ends on a column TypeORM maps compares only a text, UUID, enum or boolean column, as its SQL scope does; a key
-	 * TypeORM does not map has no column type to check and compares its value as text.
-	 * @template E - Entity type.
-	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition with the field mappings.
-	 * @param {string} path - `resource.*` condition path.
-	 * @returns {boolean} Whether the key compares.
-	 */
-	private isStringComparableResourcePath<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, path: string): boolean {
-		const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === path);
-
-		if (!fieldDefinition) {
-			return false;
-		}
-
-		const field: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, fieldDefinition.queryPath);
-
-		return !field.isResolvable || ApiAuthorizationIamPredicateBuilder.isStringComparable(field);
-	}
-
-	/**
-	 * Tells whether a value has no text to compare although it is present: a list, an object, or an invalid date.
-	 * @param {unknown} value - Value a condition key reads.
-	 * @returns {boolean} Whether the value is structured.
-	 */
-	private isStructuredValue(value: unknown): boolean {
-		return typeof value === "object" && value !== null && AuthorizationSerializeValue(value) === undefined;
 	}
 
 	/**
@@ -473,13 +463,33 @@ export class ApiAuthorizationIamEngine {
 			return { isMatched: false };
 		}
 
+		const context: Record<string, unknown> = ApiAuthorizationIamVariable.createContext(options.principal, options.requestMetadata, options.resource);
+		const resourcePatterns: Array<IApiAuthorizationIamPattern> = [];
+		let hasUnresolvedPattern: boolean = false;
+
+		for (const pattern of statement.resource.patterns) {
+			const parts: Array<IApiAuthorizationIamToken> | undefined = ApiAuthorizationIamVariable.resolveTokens(pattern.tokens, context);
+
+			if (parts) {
+				resourcePatterns.push({ source: pattern.source, tokens: parts });
+			} else {
+				hasUnresolvedPattern = true;
+			}
+		}
+
 		// An unresolved placeholder may hold any value, so only a pattern that covers every value matches the whole collection.
-		const isResourceMatched: boolean = statement.resource.patterns.some((pattern: IApiAuthorizationIamPattern): boolean => ApiAuthorizationIamGlob.isCovering(pattern.tokens, options.resourceSegments));
+		const isResourceMatched: boolean = resourcePatterns.some((pattern: IApiAuthorizationIamPattern): boolean => ApiAuthorizationIamGlob.isCovering(pattern.tokens, options.resourceSegments));
 		const resourceConstraintSets: Array<ReadonlyArray<IApiAuthorizationIamResourceConstraint>> = isResourceMatched ? [[]] : [];
 		let isResourceMappable: boolean = true;
 
+		// A pattern whose variable does not resolve names no resource: an Allow grants nothing by it, and a Deny fails closed.
+		if (hasUnresolvedPattern && isDeny) {
+			isResourceMappable = false;
+			resourceConstraintSets.push([]);
+		}
+
 		if (!isResourceMatched && isDeny && options.resource === undefined && (options.isListRequest || options.isCreateRequest)) {
-			for (const pattern of statement.resource.patterns) {
+			for (const pattern of resourcePatterns) {
 				const literalPrefix: { isPrefix: boolean; value: string } | undefined = ApiAuthorizationIamGlob.readLiteralPrefix(pattern.tokens);
 
 				// A create names no row, so only a pattern with a wildcard before its end, which cannot be mapped, applies to it.
@@ -500,84 +510,19 @@ export class ApiAuthorizationIamEngine {
 			return { isMatched: false };
 		}
 
-		const evaluationContext: {
-			principal: IApiAuthorizationPrincipal;
-			request: {
-				body?: unknown;
-				headers?: Record<string, string>;
-				ip?: string;
-				parameters?: unknown;
-				query?: unknown;
-			};
-			resource?: IApiBaseEntity;
-		} = {
-			principal: options.principal,
-			request: {
-				body: options.requestMetadata.body,
-				headers: options.requestMetadata.headers,
-				ip: options.requestMetadata.ip,
-				parameters: options.requestMetadata.parameters,
-				query: options.requestMetadata.query,
-			},
-			resource: options.resource,
-		};
-
 		let hasResourceCondition: boolean = false;
 
 		for (const condition of statement.conditions) {
-			const path: string = condition.key;
-
-			if (path.startsWith("resource.") && options.resource === undefined) {
+			if (condition.key.startsWith("resource.") && options.resource === undefined) {
 				hasResourceCondition = true;
 
 				continue;
 			}
 
-			// The grammar gives a key one value until several values reach the engine.
-			const conditionValue: IApiAuthorizationIamConditionValue | undefined = condition.values[0];
+			const isHolding: boolean | undefined = this.evaluateCondition(condition, context, options);
 
-			// A `${resource.*}` value has no resource to read before the row is loaded, so it fails closed: it holds for a Deny and fails an Allow.
-			if (!conditionValue || (options.resource === undefined && this.isResourceVariable(conditionValue))) {
-				if (isDeny) {
-					continue;
-				}
-
-				return { isMatched: false };
-			}
-
-			const expectedValue: unknown = ApiAuthorizationIamVariable.resolveValue(conditionValue, evaluationContext);
-
-			// A variable that resolves to a list or an object has no text to compare, so it fails closed; one that resolves to null still compares as "".
-			if (typeof expectedValue === "object" && expectedValue !== null && !(expectedValue instanceof Date)) {
-				if (isDeny) {
-					continue;
-				}
-
-				return { isMatched: false };
-			}
-
-			const actualValue: { isDeclared: boolean; isReadable: boolean; value?: unknown } = path.startsWith("resource.") ? this.readResourceValue(options.resourceDefinition, options.resource, path) : { isDeclared: true, isReadable: true, value: this.resolvePathValue(evaluationContext, path) };
-
-			// A `resource.*` key with no field mapping, or one through a to-many relation, has no single column, so it fails closed as the SQL scope does: it holds for a Deny and fails an Allow.
-			if (!actualValue.isReadable) {
-				if (isDeny) {
-					continue;
-				}
-
-				return { isMatched: false };
-			}
-
-			// A list or object value, such as `principal.roles`, has no one text to compare, so the key fails closed: it holds for a Deny and fails an Allow.
-			// So does a column a String operator cannot compare as the SQL scope would, such as a numeric or date column.
-			if (this.isStructuredValue(actualValue.value) || (path.startsWith("resource.") && !this.isStringComparableResourcePath(options.resourceDefinition, path))) {
-				if (isDeny) {
-					continue;
-				}
-
-				return { isMatched: false };
-			}
-
-			if (!this.evaluateOperator(condition, actualValue.value, expectedValue)) {
+			// A key that cannot be read fails closed: it holds for a Deny and fails an Allow.
+			if (isHolding === undefined ? !isDeny : !isHolding) {
 				return { isMatched: false };
 			}
 		}
@@ -623,15 +568,6 @@ export class ApiAuthorizationIamEngine {
 			...additionalScope,
 			where: AuthorizationScopeMergeWhere(baseScope.where, additionalScope.where),
 		};
-	}
-
-	/**
-	 * Writes a condition operand as the canonical text the condition compares, so a typed resource value and the text of a path value compare equal.
-	 * @param {unknown} value - Request, resource or principal value.
-	 * @returns {string} Canonical text, or an empty string for a missing or null value.
-	 */
-	private normalizeComparable(value: unknown): string {
-		return AuthorizationSerializeValue(value) ?? "";
 	}
 
 	/**

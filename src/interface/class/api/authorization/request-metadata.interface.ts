@@ -10,4 +10,6 @@ export interface IApiAuthorizationRequestMetadata<E extends IApiBaseEntity, M ex
 	/** Path values as the canonical text authorization compares. */
 	parameters?: Record<string, string>;
 	query?: TApiControllerGetListQuery<E, M>;
+	/** The instant of the request, captured once, so every statement and every list page of it reads one `request.time`. */
+	time?: Date;
 }

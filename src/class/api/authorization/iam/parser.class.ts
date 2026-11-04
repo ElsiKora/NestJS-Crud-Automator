@@ -2,9 +2,11 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationIamCondition, IApiAuthorizationIamConditionValue, IApiAuthorizationIamContextKey, IApiAuthorizationIamFailure, IApiAuthorizationIamOperatorDefinition, IApiAuthorizationIamPattern, IApiAuthorizationIamQueryField, IApiAuthorizationIamStatement, IApiAuthorizationIamStatementTarget, IApiAuthorizationIamToken, IApiAuthorizationResourceDefinition, IApiAuthorizationResourceFieldDefinition } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamLiteral } from "@type/class/api/authorization/iam-literal.type";
 
-import { isIP } from "node:net";
-
+import { ApiAuthorizationIamDateValue } from "@class/api/authorization/iam/date-value.class";
+import { ApiAuthorizationIamDecimal } from "@class/api/authorization/iam/decimal.class";
 import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class";
+import { ApiAuthorizationIamNetwork } from "@class/api/authorization/iam/network.class";
+import { ApiAuthorizationIamPredicateBuilder } from "@class/api/authorization/iam/predicate/builder.class";
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { AUTHORIZATION_POLICY_CONDITION_OPERATOR_CONSTANT, AUTHORIZATION_POLICY_CONTEXT_KEY_CONSTANT, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT } from "@constant/class/authorization";
 import { EApiAuthorizationIamSupport, EApiAuthorizationIamTokenType, EApiPolicyConditionOperator, EApiPolicyConditionOperatorFamily, EApiPolicyConditionQualifier, EApiPolicyEffect } from "@enum/class/authorization";
@@ -21,9 +23,6 @@ const IAM_PARSER_STATEMENT_FIELDS: ReadonlySet<string> = new Set<string>(["Actio
 // A context path: a root and dot-separated segments of letters, digits, `_` and `-`.
 const IAM_PARSER_PATH_PATTERN: RegExp = /^[A-Z]\w*(?:\.[\w-]+)*$/i;
 
-// Decimal text a Numeric operator takes.
-const IAM_PARSER_DECIMAL_PATTERN: RegExp = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/;
-
 // A date and time: date, time with optional seconds, optional fraction, optional zone designator.
 const IAM_PARSER_DATE_TIME_PATTERN: RegExp = /^(?<date>[\d-]{10})T(?<time>\d{2}:\d{2}(?::\d{2})?)(?:\.(?<fraction>\d+))?(?<zone>Z|[+-]\d{2}:\d{2})?$/;
 
@@ -39,14 +38,8 @@ const IAM_PARSER_MAX_HOUR: number = 23;
 // Largest minute or second of a time of day.
 const IAM_PARSER_MAX_MINUTE: number = 59;
 
-// Largest CIDR prefix length of an IPv4 range.
-const IAM_PARSER_MAX_IPV4_PREFIX: number = 32;
-
-// Largest CIDR prefix length of an IPv6 range.
-const IAM_PARSER_MAX_IPV6_PREFIX: number = 128;
-
-// The `isIP` family of an IPv4 address.
-const IAM_PARSER_IPV4_FAMILY: number = 4;
+// The context key of the time of the request.
+const IAM_PARSER_REQUEST_TIME_KEY: string = "request.time";
 
 // Epoch seconds, which the grammar refuses as a date.
 const IAM_PARSER_EPOCH_PATTERN: RegExp = /^-?\d+(?:\.\d+)?$/;
@@ -232,6 +225,13 @@ export class ApiAuthorizationIamParser {
 			return false;
 		}
 
+		// What the shape cannot tell: a year outside 0001 to 9999, or a zone offset out of range.
+		if (!ApiAuthorizationIamDateValue.parse(text)) {
+			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_VALUE_INVALID, "Date operators take a year from 0001 to 9999 and a zone offset up to 23:59");
+
+			return false;
+		}
+
 		return true;
 	}
 
@@ -258,7 +258,7 @@ export class ApiAuthorizationIamParser {
 			message = "Arn operators take a non-empty colon-delimited name";
 		} else if ((family === EApiPolicyConditionOperatorFamily.BOOL || family === EApiPolicyConditionOperatorFamily.NULL) && !ApiAuthorizationIamParser.isBooleanText(value)) {
 			message = "Bool and Null take true or false";
-		} else if (family === EApiPolicyConditionOperatorFamily.IP_ADDRESS && (typeof value !== "string" || !ApiAuthorizationIamParser.isIpAddressOrRange(value))) {
+		} else if (family === EApiPolicyConditionOperatorFamily.IP_ADDRESS && (typeof value !== "string" || !ApiAuthorizationIamNetwork.parse(value))) {
 			message = "IpAddress operators take an IPv4 or IPv6 address or CIDR range";
 		}
 
@@ -277,7 +277,7 @@ export class ApiAuthorizationIamParser {
 	 * @returns {boolean} Whether the value is a number.
 	 */
 	private static checkNumericValue(value: TApiAuthorizationIamLiteral, property: string, scope: IApiAuthorizationIamParserScope): boolean {
-		if (typeof value === "string" ? !IAM_PARSER_DECIMAL_PATTERN.test(value) : typeof value !== "number") {
+		if (typeof value === "string" ? !ApiAuthorizationIamDecimal.parse(value) : typeof value !== "number") {
 			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_VALUE_INVALID, "Numeric operators take a number or decimal text such as -12.5");
 
 			return false;
@@ -300,8 +300,8 @@ export class ApiAuthorizationIamParser {
 
 	/**
 	 * Checks a `resource.*` key against the resource definitions of the namespace: some definition must map it as a
-	 * filterable field, and the operator must fit the column in every definition that maps it. A boolean column takes
-	 * only String operators with `true` or `false`, `Bool` and `Null`; `Bool` needs a boolean column.
+	 * filterable field, and the operator must fit the column in every definition that maps it, as
+	 * `ApiAuthorizationIamPredicateBuilder.isOperatorFitting` says.
 	 * @param {IApiAuthorizationIamCondition} condition - Condition key read so far.
 	 * @param {string} property - Path of the key.
 	 * @param {IApiAuthorizationIamParserScope} scope - Failure scope with the resource definitions.
@@ -328,12 +328,7 @@ export class ApiAuthorizationIamParser {
 		for (const { definition, field } of mappings) {
 			const queryField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(definition.entity, field.queryPath);
 
-			// A variable may resolve to a boolean, so only a literal other than true or false misses a boolean column.
-			const isFitting: boolean = queryField.isBoolean
-				? condition.family === EApiPolicyConditionOperatorFamily.BOOL || condition.family === EApiPolicyConditionOperatorFamily.NULL || (condition.family === EApiPolicyConditionOperatorFamily.STRING && condition.values.every((value: IApiAuthorizationIamConditionValue): boolean => value.parts.some((part: IApiAuthorizationIamToken): boolean => part.type === EApiAuthorizationIamTokenType.VARIABLE) || ApiAuthorizationIamParser.isBooleanText(value.source)))
-				: condition.family !== EApiPolicyConditionOperatorFamily.BOOL;
-
-			if (!isFitting) {
+			if (!ApiAuthorizationIamParser.isResourceKeyFitting(condition, queryField)) {
 				ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_KEY_TYPE_MISMATCH, `Condition operator "${condition.source}" does not fit the column "${field.queryPath}" that "${condition.key}" maps to in resource type "${definition.resourceType}"`);
 
 				return;
@@ -363,11 +358,6 @@ export class ApiAuthorizationIamParser {
 
 			switch (support) {
 				case EApiAuthorizationIamSupport.ACCEPTED: {
-					if (part.variable.defaultValue !== undefined) {
-						ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.NOT_SUPPORTED_YET, `Variable default value of "\${${path}}" is not supported yet`);
-						isAccepted = false;
-					}
-
 					break;
 				}
 
@@ -428,23 +418,13 @@ export class ApiAuthorizationIamParser {
 	}
 
 	/**
-	 * Tells whether text is an IPv4 or IPv6 address, optionally with a CIDR prefix length its family allows.
-	 * @param {string} value - Text to check.
-	 * @returns {boolean} Whether the text is an address or a range.
+	 * Tells whether a date literal is of the kind a column or a context key holds. A variable may resolve to either, so it passes.
+	 * @param {IApiAuthorizationIamConditionValue} value - Condition value.
+	 * @param {boolean} isCalendar - Whether the column or the key holds a calendar date, and not an instant.
+	 * @returns {boolean} Whether the value fits.
 	 */
-	private static isIpAddressOrRange(value: string): boolean {
-		const [address, prefix, ...rest]: Array<string> = value.split("/");
-		const family: number = isIP(address ?? "");
-
-		if (family === 0 || rest.length > 0) {
-			return false;
-		}
-
-		if (prefix === undefined) {
-			return true;
-		}
-
-		return /^(?:0|[1-9]\d{0,2})$/.test(prefix) && Number(prefix) <= (family === IAM_PARSER_IPV4_FAMILY ? IAM_PARSER_MAX_IPV4_PREFIX : IAM_PARSER_MAX_IPV6_PREFIX);
+	private static isDateKindFitting(value: IApiAuthorizationIamConditionValue, isCalendar: boolean): boolean {
+		return ApiAuthorizationIamParser.isVariableValue(value) || ApiAuthorizationIamDateValue.parse(value.source)?.isCalendar === isCalendar;
 	}
 
 	/**
@@ -454,6 +434,34 @@ export class ApiAuthorizationIamParser {
 	 */
 	private static isRecord(value: unknown): value is Record<string, unknown> {
 		return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+	}
+
+	/**
+	 * Tells whether a key's operator fits the column it maps to. A path TypeORM does not map has no column type to check,
+	 * so only String and Null read it. A boolean column takes a String operator only with `true`, `false` or a variable, and
+	 * a `date` column a calendar date as every other date column takes an instant.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read so far.
+	 * @param {IApiAuthorizationIamQueryField} field - Resolved query path of the key.
+	 * @returns {boolean} Whether the operator fits.
+	 */
+	private static isResourceKeyFitting(condition: IApiAuthorizationIamCondition, field: IApiAuthorizationIamQueryField): boolean {
+		if (!field.isResolvable) {
+			return condition.family === EApiPolicyConditionOperatorFamily.STRING || condition.family === EApiPolicyConditionOperatorFamily.NULL;
+		}
+
+		if (!ApiAuthorizationIamPredicateBuilder.isOperatorFitting(condition.family, field)) {
+			return false;
+		}
+
+		if (condition.family === EApiPolicyConditionOperatorFamily.STRING && field.isBoolean) {
+			return condition.values.every((value: IApiAuthorizationIamConditionValue): boolean => ApiAuthorizationIamParser.isVariableValue(value) || ApiAuthorizationIamParser.isBooleanText(value.source));
+		}
+
+		if (condition.family === EApiPolicyConditionOperatorFamily.DATE) {
+			return condition.values.every((value: IApiAuthorizationIamConditionValue): boolean => ApiAuthorizationIamParser.isDateKindFitting(value, field.column?.type === "date"));
+		}
+
+		return true;
 	}
 
 	/**
@@ -482,6 +490,15 @@ export class ApiAuthorizationIamParser {
 		const [hours, minutes, seconds]: Array<number> = time.split(":").map(Number);
 
 		return (hours ?? Number.NaN) <= IAM_PARSER_MAX_HOUR && (minutes ?? Number.NaN) <= IAM_PARSER_MAX_MINUTE && (seconds ?? 0) <= IAM_PARSER_MAX_MINUTE;
+	}
+
+	/**
+	 * Tells whether a condition value holds a variable.
+	 * @param {IApiAuthorizationIamConditionValue} value - Condition value.
+	 * @returns {boolean} Whether a part of the value is a variable.
+	 */
+	private static isVariableValue(value: IApiAuthorizationIamConditionValue): boolean {
+		return value.parts.some((part: IApiAuthorizationIamToken): boolean => part.type === EApiAuthorizationIamTokenType.VARIABLE);
 	}
 
 	/**
@@ -545,6 +562,11 @@ export class ApiAuthorizationIamParser {
 				ApiAuthorizationIamParser.checkResourceKey(condition, keyProperty, scope);
 			}
 
+			// The time of a request is an instant: no other family reads it, and a calendar date compares with no instant.
+			if (key === IAM_PARSER_REQUEST_TIME_KEY && scope.failures.length === failureCount && condition.family !== EApiPolicyConditionOperatorFamily.NULL && (condition.family !== EApiPolicyConditionOperatorFamily.DATE || !condition.values.every((value: IApiAuthorizationIamConditionValue): boolean => ApiAuthorizationIamParser.isDateKindFitting(value, false)))) {
+				ApiAuthorizationIamParser.fail(scope, keyProperty, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_KEY_TYPE_MISMATCH, `Condition operator "${condition.source}" does not fit "${key}", which holds the instant of the request`);
+			}
+
 			if (scope.failures.length === failureCount) {
 				conditions.push(condition);
 			}
@@ -595,10 +617,6 @@ export class ApiAuthorizationIamParser {
 			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_QUALIFIER_UNSUPPORTED, `Condition qualifier "${qualifier}" does not apply to the Null operator`);
 
 			return undefined;
-		}
-
-		if (!definition.isEvaluated) {
-			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.NOT_SUPPORTED_YET, `Condition operator "${name}" is not supported yet`);
 		}
 
 		return { definition, isIfExists, operator: baseName, ...(qualifier === undefined ? {} : { qualifier }) };
@@ -746,8 +764,8 @@ export class ApiAuthorizationIamParser {
 
 	/**
 	 * Reads one condition value and checks it against the operator family. A number and a boolean are kept as written;
-	 * a string is read into literal and variable tokens. String families take an embedded variable once the engine
-	 * resolves it; every other family takes a variable only as the whole value.
+	 * a string is read into literal and variable tokens. String and Arn families take an embedded variable; every other
+	 * family takes a variable only as the whole value, whose default must read as a literal of the family.
 	 * @param {unknown} input - Value as written.
 	 * @param {EApiPolicyConditionOperatorFamily} family - Operator family.
 	 * @param {string} property - Path of the value.
@@ -786,10 +804,14 @@ export class ApiAuthorizationIamParser {
 			return undefined;
 		}
 
-		if (parts.length > 1) {
-			const isStringFamily: boolean = family === EApiPolicyConditionOperatorFamily.STRING || family === EApiPolicyConditionOperatorFamily.STRING_IGNORE_CASE || family === EApiPolicyConditionOperatorFamily.STRING_LIKE || family === EApiPolicyConditionOperatorFamily.ARN;
+		const isStringFamily: boolean = family === EApiPolicyConditionOperatorFamily.STRING || family === EApiPolicyConditionOperatorFamily.STRING_IGNORE_CASE || family === EApiPolicyConditionOperatorFamily.STRING_LIKE || family === EApiPolicyConditionOperatorFamily.ARN;
 
-			ApiAuthorizationIamParser.fail(scope, property, isStringFamily ? AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.NOT_SUPPORTED_YET : AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_VALUE_INVALID, isStringFamily ? `Condition value "${input}" embeds a variable, which is not supported yet` : `Condition value "${input}" must be a variable alone or a literal`);
+		if (isStringFamily) {
+			return { parts, source: input };
+		}
+
+		if (parts.length > 1) {
+			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_VALUE_INVALID, `Condition value "${input}" must be a variable alone or a literal`);
 
 			return undefined;
 		}
@@ -800,7 +822,9 @@ export class ApiAuthorizationIamParser {
 			return undefined;
 		}
 
-		return { parts, source: input };
+		const defaultValue: string | undefined = parts[0]?.variable?.defaultValue;
+
+		return defaultValue === undefined || ApiAuthorizationIamParser.checkLiteralValue(defaultValue, family, property, scope) ? { parts, source: input } : undefined;
 	}
 
 	/**

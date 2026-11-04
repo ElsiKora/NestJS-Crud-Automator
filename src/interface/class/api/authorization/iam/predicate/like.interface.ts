@@ -8,6 +8,8 @@ import type { IApiAuthorizationIamToken } from "@interface/class/api/authorizati
 export interface IApiAuthorizationIamPredicateLike {
 	// Column the atom reads.
 	column: IApiAuthorizationIamPredicateColumn;
+	// Whether a condition key wrote the glob, and not a resource pattern. A resource pattern lowers only where a coarser `LIKE` can hide a row; a key's glob must be exact on both sides.
+	isConditionKey?: boolean;
 	// Whether the column must not match the glob.
 	isNegated: boolean;
 	kind: EApiAuthorizationIamPredicateKind.LIKE;

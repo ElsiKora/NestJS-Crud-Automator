@@ -14,12 +14,16 @@ export interface IApiAuthorizationIamColumn {
 	hasTransformer: boolean;
 	// Whether the column holds a list: `array: true`, `simple-array`, or a MySQL `set`.
 	isArray: boolean;
+	// Whether TypeORM fills the column as a `createDate`, `updateDate` or `deleteDate` column, which it creates with microseconds on MySQL.
+	isAutoDate?: boolean;
 	// Whether the column holds a JSON document.
 	isJson: boolean;
 	// Whether the column accepts NULL; a primary column never does.
 	isNullable: boolean;
 	// Whether the column is a primary column of its entity.
 	isPrimary: boolean;
+	// Fraction digits a date column declares; absent when it declares none.
+	precision?: number;
 	// Column type the decorator names, in lower case, such as `varchar` or `timestamptz`; absent when TypeORM takes it from the property type.
 	type?: string;
 }

@@ -123,9 +123,11 @@ function AuthorizationIamReadColumn(column: TTypeOrmColumnMetadataArguments, isB
 		family,
 		hasTransformer: column.options.transformer !== undefined,
 		isArray: family === EApiAuthorizationIamColumnFamily.ARRAY,
+		...(authorizationIamQueryFieldDateModes.has(column.mode) ? { isAutoDate: true } : {}),
 		isJson: family === EApiAuthorizationIamColumnFamily.JSON,
 		isNullable: column.options.nullable === true && !isPrimary,
 		isPrimary,
+		...(typeof column.options.precision === "number" ? { precision: column.options.precision } : {}),
 		...(type === undefined ? {} : { type }),
 	};
 }

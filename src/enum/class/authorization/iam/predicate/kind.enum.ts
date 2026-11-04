@@ -6,10 +6,16 @@
 export enum EApiAuthorizationIamPredicateKind {
 	// Every child holds.
 	AND = "and",
+	// The column's text matches an Arn pattern segment by segment, or, negated, does not; a NULL column matches neither.
+	ARN = "arn",
+	// The column compares with a value by its order; a NULL column holds in no comparison.
+	COMPARE = "compare",
 	// No row.
 	FALSE = "false",
 	// The column equals one of the values, or, negated, none of them; a NULL column is in neither set.
 	IN = "in",
+	// The column's network lies within a range, or, negated, does not; a NULL column does neither.
+	IP_CONTAINED = "ip-contained",
 	// The column is NULL.
 	IS_NULL = "is-null",
 	// The column matches a glob of literals, `*` and `?`, or, negated, does not; a NULL column matches neither.

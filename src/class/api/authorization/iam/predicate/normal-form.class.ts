@@ -16,8 +16,20 @@ export class ApiAuthorizationIamPredicateNormalForm {
 	 */
 	public static readAtomKey(atom: TApiAuthorizationIamPredicateAtom): string {
 		switch (atom.kind) {
+			case EApiAuthorizationIamPredicateKind.ARN: {
+				return JSON.stringify([atom.kind, atom.column.queryPath, atom.isNegated, atom.pattern.map((token: { type: EApiAuthorizationIamTokenType; value?: string }): Array<string | undefined> => [token.type, token.value])]);
+			}
+
+			case EApiAuthorizationIamPredicateKind.COMPARE: {
+				return JSON.stringify([atom.kind, atom.column.queryPath, atom.comparison, atom.operator, atom.value]);
+			}
+
 			case EApiAuthorizationIamPredicateKind.IN: {
 				return JSON.stringify([atom.kind, atom.column.queryPath, atom.comparison, atom.isNegated, atom.values]);
+			}
+
+			case EApiAuthorizationIamPredicateKind.IP_CONTAINED: {
+				return JSON.stringify([atom.kind, atom.column.queryPath, atom.isNegated, atom.range]);
 			}
 
 			case EApiAuthorizationIamPredicateKind.IS_NULL:
@@ -28,7 +40,7 @@ export class ApiAuthorizationIamPredicateNormalForm {
 			}
 
 			case EApiAuthorizationIamPredicateKind.LIKE: {
-				return JSON.stringify([atom.kind, atom.column.queryPath, atom.isNegated, atom.pattern.map((token: { type: EApiAuthorizationIamTokenType; value?: string }): Array<string | undefined> => [token.type, token.value])]);
+				return JSON.stringify([atom.kind, atom.column.queryPath, atom.isConditionKey === true, atom.isNegated, atom.pattern.map((token: { type: EApiAuthorizationIamTokenType; value?: string }): Array<string | undefined> => [token.type, token.value])]);
 			}
 		}
 	}
@@ -84,11 +96,16 @@ export class ApiAuthorizationIamPredicateNormalForm {
 				return branches;
 			}
 
-			case EApiAuthorizationIamPredicateKind.FALSE: {
-				return [];
-			}
+			case EApiAuthorizationIamPredicateKind.ARN:
+			// falls through
+
+			case EApiAuthorizationIamPredicateKind.COMPARE:
+			// falls through
 
 			case EApiAuthorizationIamPredicateKind.IN:
+			// falls through
+
+			case EApiAuthorizationIamPredicateKind.IP_CONTAINED:
 			// falls through
 
 			case EApiAuthorizationIamPredicateKind.IS_NULL:
@@ -99,6 +116,10 @@ export class ApiAuthorizationIamPredicateNormalForm {
 
 			case EApiAuthorizationIamPredicateKind.NOT_NULL: {
 				return [[predicate]];
+			}
+
+			case EApiAuthorizationIamPredicateKind.FALSE: {
+				return [];
 			}
 
 			case EApiAuthorizationIamPredicateKind.OR: {

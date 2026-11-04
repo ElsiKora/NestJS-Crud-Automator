@@ -15,9 +15,11 @@ export enum EApiAuthorizationIamColumnFamily {
 	ENUM = "enum",
 	// A JSON document, `simple-json` included.
 	JSON = "json",
+	// A network address or a range: PostgreSQL `inet` or `cidr`.
+	NETWORK = "network",
 	// An integer, a decimal, or a floating-point number.
 	NUMERIC = "numeric",
-	// Any other type, such as a network address or a geometry.
+	// Any other type, such as a MAC address or a geometry.
 	OTHER = "other",
 	// Text.
 	TEXT = "text",

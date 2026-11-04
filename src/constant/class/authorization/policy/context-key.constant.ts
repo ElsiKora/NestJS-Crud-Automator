@@ -2,7 +2,7 @@ import type { IApiAuthorizationIamContextKey } from "@interface/class/api/author
 
 import { EApiAuthorizationIamSupport } from "@enum/class/authorization";
 
-const { ACCEPTED, NOT_ALLOWED, NOT_SUPPORTED_YET }: typeof EApiAuthorizationIamSupport = EApiAuthorizationIamSupport;
+const { ACCEPTED, NOT_ALLOWED }: typeof EApiAuthorizationIamSupport = EApiAuthorizationIamSupport;
 
 /**
  * The IAM context-key registry: every context path a condition key or a variable may name, and what the grammar takes
@@ -14,16 +14,17 @@ export const AUTHORIZATION_POLICY_CONTEXT_KEY_CONSTANT: {
 	readonly KEYS: ReadonlyArray<IApiAuthorizationIamContextKey>;
 } = {
 	KEYS: [
-		{ isMultiValued: false, isPrefix: false, key: ACCEPTED, path: "principal.id", resource: NOT_SUPPORTED_YET, value: ACCEPTED },
-		{ isMultiValued: false, isPrefix: false, key: ACCEPTED, path: "principal.type", resource: NOT_SUPPORTED_YET, value: ACCEPTED },
+		{ isMultiValued: false, isPrefix: false, key: ACCEPTED, path: "principal.id", resource: ACCEPTED, value: ACCEPTED },
+		{ isMultiValued: false, isPrefix: false, key: ACCEPTED, path: "principal.type", resource: ACCEPTED, value: ACCEPTED },
 		{ isMultiValued: true, isPrefix: false, key: ACCEPTED, path: "principal.roles", resource: NOT_ALLOWED, value: NOT_ALLOWED },
 		{ isMultiValued: true, isPrefix: false, key: ACCEPTED, path: "principal.groups", resource: NOT_ALLOWED, value: NOT_ALLOWED },
-		{ isMultiValued: true, isPrefix: true, key: ACCEPTED, path: "principal.attributes", resource: NOT_SUPPORTED_YET, value: ACCEPTED },
-		{ isMultiValued: true, isPrefix: true, key: ACCEPTED, path: "principal.claims", resource: NOT_SUPPORTED_YET, value: ACCEPTED },
-		{ isMultiValued: false, isPrefix: true, key: ACCEPTED, path: "request.parameters", resource: NOT_SUPPORTED_YET, value: ACCEPTED },
+		{ isMultiValued: true, isPrefix: true, key: ACCEPTED, path: "principal.attributes", resource: ACCEPTED, value: ACCEPTED },
+		{ isMultiValued: true, isPrefix: true, key: ACCEPTED, path: "principal.claims", resource: ACCEPTED, value: ACCEPTED },
+		{ isMultiValued: false, isPrefix: true, key: ACCEPTED, path: "request.parameters", resource: ACCEPTED, value: ACCEPTED },
 		{ isMultiValued: false, isPrefix: false, key: ACCEPTED, path: "request.ip", resource: NOT_ALLOWED, value: ACCEPTED },
-		{ isMultiValued: false, isPrefix: false, key: NOT_SUPPORTED_YET, path: "request.sourceIp", resource: NOT_ALLOWED, value: NOT_SUPPORTED_YET },
-		{ isMultiValued: false, isPrefix: false, key: NOT_SUPPORTED_YET, path: "request.time", resource: NOT_ALLOWED, value: NOT_SUPPORTED_YET },
+		// Only as sound as the proxy configuration: `trust proxy` / `trustProxy` decide what a request reports.
+		{ isMultiValued: false, isPrefix: false, key: ACCEPTED, path: "request.sourceIp", resource: NOT_ALLOWED, value: ACCEPTED },
+		{ isMultiValued: false, isPrefix: false, key: ACCEPTED, path: "request.time", resource: NOT_ALLOWED, value: ACCEPTED },
 		{ isMultiValued: false, isPrefix: false, key: NOT_ALLOWED, path: "request.secureTransport", resource: NOT_ALLOWED, value: NOT_ALLOWED },
 		{ isMultiValued: true, isPrefix: true, key: ACCEPTED, path: "request.body", resource: NOT_ALLOWED, value: NOT_ALLOWED },
 		{ isMultiValued: true, isPrefix: true, key: ACCEPTED, path: "request.query", resource: NOT_ALLOWED, value: NOT_ALLOWED },

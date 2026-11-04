@@ -1,13 +1,18 @@
-import type { IApiAuthorizationIamColumn, IApiAuthorizationIamPredicateIn, IApiAuthorizationIamPredicateLike, IApiAuthorizationIamPredicateLowered } from "@interface/class/api/authorization";
-import type { TApiAuthorizationIamPredicateValue } from "@type/class/api/authorization/iam";
+import type { IApiAuthorizationIamColumn, IApiAuthorizationIamDateValue, IApiAuthorizationIamDecimal, IApiAuthorizationIamPredicateArn, IApiAuthorizationIamPredicateCompare, IApiAuthorizationIamPredicateIn, IApiAuthorizationIamPredicateIpContained, IApiAuthorizationIamPredicateLike, IApiAuthorizationIamPredicateLowered, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
+import type { TApiAuthorizationIamIntegerCompare, TApiAuthorizationIamPredicateValue } from "@type/class/api/authorization/iam";
 
+import { ApiAuthorizationIamDateValue } from "@class/api/authorization/iam/date-value.class";
+import { ApiAuthorizationIamDecimal } from "@class/api/authorization/iam/decimal.class";
 import { ApiAuthorizationIamPortableLowerer } from "@class/api/authorization/iam/lowerer/portable.class";
 import { AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT, AUTHORIZATION_IAM_DIALECT_CONSTANT } from "@constant/class/authorization";
-import { EApiAuthorizationIamColumnFamily } from "@enum/class/authorization";
-import { In, IsNull, Not } from "typeorm";
+import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamTokenType } from "@enum/class/authorization";
+import { In, IsNull, Not, Raw } from "typeorm";
 
 // TypeORM driver type of CockroachDB, which shares the PostgreSQL lowering but has no `"C"` collation or `citext` cast to rely on.
 const IAM_POSTGRES_LOWERER_COCKROACH_DRIVER_TYPE: string = "cockroachdb";
+
+// ASCII punctuation a regular expression may read as syntax: all of it but `:`, the delimiter, and `_`, which is a word character.
+const IAM_POSTGRES_LOWERER_REGEX_SPECIAL: RegExp = /[!"#$%&'()*+,./;<=>?@[\\\]^`{|}~-]/g;
 
 /**
  * Lowers the IAM predicate IR for PostgreSQL and CockroachDB. A text column with its default deterministic collation
@@ -28,6 +33,96 @@ const IAM_POSTGRES_LOWERER_COCKROACH_DRIVER_TYPE: string = "cockroachdb";
  */
 export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPortableLowerer {
 	/**
+	 * Lowers an Arn pattern with an anchored regular expression on the exact text expression of the column: `*` is
+	 * `[^:]*`, `?` is `[^:]`, every ASCII punctuation character of a literal is escaped, and a literal `:` stays the
+	 * delimiter, so the segment counts must be equal.
+	 * @param {IApiAuthorizationIamPredicateArn} atom - `ARN` atom.
+	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
+	 */
+	protected override lowerArn(atom: IApiAuthorizationIamPredicateArn): IApiAuthorizationIamPredicateLowered {
+		const column: IApiAuthorizationIamColumn | undefined = atom.column.field.column;
+		const expression: ((columnAlias: string) => string) | undefined = column?.family === EApiAuthorizationIamColumnFamily.TEXT && !column.hasTransformer ? this.readTextExpression(column) : undefined;
+
+		if (!expression) {
+			return { isExact: false };
+		}
+
+		const pattern: string = `^${atom.pattern.map((token: IApiAuthorizationIamToken): string => readIamPostgresRegexToken(token)).join("")}$`;
+		const parameterName: string = this.createParameterName("arn", pattern);
+
+		return { isExact: true, operand: Raw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "!~" : "~"} :${parameterName}`, { [parameterName]: pattern }) };
+	}
+
+	/**
+	 * Lowers a Date comparison: a `timestamptz` compares ISO UTC text, which no process time zone can move, a wall-clock
+	 * `timestamp` a bound `Date`, which the driver writes in the process time zone it also reads the column in, and a
+	 * `date` its calendar text.
+	 * @param {IApiAuthorizationIamPredicateCompare} atom - `COMPARE` atom with a `DATE` comparison.
+	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
+	 */
+	protected override lowerDateCompare(atom: IApiAuthorizationIamPredicateCompare): IApiAuthorizationIamPredicateLowered {
+		const column: IApiAuthorizationIamColumn | undefined = atom.column.field.column;
+		const date: IApiAuthorizationIamDateValue | undefined = ApiAuthorizationIamDateValue.parse(atom.value);
+
+		if (!column || !date) {
+			return { isExact: false };
+		}
+
+		if (column.type === "date") {
+			return date.isCalendar ? this.createRawCompare(atom, atom.operator, date.text) : { isExact: false };
+		}
+
+		if (date.isCalendar) {
+			return { isExact: false };
+		}
+
+		const isFiner: boolean = (column.precision ?? AUTHORIZATION_IAM_DIALECT_CONSTANT.POSTGRES_DEFAULT_PRECISION) > AUTHORIZATION_IAM_DIALECT_CONSTANT.MILLISECOND_DIGITS;
+
+		if (column.type === "timestamptz" || column.type === "timestamp with time zone") {
+			return this.lowerInstantCompare(atom, date, { isFiner, isWallClock: false, toParameter: (instant: Date): string => instant.toISOString() });
+		}
+
+		if (column.type === undefined || column.type === "timestamp" || column.type === "timestamp without time zone") {
+			return this.lowerInstantCompare(atom, date, { isFiner, isWallClock: true, toParameter: (instant: Date): Date => instant });
+		}
+
+		return { isExact: false };
+	}
+
+	/**
+	 * Lowers an IgnoreCase comparison: `lower` under `COLLATE "C"` folds A-Z and nothing else. CockroachDB has no such
+	 * collation to rely on, and fixed-length text pads, so both fail closed.
+	 * @param {IApiAuthorizationIamPredicateIn} atom - `IN` atom with a `TEXT_IGNORE_CASE` comparison and folded values.
+	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
+	 */
+	protected override lowerIgnoreCaseIn(atom: IApiAuthorizationIamPredicateIn): IApiAuthorizationIamPredicateLowered {
+		const column: IApiAuthorizationIamColumn | undefined = atom.column.field.column;
+
+		if (column?.family !== EApiAuthorizationIamColumnFamily.TEXT || this.dialect.driverType === IAM_POSTGRES_LOWERER_COCKROACH_DRIVER_TYPE || (column.type !== undefined && AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT.FIXED_LENGTH_TEXT_TYPES.has(column.type))) {
+			return { isExact: false };
+		}
+
+		return this.createRawIn(atom, (columnAlias: string): string => (column.type === "citext" ? `lower(CAST(${columnAlias} AS text) COLLATE "C")` : `lower(${columnAlias} COLLATE "C")`));
+	}
+
+	/**
+	 * Lowers a containment in a range on an `inet` or `cidr` column with `<<=`.
+	 * @param {IApiAuthorizationIamPredicateIpContained} atom - `IP_CONTAINED` atom.
+	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
+	 */
+	protected override lowerIpContained(atom: IApiAuthorizationIamPredicateIpContained): IApiAuthorizationIamPredicateLowered {
+		const column: IApiAuthorizationIamColumn | undefined = atom.column.field.column;
+
+		if (column?.family !== EApiAuthorizationIamColumnFamily.NETWORK || column.hasTransformer) {
+			return { isExact: false };
+		}
+
+		const parameterName: string = this.createParameterName("ip", atom.range);
+
+		return { isExact: true, operand: Raw((columnAlias: string): string => (atom.isNegated ? `NOT (${columnAlias} <<= CAST(:${parameterName} AS inet))` : `${columnAlias} <<= CAST(:${parameterName} AS inet)`), { [parameterName]: atom.range }) };
+	}
+
+	/**
 	 * Lowers a glob with `LIKE`, positive or negated, on the exact text expression of the column.
 	 * @param {IApiAuthorizationIamPredicateLike} atom - `LIKE` atom.
 	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
@@ -36,6 +131,47 @@ export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPorta
 		const expression: ((columnAlias: string) => string) | undefined = this.isLikeColumn(atom) ? this.readTextExpression(atom.column.field.column) : undefined;
 
 		return expression ? this.createRawLike(atom, expression) : { isExact: false };
+	}
+
+	/**
+	 * Lowers a Numeric comparison by column type: the column coerces a text parameter, so a literal is never read through
+	 * a double. An integer literal outside the column's range folds, since the column would refuse to bind it. A double
+	 * and a real compare a literal their type holds exactly. `float` names a different type per server, and `money` reads
+	 * back formatted, so both fail closed.
+	 * @param {IApiAuthorizationIamPredicateCompare} atom - `COMPARE` atom with a `NUMERIC` comparison.
+	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
+	 */
+	protected override lowerNumericCompare(atom: IApiAuthorizationIamPredicateCompare): IApiAuthorizationIamPredicateLowered {
+		const column: IApiAuthorizationIamColumn | undefined = atom.column.field.column;
+		const decimal: IApiAuthorizationIamDecimal | undefined = ApiAuthorizationIamDecimal.parse(atom.value);
+
+		if (!column || !decimal) {
+			return { isExact: false };
+		}
+
+		const bits: number | undefined = this.readPostgresIntegerBits(column);
+
+		if (bits !== undefined) {
+			const compare: TApiAuthorizationIamIntegerCompare = this.foldIntegerRange(this.rewriteIntegerCompare(atom.operator, decimal), bits);
+
+			return typeof compare === "string" ? this.createConstant(compare === "all") : this.createRawCompare(atom, compare.operator, compare.value.toString());
+		}
+
+		const text: string = ApiAuthorizationIamDecimal.toText(decimal);
+
+		if (column.type === "numeric" || column.type === "decimal" || column.type === "dec") {
+			return this.createRawCompare(atom, atom.operator, text);
+		}
+
+		if (column.type === "double precision" || column.type === "float8") {
+			return this.isFloatExact(decimal, AUTHORIZATION_IAM_DIALECT_CONSTANT.DOUBLE_MAX_DIGITS, AUTHORIZATION_IAM_DIALECT_CONSTANT.DOUBLE_MIN_MAGNITUDE, AUTHORIZATION_IAM_DIALECT_CONSTANT.DOUBLE_MAX_MAGNITUDE) ? this.createRawCompare(atom, atom.operator, text) : { isExact: false };
+		}
+
+		if (column.type === "real" || column.type === "float4") {
+			return this.isFloatExact(decimal, AUTHORIZATION_IAM_DIALECT_CONSTANT.REAL_MAX_DIGITS, AUTHORIZATION_IAM_DIALECT_CONSTANT.REAL_MIN_MAGNITUDE, AUTHORIZATION_IAM_DIALECT_CONSTANT.REAL_MAX_MAGNITUDE) ? this.createRawCompare(atom, atom.operator, text) : { isExact: false };
+		}
+
+		return { isExact: false };
 	}
 
 	/**
@@ -70,6 +206,21 @@ export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPorta
 		}
 
 		return column?.collation === undefined && column?.type !== "citext" ? this.lowerNativeIn(atom) : this.createRawIn(atom, expression);
+	}
+
+	/**
+	 * Reads the bits of an integer column as this server holds it: every integer of CockroachDB without a named size has 64.
+	 * @param {IApiAuthorizationIamColumn} column - Column.
+	 * @returns {number | undefined} The bits, or undefined when the column holds no integer.
+	 */
+	private readPostgresIntegerBits(column: IApiAuthorizationIamColumn): number | undefined {
+		const bits: number | undefined = this.readIntegerBits(column);
+
+		if (bits !== undefined && this.dialect.driverType === IAM_POSTGRES_LOWERER_COCKROACH_DRIVER_TYPE && (column.type === undefined || column.type === "int" || column.type === "integer")) {
+			return AUTHORIZATION_IAM_DIALECT_CONSTANT.COCKROACH_INTEGER_BITS;
+		}
+
+		return bits;
 	}
 
 	/**
@@ -122,6 +273,30 @@ export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPorta
  */
 function readIamPostgresColumnAlias(columnAlias: string): string {
 	return columnAlias;
+}
+
+/**
+ * Writes one Arn pattern token as regular-expression text.
+ * @param {IApiAuthorizationIamToken} token - Literal, `*` or `?` token.
+ * @returns {string} Regular-expression text in which no literal can act as syntax.
+ */
+function readIamPostgresRegexToken(token: IApiAuthorizationIamToken): string {
+	switch (token.type) {
+		case EApiAuthorizationIamTokenType.LITERAL:
+		// falls through
+
+		case EApiAuthorizationIamTokenType.VARIABLE: {
+			return (token.value ?? "").replaceAll(IAM_POSTGRES_LOWERER_REGEX_SPECIAL, String.raw`\$&`);
+		}
+
+		case EApiAuthorizationIamTokenType.QUESTION_MARK: {
+			return "[^:]";
+		}
+
+		case EApiAuthorizationIamTokenType.STAR: {
+			return "[^:]*";
+		}
+	}
 }
 
 /**

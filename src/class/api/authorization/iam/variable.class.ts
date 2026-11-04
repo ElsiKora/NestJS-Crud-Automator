@@ -1,7 +1,12 @@
-import type { IApiAuthorizationIamConditionValue, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthorizationIamConditionValue, IApiAuthorizationIamToken, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata } from "@interface/class/api/authorization";
 
 import { EApiAuthorizationIamTokenType } from "@enum/class/authorization";
-import { ErrorException } from "@utility/error/exception.utility";
+import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
+
+// Prefix of a variable that reads the loaded resource.
+const IAM_VARIABLE_RESOURCE_PREFIX: string = "resource.";
 
 // A variable path: a root and dot-separated segments of letters, digits, `_` and `-`.
 const IAM_VARIABLE_PATH_PATTERN: RegExp = /^[A-Z]\w*(?:\.[\w-]+)*$/i;
@@ -20,6 +25,31 @@ const IAM_VARIABLE_ESCAPES: ReadonlySet<string> = new Set<string>(["?", "*", "$"
  * `${$}` escapes out of a pattern or a condition value, and resolves a condition value against the request context.
  */
 export class ApiAuthorizationIamVariable {
+	/**
+	 * Builds the context a condition key and a variable read for one request.
+	 * @template E - Entity type.
+	 * @template M - List pagination mode.
+	 * @param {IApiAuthorizationPrincipal} principal - Principal.
+	 * @param {IApiAuthorizationRequestMetadata<E, M>} requestMetadata - Request metadata.
+	 * @param {E} [resource] - Loaded resource, when available.
+	 * @returns {Record<string, unknown>} The `principal`, `request` and `resource` roots.
+	 */
+	public static createContext<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(principal: IApiAuthorizationPrincipal, requestMetadata: IApiAuthorizationRequestMetadata<E, M>, resource?: E): Record<string, unknown> {
+		return {
+			principal,
+			request: {
+				body: requestMetadata.body,
+				headers: requestMetadata.headers,
+				ip: requestMetadata.ip,
+				parameters: requestMetadata.parameters,
+				query: requestMetadata.query,
+				sourceIp: requestMetadata.ip,
+				time: requestMetadata.time,
+			},
+			resource,
+		};
+	}
+
 	/**
 	 * Reads a dot-separated path out of a value, walking only plain objects.
 	 * @param {unknown} source - Value to read, such as the evaluation context.
@@ -41,31 +71,65 @@ export class ApiAuthorizationIamVariable {
 	}
 
 	/**
-	 * Resolves a condition value: a number or a boolean as written, a whole-string variable to the context value at its
-	 * path, and any other string to its literal text with the escapes read.
+	 * Resolves the tokens of a pattern for one request: a variable becomes a literal of its text, so a `*` or `?` it
+	 * holds is no wildcard.
+	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} tokens - Pattern tokens read by the grammar.
+	 * @param {unknown} context - Evaluation context with the `principal`, `request` and `resource` roots.
+	 * @returns {Array<IApiAuthorizationIamToken> | undefined} Literal, `*` and `?` tokens, or undefined when a variable does not resolve.
+	 */
+	public static resolveTokens(tokens: ReadonlyArray<IApiAuthorizationIamToken>, context: unknown): Array<IApiAuthorizationIamToken> | undefined {
+		const resolved: Array<IApiAuthorizationIamToken> = [];
+
+		for (const part of tokens) {
+			if (part.type !== EApiAuthorizationIamTokenType.VARIABLE) {
+				resolved.push(part);
+
+				continue;
+			}
+
+			const text: string | undefined = AuthorizationSerializeValue(ApiAuthorizationIamVariable.resolveVariable(part, context));
+
+			if (text === undefined) {
+				return undefined;
+			}
+
+			resolved.push({ type: EApiAuthorizationIamTokenType.LITERAL, value: text });
+		}
+
+		return resolved;
+	}
+
+	/**
+	 * Resolves a condition value: a number or a boolean as written, a variable alone to the context value at its path
+	 * with its type kept, text around a variable to the text of them all, and any other string to its literal text with
+	 * the escapes read. A variable that names nothing, or holds nothing a comparison can read, such as NULL, `""`, a list
+	 * or an object, gives its default; a `resource.*` variable without a loaded resource gives nothing, default or not.
 	 * @param {IApiAuthorizationIamConditionValue} value - Condition value read by the grammar.
 	 * @param {unknown} context - Evaluation context with the `principal`, `request` and `resource` roots.
-	 * @returns {unknown} The value to compare.
+	 * @returns {unknown} The value to compare, or undefined when a variable does not resolve, which fails the key closed.
 	 */
 	public static resolveValue(value: IApiAuthorizationIamConditionValue, context: unknown): unknown {
 		if (typeof value.source !== "string") {
 			return value.source;
 		}
 
-		const variableParts: Array<IApiAuthorizationIamToken> = value.parts.filter((part: IApiAuthorizationIamToken): boolean => part.type === EApiAuthorizationIamTokenType.VARIABLE);
+		const onlyToken: IApiAuthorizationIamToken | undefined = value.parts.length === 1 ? value.parts[0] : undefined;
 
-		if (variableParts.length === 0) {
-			return value.parts.map((part: IApiAuthorizationIamToken): string => part.value ?? "").join("");
+		if (onlyToken?.type === EApiAuthorizationIamTokenType.VARIABLE) {
+			return ApiAuthorizationIamVariable.resolveVariable(onlyToken, context);
 		}
 
-		const variablePart: IApiAuthorizationIamToken | undefined = variableParts[0];
+		const parts: Array<IApiAuthorizationIamToken> | undefined = ApiAuthorizationIamVariable.resolveTokens(value.parts, context);
 
-		// The grammar refuses an embedded variable and a default until the engine evaluates them, so neither reaches here from a validated document.
-		if (value.parts.length !== 1 || !variablePart?.variable || variablePart.variable.defaultValue !== undefined) {
-			throw ErrorException(`IAM condition value "${value.source}" uses a variable form the engine does not evaluate yet`);
-		}
+		return parts
+			?.map((token: IApiAuthorizationIamToken): string => {
+				if (token.type === EApiAuthorizationIamTokenType.STAR) {
+					return "*";
+				}
 
-		return ApiAuthorizationIamVariable.readPath(context, variablePart.variable.path);
+				return token.type === EApiAuthorizationIamTokenType.QUESTION_MARK ? "?" : (token.value ?? "");
+			})
+			.join("");
 	}
 
 	/**
@@ -188,5 +252,24 @@ export class ApiAuthorizationIamVariable {
 		}
 
 		return { end: index + 1, part: { type: EApiAuthorizationIamTokenType.VARIABLE, variable: { defaultValue, path } } };
+	}
+
+	/**
+	 * Resolves one variable token against the request.
+	 * @param {IApiAuthorizationIamToken} token - Variable token.
+	 * @param {unknown} context - Evaluation context with the `principal`, `request` and `resource` roots.
+	 * @returns {unknown} The context value with its type, the default as text, or undefined when the variable does not resolve.
+	 */
+	private static resolveVariable(token: IApiAuthorizationIamToken, context: unknown): unknown {
+		const path: string = token.variable?.path ?? "";
+
+		// A row has no value before it is loaded, so a default cannot stand in for it.
+		if (path.startsWith(IAM_VARIABLE_RESOURCE_PREFIX) && ApiAuthorizationIamVariable.readPath(context, "resource") === undefined) {
+			return undefined;
+		}
+
+		const value: unknown = ApiAuthorizationIamVariable.readPath(context, path);
+
+		return value === "" || AuthorizationSerializeValue(value) === undefined ? token.variable?.defaultValue : value;
 	}
 }

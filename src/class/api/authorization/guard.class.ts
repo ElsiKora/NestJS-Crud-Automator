@@ -246,6 +246,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 			ip: typeof request.ip === "string" ? request.ip : undefined,
 			parameters: AuthorizationSerializeParameters(identityPlan ? this.resolveIdentityParameters<E>(parameters, identityPlan) : parameters),
 			query: request.query as TApiControllerGetListQuery<E, M> | undefined,
+			time: new Date(),
 		};
 	}
 
