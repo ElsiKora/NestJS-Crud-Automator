@@ -1,10 +1,10 @@
-import type { IApiAuthorizationPrincipal, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamDialect, IApiAuthorizationPrincipal, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
 import type { FindOperator } from "typeorm";
 
 import { ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
+import { EApiAuthorizationIamDialect, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { describe, expect, it, vi } from "vitest";
 import { And, ChildEntity, Column, Entity, Equal, IsNull, JoinTable, ManyToMany, ManyToOne, Not, OneToMany, PrimaryColumn, TableInheritance } from "typeorm";
@@ -128,7 +128,9 @@ class PlannerUnmappedItemEntity {
 	public status!: string;
 }
 
+@Entity("planner_shadowed")
 class PlannerShadowedEntity {
+	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({
 		description: "code",
 		exampleValue: "code-1",
@@ -172,6 +174,7 @@ const resourceDefinition: IApiAuthorizationResourceDefinition<PlannerItemEntity>
 };
 
 abstract class PlannerInheritedBaseEntity {
+	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({
 		description: "code",
 		exampleValue: "abc",
@@ -183,6 +186,7 @@ abstract class PlannerInheritedBaseEntity {
 	})
 	public code!: string;
 
+	@Column({ type: "bigint" })
 	@ApiPropertyDescribe({
 		description: "external id",
 		exampleValue: "9007199254740993",
@@ -195,6 +199,7 @@ abstract class PlannerInheritedBaseEntity {
 	public inheritedExternalId!: string;
 }
 
+@Entity("planner_inherited_items")
 class PlannerInheritedItemEntity extends PlannerInheritedBaseEntity {}
 
 const inheritedResourceDefinition: IApiAuthorizationResourceDefinition<PlannerInheritedItemEntity> = {
@@ -275,7 +280,7 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		});
 
 		it("keeps a condition repeated on one query path once", () => {
-			expect(planAllow({ StringEquals: { "resource.status": "archived" }, StringEqualsIfExists: { "resource.status": "archived" } }).scope).toEqual({ where: { status: Equal("archived") } });
+			expect(planAllow({ StringEquals: { "resource.status": "archived" }, StringEqualsIfExists: { "resource.status": "archived" } }).scope).toEqual({ where: { status: "archived" } });
 		});
 
 		it("fails closed once the IfExists alternatives exceed the where-branch cap", () => {
@@ -330,6 +335,37 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 
 		it("returns no scope for statements without resource conditions", () => {
 			expect(planAllow({ StringEquals: { "principal.id": "user-1" } })).toEqual({ isFullyCompilable: true, scope: undefined });
+		});
+
+		it("allows every row when one statement has no resource key, whatever the other statements allow", () => {
+			expect(
+				new ApiAuthorizationIamQueryPlanner().plan({
+					principal,
+					requestMetadata: {},
+					resourceDefinition,
+					statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.status": "archived" } }), createStatement(EApiPolicyEffect.ALLOW, {})],
+				}),
+			).toEqual({ isFullyCompilable: true, scope: undefined });
+		});
+
+		it("binds the canonical text of a value", () => {
+			expect(
+				new ApiAuthorizationIamQueryPlanner().plan({
+					principal: { ...principal, attributes: { level: 7 } },
+					requestMetadata: {},
+					resourceDefinition,
+					statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.status": "${principal.attributes.level}" } })],
+				}).scope,
+			).toEqual({ where: { status: "7" } });
+		});
+
+		it("lowers the scope to the dialect it is given and fails closed for an unresolved one", () => {
+			const plan = (dialect: IApiAuthorizationIamDialect) => new ApiAuthorizationIamQueryPlanner().plan({ dialect, principal, requestMetadata: {}, resourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.status": "archived" } })] });
+			const where = plan({ binaryCollation: "utf8mb4_nopad_bin", type: EApiAuthorizationIamDialect.MARIADB }).scope?.where as { status: FindOperator<unknown> };
+
+			expect(where.status.getSql?.("item.status")).toMatch(/^CONVERT\(item\.status USING utf8mb4\) COLLATE utf8mb4_nopad_bin = :iam[0-9a-f]{24}$/);
+			expect(plan({ type: EApiAuthorizationIamDialect.POSTGRES }).scope).toEqual({ where: { status: "archived" } });
+			expect(plan({ type: EApiAuthorizationIamDialect.UNRESOLVED })).toEqual({ isFullyCompilable: false });
 		});
 	});
 
@@ -430,9 +466,12 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 
 			expect(where[1]).toEqual({ id: IsNull() });
 
+			const parameterNames: Array<string> = Object.keys(where[0].id.objectLiteralParameters ?? {});
+
 			expect(where[0].id.type).toBe("raw");
-			expect(where[0].id.objectLiteralParameters).toEqual({ [`iamResourcePrefix${Buffer.from("a%b_c!").toString("hex")}`]: "a!%b!_c!!%" });
-			expect(where[0].id.getSql?.("item.id")).toBe(`item.id NOT LIKE :iamResourcePrefix${Buffer.from("a%b_c!").toString("hex")} ESCAPE '!'`);
+			expect(parameterNames).toEqual([expect.stringMatching(/^iam[0-9a-f]{24}$/)]);
+			expect(where[0].id.objectLiteralParameters).toEqual({ [parameterNames[0] ?? ""]: "a!%b!_c!!%" });
+			expect(where[0].id.getSql?.("item.id")).toBe(`item.id NOT LIKE :${parameterNames[0] ?? ""} ESCAPE '!'`);
 		});
 
 		it("combines resource-pattern constraints and resource conditions of one statement as OR branches", () => {
@@ -455,7 +494,7 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 			const where = result.scope?.where as [{ code: FindOperator<unknown> }, { code: FindOperator<unknown> }];
 
 			expect(result.isFullyCompilable).toBe(true);
-			expect(where[0].code.objectLiteralParameters).toEqual({ [`iamResourcePrefix${Buffer.from("abc").toString("hex")}`]: "abc%" });
+			expect(Object.values(where[0].code.objectLiteralParameters ?? {})).toEqual(["abc%"]);
 			expect(where[1]).toEqual({ code: IsNull() });
 		});
 

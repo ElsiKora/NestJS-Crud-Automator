@@ -150,24 +150,21 @@ describe.each([
 		expect(response.json()).toEqual(VALIDATION_BODY("id must be an integer number"));
 	});
 
-	it("matches the request.parameters condition recipe on a NUMBER key", async () => {
-		const denied = await fastify.inject({ method: "GET", url: `/path-parameter/iam/int-cond/${DENIED_INT}` });
-		const allowed = await fastify.inject({ method: "GET", url: `/path-parameter/iam/int-cond/${ALLOWED_INT}` });
-		const missing = await fastify.inject({ method: "GET", url: "/path-parameter/iam/int-cond/99" });
+	// A numeric column holds no one text a String operator could compare (`10.50` is not `10.5`), so such an Allow is not matched.
+	it("fails a request.parameters String condition on a NUMBER column closed", async () => {
+		for (const id of [DENIED_INT, ALLOWED_INT, "99"]) {
+			const response = await fastify.inject({ method: "GET", url: `/path-parameter/iam/int-cond/${id}` });
 
-		expect(denied.statusCode).toBe(HttpStatus.OK);
-		expect(denied.json()).toMatchObject({ id: E2E_PATH_PARAMETER_IAM_DENIED_INT_ID, label: "sixteen" });
-		expect(allowed.statusCode).toBe(HttpStatus.OK);
-		expect(missing.statusCode).toBe(HttpStatus.NOT_FOUND);
+			expect(response.statusCode).toBe(HttpStatus.FORBIDDEN);
+		}
 	});
 
-	it("normalizes a literal string condition to the NUMBER column before merging the scope", async () => {
-		const matching = await fastify.inject({ method: "GET", url: `/path-parameter/iam/int-literal/${DENIED_INT}` });
-		const otherRow = await fastify.inject({ method: "GET", url: `/path-parameter/iam/int-literal/${ALLOWED_INT}` });
+	it("fails a literal String condition on a NUMBER column closed", async () => {
+		for (const id of [DENIED_INT, ALLOWED_INT]) {
+			const response = await fastify.inject({ method: "GET", url: `/path-parameter/iam/int-literal/${id}` });
 
-		expect(matching.statusCode).toBe(HttpStatus.OK);
-		expect(matching.json()).toMatchObject({ id: E2E_PATH_PARAMETER_IAM_DENIED_INT_ID });
-		expect(otherRow.statusCode).toBe(HttpStatus.NOT_FOUND);
+			expect(response.statusCode).toBe(HttpStatus.FORBIDDEN);
+		}
 	});
 
 	it("applies a Deny on a UUID key and refuses a malformed UUID", async () => {

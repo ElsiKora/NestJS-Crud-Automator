@@ -1,13 +1,13 @@
-import type { IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamDialect, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
 import type { FindOperator } from "typeorm";
 
 import { ApiAuthorizationIamEngine, ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiAuthorizationDecisionType, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
+import { EApiAuthorizationDecisionType, EApiAuthorizationIamDialect, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { describe, expect, it } from "vitest";
-import { Column, Entity, Equal, IsNull, ManyToOne, Not, OneToMany, PrimaryColumn } from "typeorm";
+import { And, Column, Entity, Equal, IsNull, ManyToOne, Not, OneToMany, PrimaryColumn } from "typeorm";
 
 const describeEngineStringProperty = (description: string): PropertyDecorator =>
 	ApiPropertyDescribe({
@@ -31,6 +31,9 @@ class EngineItemEntity {
 
 	@Column({ type: "varchar" })
 	public operatorId!: string;
+
+	@Column({ nullable: true, type: "int" })
+	public rank?: null | number;
 
 	@Column({ type: "varchar" })
 	public secret!: string;
@@ -62,6 +65,7 @@ const itemResourceDefinition: IApiAuthorizationResourceDefinition<EngineItemEnti
 		{ isFilterable: true, path: "resource.operatorId", queryPath: "operatorId" },
 		{ isFilterable: true, path: "resource.status", queryPath: "status" },
 		{ isFilterable: false, path: "resource.secret", queryPath: "secret" },
+		{ isFilterable: true, path: "resource.rank", queryPath: "rank" },
 	],
 	namespace: "admin:item",
 	resourcePath: "gameport:admin:item/{id}",
@@ -95,7 +99,7 @@ const deny = (statement: Partial<IApiPolicyStatement>): IApiPolicyStatement => (
 	...statement,
 });
 
-const evaluate = async (options: { action?: string; boundaryStatements?: ReadonlyArray<IApiPolicyStatement>; principal?: IApiAuthorizationPrincipal; requestMetadata?: IApiAuthorizationRequestMetadata<EngineItemEntity>; resource?: EngineItemEntity; resourceDefinition?: IApiAuthorizationResourceDefinition<EngineItemEntity>; routeType?: EApiRouteType; statements: ReadonlyArray<IApiPolicyStatement> }) => {
+const evaluate = async (options: { action?: string; boundaryStatements?: ReadonlyArray<IApiPolicyStatement>; principal?: IApiAuthorizationPrincipal; requestMetadata?: IApiAuthorizationRequestMetadata<EngineItemEntity>; resource?: EngineItemEntity; resourceDefinition?: IApiAuthorizationResourceDefinition<EngineItemEntity>; routeType?: EApiRouteType; statements: ReadonlyArray<IApiPolicyStatement>; dialect?: IApiAuthorizationIamDialect }) => {
 	const documents = [{ document: { Statement: options.statements, Version: "2012-10-17" }, id: "identity", namespace: "admin:item", sourceType: EApiPolicySourceType.MANAGED, version: "1" }, ...(options.boundaryStatements ? [{ document: { Statement: options.boundaryStatements, Version: "2012-10-17" }, id: "boundary", namespace: "admin:item", sourceType: EApiPolicySourceType.MANAGED, version: "1" }] : [])];
 
 	return await new ApiAuthorizationIamEngine(new ApiAuthorizationIamQueryPlanner()).evaluate<EngineItemEntity>({
@@ -104,6 +108,7 @@ const evaluate = async (options: { action?: string; boundaryStatements?: Readonl
 			attachments: [{ policyId: "identity", principalId: principal.id, principalType: principal.type }],
 			boundaries: options.boundaryStatements ? [{ policyId: "boundary", principalId: principal.id, principalType: principal.type }] : [],
 		},
+		dialect: options.dialect,
 		documents,
 		policyNamespace: "admin:item",
 		principal: options.principal ?? principal,
@@ -518,6 +523,69 @@ describe("ApiAuthorizationIamEngine", () => {
 
 			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
 			expect(decision.scope).toBeUndefined();
+		});
+	});
+
+	describe("NULL placeholders", () => {
+		const tenantResourceDefinition: IApiAuthorizationResourceDefinition<EngineItemEntity> = {
+			...itemResourceDefinition,
+			fields: [...itemResourceDefinition.fields, { isFilterable: true, path: "resource.tenantId", queryPath: "tenantId" }],
+			resourcePath: "gameport:tenant/{tenantId}/item/{id}",
+		};
+		const allowAnyResource: IApiPolicyStatement = { ...allowAll, Resource: ["*"] };
+		const read = async (statements: ReadonlyArray<IApiPolicyStatement>, tenantId: null | string) => await evaluate({ action: "admin:item:read", resource: { id: "item-1", operatorId: "operator-1", secret: "s", status: "active", tenantId } as unknown as EngineItemEntity, resourceDefinition: tenantResourceDefinition, routeType: EApiRouteType.GET, statements });
+
+		it.each([null, ""])("renders a %j placeholder of a loaded resource as an empty string", async (tenantId: null | string) => {
+			expect((await read([allowAnyResource, deny({ Resource: ["gameport:tenant//item/item-1"] })], tenantId)).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await read([allowAnyResource, deny({ Resource: ["gameport:tenant/*/item/item-1"] })], tenantId)).effect).toBe(EApiPolicyEffect.DENY);
+			// Before 5.2 the placeholder rendered as "*", which a "?" matched.
+			expect((await read([allowAnyResource, deny({ Resource: ["gameport:tenant/?/item/item-1"] })], tenantId)).effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await read([allowAnyResource, deny({ Resource: ["gameport:tenant/t-1/item/item-1"] })], tenantId)).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("excludes the rows whose placeholder renders as an empty string from a list", async () => {
+			const lastSlot = await evaluate({ statements: [allowAll, deny({ Resource: ["gameport:admin:item/"] })] });
+			const middleSlot = await evaluate({ resourceDefinition: tenantResourceDefinition, statements: [allowAnyResource, deny({ Resource: ["gameport:tenant//item/item-1"] })] });
+
+			expect(lastSlot.scope).toEqual({ where: { id: And(Not(IsNull()), Not(Equal(""))) } });
+			expect(middleSlot.scope).toEqual({ where: [{ tenantId: And(Not(IsNull()), Not(Equal(""))) }, { id: Not(Equal("item-1")) }, { id: IsNull() }] });
+		});
+	});
+
+	describe("String operators on columns that are not text", () => {
+		const loaded = { id: "item-1", operatorId: "operator-1", rank: 5, secret: "s", status: "active", tenantId: "t" } as unknown as EngineItemEntity;
+
+		it("fail closed in memory on a numeric column: an Allow is not matched and a Deny holds", async () => {
+			expect((await evaluate({ action: "admin:item:read", resource: loaded, routeType: EApiRouteType.GET, statements: [{ ...allowAll, Condition: { StringEquals: { "resource.rank": "5" } } }] })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await evaluate({ action: "admin:item:read", resource: loaded, routeType: EApiRouteType.GET, statements: [allowAll, deny({ Condition: { StringEquals: { "resource.rank": "6" } } })] })).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("fail closed in SQL on a numeric column", async () => {
+			expect((await evaluate({ statements: [{ ...allowAll, Condition: { StringEquals: { "resource.rank": "5" } } }] })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await evaluate({ statements: [allowAll, deny({ Condition: { StringNotEquals: { "resource.rank": "5" } } })] })).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+	});
+
+	describe("Allow scopes", () => {
+		it("allows every row when one matched Allow has no resource key", async () => {
+			const decision = await evaluate({ statements: [allowOwnOperator, allowAll] });
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(decision.scope).toBeUndefined();
+		});
+
+		it("lowers the scope to the dialect it is given", async () => {
+			const decision = await evaluate({ dialect: { binaryCollation: "utf8mb4_0900_bin", driverType: "mysql", type: EApiAuthorizationIamDialect.MYSQL, version: "8.4.2" }, statements: [allowOwnOperator] });
+			const where = decision.scope?.where as { operatorId: FindOperator<unknown> };
+
+			expect(where.operatorId.type).toBe("raw");
+			expect(where.operatorId.getSql?.("item.operatorId")).toMatch(/^CONVERT\(item\.operatorId USING utf8mb4\) COLLATE utf8mb4_0900_bin = :iam[0-9a-f]{24}$/);
+		});
+
+		it("grants nothing for an unresolved dialect, unless no Allow needs SQL", async () => {
+			expect((await evaluate({ dialect: { type: EApiAuthorizationIamDialect.UNRESOLVED }, statements: [allowOwnOperator] })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await evaluate({ dialect: { type: EApiAuthorizationIamDialect.UNRESOLVED }, statements: [allowAll] })).effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await evaluate({ dialect: { type: EApiAuthorizationIamDialect.UNRESOLVED }, statements: [allowAll, deny({ Condition: { StringEquals: { "resource.status": "archived" } } })] })).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 		});
 	});
 
