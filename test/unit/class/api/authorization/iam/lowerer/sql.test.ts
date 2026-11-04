@@ -4,10 +4,13 @@ import type { DataSource } from "typeorm";
 
 import { ApiAuthorizationIamPredicateBuilder } from "@class/api/authorization/iam";
 import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamDialect, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamTokenType } from "@enum/class/authorization";
-import { createIamLowererColumn, createIamLowererDataSource, renderIamLowererWhere } from "@test/unit/class/api/authorization/iam/fixture/lowerer";
+import { createIamLowerer, createIamLowererColumn, createIamLowererDataSource, renderIamLowererWhere } from "@test/unit/class/api/authorization/iam/fixture/lowerer";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const NAME: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("name");
+const UUID_CODE: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("code", { family: EApiAuthorizationIamColumnFamily.UUID, type: "uuid" });
+const ENUM_NAME: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("name", { enumValues: ["alpha", "beta"], family: EApiAuthorizationIamColumnFamily.ENUM, type: "enum" });
+const CANONICAL_UUID: string = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
 const textIn = (column: IApiAuthorizationIamPredicateColumn, values: Array<string>, isNegated: boolean = false): TApiAuthorizationIamPredicate => ({ column, comparison: EApiAuthorizationIamPredicateComparison.TEXT, isNegated, kind: EApiAuthorizationIamPredicateKind.IN, values });
 
@@ -96,6 +99,51 @@ describe("IAM predicate lowering to SQL", () => {
 			expect(renderIamLowererWhere(postgres, COCKROACH, textIn(createIamLowererColumn("name", { collation: "en-US-u-ks-level2" }), ["ann"]))).toBeUndefined();
 			expect(renderIamLowererWhere(postgres, COCKROACH, textIn(NAME, ["ann"]))).toBeDefined();
 		});
+
+		it("compares only canonical lower-case values on a uuid column, natively", () => {
+			expect(renderIamLowererWhere(postgres, POSTGRES, textIn(UUID_CODE, [CANONICAL_UUID, CANONICAL_UUID.toUpperCase(), "not-a-uuid"]))).toMatchInlineSnapshot(`
+				{
+				  "parameters": [
+				    "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+				  ],
+				  "where": "(((("IamLowererItemEntity"."code" = $1))))",
+				}
+			`);
+		});
+
+		it.each([POSTGRES, COCKROACH])("holds for no row when no value is a canonical uuid, and for every non-NULL row when negated ($driverType)", (dialect: IApiAuthorizationIamDialect) => {
+			for (const value of [CANONICAL_UUID.toUpperCase(), `{${CANONICAL_UUID}}`, CANONICAL_UUID.replaceAll("-", ""), "not-a-uuid", ""]) {
+				expect(createIamLowerer(dialect).lower(textIn(UUID_CODE, [value]), 128)).toEqual({ branches: [], isCompilable: true });
+				expect(renderIamLowererWhere(postgres, dialect, textIn(UUID_CODE, [value], true))?.where).toBe('((((NOT("IamLowererItemEntity"."code" IS NULL)))))');
+			}
+		});
+
+		it('keeps the NULL-complete pair of a "" placeholder on a uuid column without binding ""', () => {
+			const pair = ApiAuthorizationIamPredicateBuilder.buildExactConstraint({ column: UUID_CODE, comparison: EApiAuthorizationIamPredicateComparison.TEXT, value: "" });
+
+			expect(renderIamLowererWhere(postgres, POSTGRES, pair.holds)).toEqual({ parameters: [], where: '(((("IamLowererItemEntity"."code" IS NULL))))' });
+			expect(renderIamLowererWhere(postgres, POSTGRES, pair.fails)).toEqual({ parameters: [], where: '((((NOT("IamLowererItemEntity"."code" IS NULL)))))' });
+		});
+
+		it("compares only declared values on an enum column, natively", () => {
+			expect(renderIamLowererWhere(postgres, POSTGRES, textIn(ENUM_NAME, ["alpha", "gamma"]))).toEqual({ parameters: ["alpha"], where: '(((("IamLowererItemEntity"."name" = $1))))' });
+			expect(createIamLowerer(POSTGRES).lower(textIn(ENUM_NAME, ["Alpha", "gamma"]), 128)).toEqual({ branches: [], isCompilable: true });
+			expect(renderIamLowererWhere(postgres, POSTGRES, textIn(ENUM_NAME, ["gamma"], true))?.where).toBe('((((NOT("IamLowererItemEntity"."name" IS NULL)))))');
+		});
+
+		it("compares the text cast of an enum column whose values TypeORM does not declare", () => {
+			const undeclared: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("name", { family: EApiAuthorizationIamColumnFamily.ENUM, type: "enum" });
+
+			expect(renderIamLowererWhere(postgres, POSTGRES, textIn(undeclared, ["gamma"]))).toMatchInlineSnapshot(`
+				{
+				  "parameters": [
+				    "gamma",
+				  ],
+				  "where": "((((CAST("IamLowererItemEntity"."name" AS text) = $1))))",
+				}
+			`);
+			expect(renderIamLowererWhere(postgres, POSTGRES, textIn(createIamLowererColumn("name", { family: EApiAuthorizationIamColumnFamily.ENUM, hasTransformer: true, type: "enum" }), ["gamma"]))).toBeUndefined();
+		});
 	});
 
 	describe("MySQL and MariaDB", () => {
@@ -145,6 +193,22 @@ describe("IAM predicate lowering to SQL", () => {
 				  "where": "((((\`IamLowererItemEntity\`.\`name\` IS NULL))))",
 				}
 			`);
+		});
+	});
+
+	describe("uuid and enum columns outside PostgreSQL", () => {
+		it.each([
+			["MySQL", MYSQL],
+			["MariaDB", MARIADB],
+			["SQLite", SQLITE],
+			["portable", PORTABLE],
+		])("binds every value on %s, which compares it as text without refusing it", (_name: string, dialect: IApiAuthorizationIamDialect) => {
+			for (const column of [UUID_CODE, ENUM_NAME]) {
+				const lowered = createIamLowerer(dialect).lower(textIn(column, [CANONICAL_UUID.toUpperCase(), "gamma", ""]), 128);
+
+				expect(lowered.isCompilable).toBe(true);
+				expect(lowered.branches).toHaveLength(1);
+			}
 		});
 	});
 

@@ -62,6 +62,32 @@ class IamQueryFieldItemEntity {
 	public visitedAt!: Date;
 }
 
+// A numeric TypeScript enum also maps each number back to its name, which TypeORM leaves out.
+enum EIamQueryFieldLevel {
+	HIGH = 2,
+	LOW = 1,
+}
+
+enum EIamQueryFieldShade {
+	DARK = "dark",
+	LIGHT = "light",
+}
+
+@Entity("iam_query_field_enums")
+class IamQueryFieldEnumEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@Column({ enum: EIamQueryFieldLevel, type: "enum" })
+	public level!: EIamQueryFieldLevel;
+
+	@Column({ type: "enum" })
+	public loose!: string;
+
+	@Column({ enum: EIamQueryFieldShade, type: "simple-enum" })
+	public shade!: EIamQueryFieldShade;
+}
+
 @Entity("iam_query_field_codes")
 class IamQueryFieldCodeEntity {
 	@PrimaryColumn({ type: "char", length: 4 })
@@ -102,6 +128,14 @@ describe("AuthorizationIamReadQueryField column metadata", () => {
 		expect(readColumn(IamQueryFieldItemEntity, "collated")).toMatchObject({ collation: "und-x-icu" });
 		expect(readColumn(IamQueryFieldItemEntity, "transformed")).toMatchObject({ hasTransformer: true });
 		expect(readColumn(IamQueryFieldCodeEntity, "code")).toMatchObject({ family: EApiAuthorizationIamColumnFamily.TEXT, isPrimary: true, type: "char" });
+	});
+
+	it("reads the values an enum column declares, as TypeORM reads them", () => {
+		expect(readColumn(IamQueryFieldItemEntity, "grade")?.enumValues).toEqual(["a", "b"]);
+		expect(readColumn(IamQueryFieldEnumEntity, "level")?.enumValues).toEqual(["2", "1"]);
+		expect(readColumn(IamQueryFieldEnumEntity, "shade")).toMatchObject({ enumValues: ["dark", "light"], family: EApiAuthorizationIamColumnFamily.ENUM });
+		expect(readColumn(IamQueryFieldEnumEntity, "loose")?.enumValues).toBeUndefined();
+		expect(readColumn(IamQueryFieldItemEntity, "plainText")?.enumValues).toBeUndefined();
 	});
 
 	it("reads no column for a path that is not resolvable", () => {

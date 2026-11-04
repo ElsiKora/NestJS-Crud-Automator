@@ -19,6 +19,14 @@ export class E2eIamDialectItemEntity {
 	@describeText("name", 64)
 	public name?: null | string;
 
+	// An enum column: PostgreSQL refuses a value it does not declare instead of comparing it.
+	@Column({ enum: ["alpha", "beta"], nullable: true, type: "simple-enum" })
+	public kind?: null | string;
+
+	// A uuid column, as Gameport's operator keys: PostgreSQL refuses text that is no UUID and reads other spellings as the lower-case one.
+	@Column({ nullable: true, type: "uuid" })
+	public operatorId?: null | string;
+
 	@ManyToOne(() => E2eIamDialectOwnerEntity, { nullable: true })
 	public owner?: E2eIamDialectOwnerEntity | null;
 

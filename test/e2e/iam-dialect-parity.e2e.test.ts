@@ -18,7 +18,7 @@ import { GenericContainer, Wait } from "testcontainers";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationIamDialectRegistry, ApiAuthorizationModule, ApiAuthorizationSimulator, AuthorizationResolveDefaultPrincipal, EApiAuthorizationIamDialect, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiRouteType } from "../../src/index";
-import { E2E_IAM_DIALECT_ITEM_AUTHORIZATION, E2E_IAM_DIALECT_NAME_AUTHORIZATION, E2E_IAM_DIALECT_USER, E2eIamDialectGuard, E2eIamDialectItemController, E2eIamDialectItemEntity, E2eIamDialectItemService, E2eIamDialectNameController, E2eIamDialectOwnerEntity } from "./iam-dialect-parity";
+import { E2E_IAM_DIALECT_ITEM_AUTHORIZATION, E2E_IAM_DIALECT_NAME_AUTHORIZATION, E2E_IAM_DIALECT_OPERATOR_AUTHORIZATION, E2E_IAM_DIALECT_OPERATOR_ID, E2E_IAM_DIALECT_OPERATOR_PATH_AUTHORIZATION, E2E_IAM_DIALECT_USER, E2eIamDialectGuard, E2eIamDialectItemController, E2eIamDialectItemEntity, E2eIamDialectItemService, E2eIamDialectNameController, E2eIamDialectOperatorController, E2eIamDialectOperatorPathController, E2eIamDialectOwnerEntity } from "./iam-dialect-parity";
 
 type TDatabase = "mariadb" | "mysql" | "postgres" | "sqlite";
 
@@ -29,6 +29,11 @@ interface IPolicyCase {
 
 const ITEMS: string = "/iam-dialect/items";
 const NAMES: string = "/iam-dialect/names";
+const OPERATORS: string = "/iam-dialect/operators";
+const OPERATOR_PATHS: string = "/iam-dialect/operator-paths";
+const OPERATOR_A: string = E2E_IAM_DIALECT_OPERATOR_ID;
+const OPERATOR_B: string = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+const OPERATOR_WITHOUT_ROWS: string = "16fd2706-8baf-433b-82eb-8c7fada847da";
 const PAGE: string = "limit=50&page=1";
 const PRINCIPAL: IApiAuthorizationPrincipal = AuthorizationResolveDefaultPrincipal(E2E_IAM_DIALECT_USER);
 const MARIADB_PASSWORD: string = "iam-dialect";
@@ -41,16 +46,18 @@ const OWNERS: Array<E2eIamDialectOwnerEntity> = [
 ];
 
 // Names that differ only in letter case, accents or trailing spaces, a LIKE metacharacter, NULL, and the empty string.
+// Each row also holds a uuid operator and an enum kind, or NULL.
 const ITEM_ROWS: Array<E2eIamDialectItemEntity> = [
-	{ id: "a", name: "ann", owner: { id: "o-ann" } as E2eIamDialectOwnerEntity, price: "1.50", rank: 1, tenantId: "t-1" },
-	{ id: "b", name: "Ann", owner: { id: "o-upper" } as E2eIamDialectOwnerEntity, price: "2.00", rank: 2, tenantId: "t-1" },
-	{ id: "c", name: "ånn", owner: null, price: null, rank: null, tenantId: "t-2" },
-	{ id: "d", name: "ann ", owner: { id: "o-null" } as E2eIamDialectOwnerEntity, price: "1.50", rank: 1, tenantId: "t-1" },
-	{ id: "e", name: null, owner: null, price: null, rank: null, tenantId: null },
-	{ id: "f", name: "", owner: { id: "o-ann" } as E2eIamDialectOwnerEntity, price: null, rank: null, tenantId: "" },
-	{ id: "g", name: "an_n", owner: null, price: null, rank: 3, tenantId: "t-2" },
-	{ id: "h", name: "bob", owner: { id: "o-ann" } as E2eIamDialectOwnerEntity, price: null, rank: null, tenantId: "t-1" },
+	{ id: "a", kind: "alpha", name: "ann", operatorId: OPERATOR_A, owner: { id: "o-ann" } as E2eIamDialectOwnerEntity, price: "1.50", rank: 1, tenantId: "t-1" },
+	{ id: "b", kind: "beta", name: "Ann", operatorId: OPERATOR_B, owner: { id: "o-upper" } as E2eIamDialectOwnerEntity, price: "2.00", rank: 2, tenantId: "t-1" },
+	{ id: "c", kind: null, name: "ånn", operatorId: null, owner: null, price: null, rank: null, tenantId: "t-2" },
+	{ id: "d", kind: "alpha", name: "ann ", operatorId: OPERATOR_A, owner: { id: "o-null" } as E2eIamDialectOwnerEntity, price: "1.50", rank: 1, tenantId: "t-1" },
+	{ id: "e", kind: null, name: null, operatorId: null, owner: null, price: null, rank: null, tenantId: null },
+	{ id: "f", kind: "beta", name: "", operatorId: OPERATOR_B, owner: { id: "o-ann" } as E2eIamDialectOwnerEntity, price: null, rank: null, tenantId: "" },
+	{ id: "g", kind: null, name: "an_n", operatorId: OPERATOR_A, owner: null, price: null, rank: 3, tenantId: "t-2" },
+	{ id: "h", kind: "alpha", name: "bob", operatorId: null, owner: { id: "o-ann" } as E2eIamDialectOwnerEntity, price: null, rank: null, tenantId: "t-1" },
 ];
+const ALL_ROWS: Array<string> = ITEM_ROWS.map((row: E2eIamDialectItemEntity): string => row.id);
 
 const statement = (effect: EApiPolicyEffect, options: { condition?: Record<string, Record<string, unknown>>; resource?: Array<string> } = {}): IApiPolicyStatement => ({
 	Action: ["dial:item:*"],
@@ -78,6 +85,29 @@ const COMPILABLE_CASES: Array<[string, IPolicyCase, Array<string>]> = [
 	["Deny the exact row dial:tenant/t-1/item/a", denyResource(["dial:tenant/t-1/item/a"]), ["b", "c", "d", "e", "f", "g", "h"]],
 	["Deny the exact row dial:tenant/T-1/item/a in another letter case", denyResource(["dial:tenant/T-1/item/a"]), ["a", "b", "c", "d", "e", "f", "g", "h"]],
 	["Deny the rows of an empty tenant dial:tenant//item/e and dial:tenant//item/f", denyResource(["dial:tenant//item/e", "dial:tenant//item/f"]), ["a", "b", "c", "d", "g", "h"]],
+	["Allow StringEquals operatorId on a uuid column", allow("StringEquals", "operatorId", OPERATOR_A), ["a", "d", "g"]],
+	["Deny StringEquals operatorId in upper case", deny("StringEquals", "operatorId", OPERATOR_A.toUpperCase()), ALL_ROWS],
+	['Deny StringEquals operatorId "not-a-uuid"', deny("StringEquals", "operatorId", "not-a-uuid"), ALL_ROWS],
+	['Deny StringEquals kind "alpha" on an enum column', deny("StringEquals", "kind", "alpha"), ["b", "c", "e", "f", "g"]],
+	['Deny StringEquals kind "gamma", which the enum does not declare', deny("StringEquals", "kind", "gamma"), ALL_ROWS],
+];
+
+// Values a uuid or enum column cannot hold: an Allow on them allows no row, in SQL as in memory, and never errors. PostgreSQL
+// refuses such a value, so the planner knows the Allow holds for no row and the list answers 403; the other databases compare
+// the value as text, which matches no row, so the list is empty.
+const NO_ROW_CASES: Array<[string, IPolicyCase]> = [
+	["Allow StringEquals operatorId in upper case", allow("StringEquals", "operatorId", OPERATOR_A.toUpperCase())],
+	['Allow StringEquals operatorId "not-a-uuid"', allow("StringEquals", "operatorId", "not-a-uuid")],
+	['Allow StringEquals kind "gamma", which the enum does not declare', allow("StringEquals", "kind", "gamma")],
+	['Allow StringEquals kind "Alpha" in another letter case', allow("StringEquals", "kind", "Alpha")],
+];
+
+// Row patterns over the uuid placeholder: an empty slot names the NULL rows, another spelling of a UUID names none.
+const OPERATOR_PATH_CASES: Array<[string, Array<string>]> = [
+	["dialu:item/", ["a", "b", "d", "f", "g"]],
+	[`dialu:item/${OPERATOR_A}`, ["b", "c", "e", "f", "h"]],
+	[`dialu:item/${OPERATOR_A.toUpperCase()}`, ALL_ROWS],
+	["dialu:item/not-a-uuid", ALL_ROWS],
 ];
 
 // String operators on numeric columns: the list answers 403 before any row is read, and no loaded row is allowed.
@@ -139,7 +169,7 @@ describe.each<{ database: TDatabase; databaseName: string; dialect: EApiAuthoriz
 	};
 
 	// The rows the in-memory evaluator allows once each resource is loaded with its relations.
-	const allowedInMemory = async (authorization: typeof E2E_IAM_DIALECT_ITEM_AUTHORIZATION | typeof E2E_IAM_DIALECT_NAME_AUTHORIZATION): Promise<Array<string>> => {
+	const allowedInMemory = async (authorization: typeof E2E_IAM_DIALECT_ITEM_AUTHORIZATION | typeof E2E_IAM_DIALECT_NAME_AUTHORIZATION | typeof E2E_IAM_DIALECT_OPERATOR_AUTHORIZATION | typeof E2E_IAM_DIALECT_OPERATOR_PATH_AUTHORIZATION): Promise<Array<string>> => {
 		const allowed: Array<string> = [];
 
 		for (const row of await repository().find({ relations: { owner: true } })) {
@@ -174,7 +204,7 @@ describe.each<{ database: TDatabase; databaseName: string; dialect: EApiAuthoriz
 
 		const entities: Array<new () => unknown> = [E2eIamDialectOwnerEntity, E2eIamDialectItemEntity];
 		const moduleReference = await Test.createTestingModule({
-			controllers: [E2eIamDialectItemController, E2eIamDialectNameController],
+			controllers: [E2eIamDialectItemController, E2eIamDialectNameController, E2eIamDialectOperatorController, E2eIamDialectOperatorPathController],
 			imports: [
 				TypeOrmModule.forRoot(connection(entities)),
 				TypeOrmModule.forFeature(entities),
@@ -238,6 +268,77 @@ describe.each<{ database: TDatabase; databaseName: string; dialect: EApiAuthoriz
 		expect(await listIds(ITEMS)).toEqual({ ids: [], statusCode: HttpStatus.FORBIDDEN });
 		// A loaded row fails closed in memory too.
 		expect(await allowedInMemory(E2E_IAM_DIALECT_ITEM_AUTHORIZATION)).toEqual([]);
+	});
+
+	const noRowStatus: HttpStatus = dialect === EApiAuthorizationIamDialect.POSTGRES ? HttpStatus.FORBIDDEN : HttpStatus.OK;
+
+	it.each(NO_ROW_CASES)("allows no row, listed or loaded, for %s", async (_name: string, policyCase: IPolicyCase) => {
+		policy = policyCase;
+
+		expect(await listIds(ITEMS)).toEqual({ ids: [], statusCode: noRowStatus });
+		expect(await allowedInMemory(E2E_IAM_DIALECT_ITEM_AUTHORIZATION)).toEqual([]);
+	});
+
+	it.each(OPERATOR_PATH_CASES)("keeps the rows the in-memory evaluator allows for a list Deny on the uuid pattern %s", async (resource: string, kept: Array<string>) => {
+		policy = {
+			namespace: "dialu:item",
+			statements: [
+				{ Action: ["dialu:item:*"], Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] },
+				{ Action: ["dialu:item:*"], Effect: EApiPolicyEffect.DENY, Resource: [resource] },
+			],
+		};
+
+		expect(await allowedInMemory(E2E_IAM_DIALECT_OPERATOR_PATH_AUTHORIZATION)).toEqual(kept);
+		expect(await listIds(OPERATOR_PATHS)).toEqual({ ids: kept, statusCode: HttpStatus.OK });
+	});
+
+	describe("Gameport's operator baseline: StringEquals resource.operatorId with ${principal.attributes.operatorId}", () => {
+		const read = async (id: string): Promise<number> => (await fastify.inject({ method: "GET", url: `${OPERATORS}/${id}` })).statusCode;
+
+		beforeEach(() => {
+			policy = {
+				namespace: "dialo:item",
+				statements: [{ Action: ["dialo:item:*"], Condition: { StringEquals: { "resource.operatorId": "${principal.attributes.operatorId}" } }, Effect: EApiPolicyEffect.ALLOW, Resource: ["dialo:item/*"] }],
+			};
+		});
+
+		afterAll(() => {
+			E2E_IAM_DIALECT_USER.operatorId = OPERATOR_A;
+		});
+
+		it("lists and reads the rows of the principal's operator", async () => {
+			E2E_IAM_DIALECT_USER.operatorId = OPERATOR_A;
+
+			expect(await allowedInMemory(E2E_IAM_DIALECT_OPERATOR_AUTHORIZATION)).toEqual(["a", "d", "g"]);
+			expect(await listIds(OPERATORS)).toEqual({ ids: ["a", "d", "g"], statusCode: HttpStatus.OK });
+			expect(await read("a")).toBe(HttpStatus.OK);
+			expect(await read("b")).toBe(HttpStatus.NOT_FOUND);
+			expect(await read("c")).toBe(HttpStatus.NOT_FOUND);
+		});
+
+		it("lists and reads no row for an operator that owns none", async () => {
+			E2E_IAM_DIALECT_USER.operatorId = OPERATOR_WITHOUT_ROWS;
+
+			expect(await allowedInMemory(E2E_IAM_DIALECT_OPERATOR_AUTHORIZATION)).toEqual([]);
+			expect(await listIds(OPERATORS)).toEqual({ ids: [], statusCode: HttpStatus.OK });
+			expect(await read("a")).toBe(HttpStatus.NOT_FOUND);
+		});
+
+		it.each([OPERATOR_A.toUpperCase(), "not-a-uuid"])("allows no row, without an error, for the operator attribute %j", async (operatorId: string) => {
+			E2E_IAM_DIALECT_USER.operatorId = operatorId;
+
+			expect(await allowedInMemory(E2E_IAM_DIALECT_OPERATOR_AUTHORIZATION)).toEqual([]);
+			expect(await listIds(OPERATORS)).toEqual({ ids: [], statusCode: noRowStatus });
+			expect(await read("a")).toBe(noRowStatus === HttpStatus.OK ? HttpStatus.NOT_FOUND : HttpStatus.FORBIDDEN);
+		});
+
+		it("denies the request for an empty operator attribute, which no scope compares", async () => {
+			E2E_IAM_DIALECT_USER.operatorId = "";
+
+			expect(await allowedInMemory(E2E_IAM_DIALECT_OPERATOR_AUTHORIZATION)).toEqual([]);
+			expect(await listIds(OPERATORS)).toEqual({ ids: [], statusCode: HttpStatus.FORBIDDEN });
+			expect(await read("a")).toBe(HttpStatus.FORBIDDEN);
+		});
 	});
 
 	it.each(NAME_CASES)("keeps the rows the in-memory evaluator allows for a list Deny on %s", async (resource: string, kept: Array<string>) => {

@@ -58,6 +58,33 @@ class EngineNoteEntity {
 	public text!: string;
 }
 
+@Entity("engine_devices")
+class EngineDeviceEntity {
+	@PrimaryColumn({ type: "uuid" })
+	public id!: string;
+
+	@Column({ enum: ["alpha", "beta"], nullable: true, type: "enum" })
+	public kind?: null | string;
+
+	@Column({ nullable: true, type: "uuid" })
+	public operatorId?: null | string;
+}
+
+const DEVICE_ID: string = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+const OPERATOR_ID: string = "0b6f1c1e-7d2a-4c8e-9a51-3f4e2d1c0b9a";
+
+const deviceResourceDefinition: IApiAuthorizationResourceDefinition<EngineDeviceEntity> = {
+	entity: EngineDeviceEntity,
+	fields: [
+		{ isFilterable: true, path: "resource.id", queryPath: "id" },
+		{ isFilterable: true, path: "resource.kind", queryPath: "kind" },
+		{ isFilterable: true, path: "resource.operatorId", queryPath: "operatorId" },
+	],
+	namespace: "admin:item",
+	resourcePath: "gameport:admin:item/{id}",
+	resourceType: "gameport:admin:item",
+};
+
 const itemResourceDefinition: IApiAuthorizationResourceDefinition<EngineItemEntity> = {
 	entity: EngineItemEntity,
 	fields: [
@@ -563,6 +590,45 @@ describe("ApiAuthorizationIamEngine", () => {
 		it("fail closed in SQL on a numeric column", async () => {
 			expect((await evaluate({ statements: [{ ...allowAll, Condition: { StringEquals: { "resource.rank": "5" } } }] })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 			expect((await evaluate({ statements: [allowAll, deny({ Condition: { StringNotEquals: { "resource.rank": "5" } } })] })).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+	});
+
+	describe("uuid and enum columns on PostgreSQL", () => {
+		const POSTGRES: IApiAuthorizationIamDialect = { driverType: "postgres", type: EApiAuthorizationIamDialect.POSTGRES };
+		const loaded = { id: DEVICE_ID, kind: "alpha", operatorId: OPERATOR_ID } as unknown as EngineItemEntity;
+		const onDevices = async (statements: ReadonlyArray<IApiPolicyStatement>, options: { action?: string; principal?: IApiAuthorizationPrincipal; resource?: EngineItemEntity } = {}) => await evaluate({ ...options, dialect: POSTGRES, resourceDefinition: deviceResourceDefinition as unknown as IApiAuthorizationResourceDefinition<EngineItemEntity>, ...(options.resource ? { routeType: EApiRouteType.GET } : {}), statements });
+		const allowWhere = (key: string, value: string): IApiPolicyStatement => ({ ...allowAll, Condition: { StringEquals: { [key]: value } } });
+
+		it("compares a canonical uuid natively and an operator attribute like Gameport's baseline", async () => {
+			expect((await onDevices([allowWhere("resource.operatorId", OPERATOR_ID)])).scope).toEqual({ where: { operatorId: OPERATOR_ID } });
+			expect((await onDevices([allowOwnOperator], { principal: { ...principal, attributes: { operatorId: OPERATOR_ID } } })).scope).toEqual({ where: { operatorId: OPERATOR_ID } });
+		});
+
+		it.each([OPERATOR_ID.toUpperCase(), `{${OPERATOR_ID}}`, OPERATOR_ID.replaceAll("-", ""), "not-a-uuid", "operator-1"])("holds for no row on a uuid column for %s, in SQL and in memory", async (value: string) => {
+			expect((await onDevices([allowWhere("resource.operatorId", value)])).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await onDevices([allowWhere("resource.operatorId", value)], { action: "admin:item:read", resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			// The Deny holds for no row, so it keeps every row, NULL ones included.
+			expect((await onDevices([allowAll, deny({ Condition: { StringEquals: { "resource.operatorId": value } } })])).scope).toEqual({ where: [{ operatorId: Not(IsNull()) }, { operatorId: IsNull() }] });
+			expect((await onDevices([allowAll, deny({ Condition: { StringEquals: { "resource.operatorId": value } } })], { action: "admin:item:read", resource: loaded })).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		it("holds for no row on a uuid column when the principal attribute is not a canonical uuid", async () => {
+			expect((await onDevices([allowOwnOperator], { principal: { ...principal, attributes: { operatorId: OPERATOR_ID.toUpperCase() } } })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await onDevices([allowOwnOperator], { action: "admin:item:read", principal: { ...principal, attributes: { operatorId: OPERATOR_ID.toUpperCase() } }, resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		});
+
+		it('excludes only NULL ids for a "" placeholder on a uuid column', async () => {
+			expect((await onDevices([allowAll, deny({ Resource: ["gameport:admin:item/"] })])).scope).toEqual({ where: { id: Not(IsNull()) } });
+			expect((await onDevices([allowAll, deny({ Resource: ["gameport:admin:item/A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11"] })])).scope).toEqual({ where: [{ id: Not(IsNull()) }, { id: IsNull() }] });
+		});
+
+		it("compares a declared enum value natively and holds for no row on any other value", async () => {
+			expect((await onDevices([allowWhere("resource.kind", "alpha")])).scope).toEqual({ where: { kind: "alpha" } });
+			expect((await onDevices([allowWhere("resource.kind", "gamma")])).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await onDevices([allowWhere("resource.kind", "Alpha")], { action: "admin:item:read", resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			// Every row, NULL included, differs from a value the column cannot hold, so the Deny keeps no row, as in memory.
+			expect((await onDevices([allowAll, deny({ Condition: { StringNotEquals: { "resource.kind": "gamma" } } })])).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect((await onDevices([allowAll, deny({ Condition: { StringNotEquals: { "resource.kind": "gamma" } } })], { action: "admin:item:read", resource: loaded })).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 		});
 	});
 
