@@ -1,7 +1,10 @@
+export { type IApiAuthorizationIamColumn } from "./column.interface";
 export { type IApiAuthorizationIamContextKey } from "./context-key.interface";
 export { type IApiAuthorizationIamDenyExclusion } from "./deny-exclusion.interface";
+export { type IApiAuthorizationIamDialect } from "./dialect.interface";
 export { type IApiAuthorizationIamFailure } from "./failure.interface";
 export { type IApiAuthorizationIamOperatorDefinition } from "./operator-definition.interface";
+export type * from "./predicate";
 export { type IApiAuthorizationIamQueryField } from "./query-field.interface";
 export { type IApiAuthorizationIamResourceConstraint } from "./resource-constraint.interface";
 export { type IApiAuthorizationIamResourceSegment } from "./resource-segment.interface";

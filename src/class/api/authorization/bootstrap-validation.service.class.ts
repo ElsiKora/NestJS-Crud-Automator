@@ -6,7 +6,7 @@ import type { Type } from "@nestjs/common";
 import type { InstanceWrapper } from "@nestjs/core/internal";
 
 import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
-import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache, ApiAuthorizationIamResourceDefinitionRegistry } from "@class/api/authorization/iam";
+import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDialectRegistry, ApiAuthorizationIamDocumentCache, ApiAuthorizationIamResourceDefinitionRegistry } from "@class/api/authorization/iam";
 import { ApiAuthorizationParametersRuleRegistry } from "@class/api/authorization/parameters-rule-registry.class";
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
 import { AUTHORIZATION_GATEWAY_METADATA_CONSTANT, AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT, AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
@@ -30,10 +30,12 @@ import { ApiControllerParametersBuildRouteRule } from "@utility/api/controller/p
 import { ApiControllerParametersAssertValidationPipePackages, ApiControllerParametersReadValidationPipes } from "@utility/api/controller/parameters/validation-pipe.utility";
 import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query-field.utility";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
+import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
 import { DtoRequestWireBindController } from "@utility/dto/request-wire/bind";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { getMetadataStorage } from "class-validator";
+import { InstanceChecker } from "typeorm";
 
 const authorizationBootstrapValidationLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationBootstrapValidationService");
 
@@ -61,6 +63,8 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		private readonly applicationConfig?: ApplicationConfig,
 		@Optional()
 		private readonly httpAdapterHost?: HttpAdapterHost,
+		@Optional()
+		private readonly iamDialectRegistry?: ApiAuthorizationIamDialectRegistry,
 	) {
 		// A manual `new` without the registry, from JavaScript or through a cast, fails here instead of on the first start.
 		if (!(parametersRuleRegistry instanceof ApiAuthorizationParametersRuleRegistry)) {
@@ -79,6 +83,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		this.iamAttachmentCache.configure(this.moduleOptions.cache);
 		this.iamDocumentCache.configure(this.moduleOptions.cache);
 		this.parametersRuleRegistry.clear();
+		this.iamDialectRegistry?.clear();
 		const controllerWrappers: Array<InstanceWrapper> = this.discoveryService.getControllers();
 
 		// Before the path value samples run: a PARAMETERS DTO converts its path text only once a route binds it, and a plain Nest route binds its DTOs only here.
@@ -419,6 +424,39 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
+	 * Registers the DataSource an IAM controller reads its entity from, so its query scopes lower to that database's
+	 * dialect: the DataSource of the controller service's repository, or else every DataSource provider of the
+	 * application that maps the entity. An entity no DataSource maps lowers with the portable dialect.
+	 * @param {InstanceWrapper} controllerWrapper - Controller wrapper.
+	 * @param {object} entity - Resource entity class.
+	 */
+	private registerIamDialect(controllerWrapper: InstanceWrapper, entity: object): void {
+		if (!this.iamDialectRegistry) {
+			return;
+		}
+
+		const instance: unknown = controllerWrapper.instance;
+		const service: unknown = instance && typeof instance === "object" ? Reflect.get(instance, "service") : undefined;
+		const repository: unknown = service && typeof service === "object" ? Reflect.get(service, "repository") : undefined;
+
+		if (DatabaseTypeOrmIsRepository(repository)) {
+			this.iamDialectRegistry.register(entity, repository.manager.dataSource);
+
+			return;
+		}
+
+		for (const moduleReference of this.modulesContainer.values()) {
+			for (const provider of moduleReference.providers.values()) {
+				const value: unknown = provider.isDependencyTreeStatic() ? provider.instance : undefined;
+
+				if (InstanceChecker.isDataSource(value) && value.hasMetadata(entity as new () => unknown)) {
+					this.iamDialectRegistry.register(entity, value);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Resolves the `RouterModule` prefix of the module that holds a controller, the way Nest does.
 	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller.
 	 * @returns {string} The prefix, or an empty string without one.
@@ -520,6 +558,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			this.validateResourceDefinition(metatype.name, authorization.resourceDefinition);
 			// Policy document validation checks `resource.*` keys against the fields each namespace maps.
 			ApiAuthorizationIamResourceDefinitionRegistry.getInstance().register(authorization.resourceDefinition);
+			this.registerIamDialect(controllerWrapper, authorization.resourceDefinition.entity);
 		}
 
 		this.applyRouteParameterRules(controllerWrapper, metatype, authorization.defaultMode, authorization.resourceDefinition?.resourcePath, authorization.policyNamespace);

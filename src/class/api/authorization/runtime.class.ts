@@ -9,7 +9,7 @@ import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/auth
 
 import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
 import { ApiAuthorizationHookPermissionResolver } from "@class/api/authorization/hook";
-import { ApiAuthorizationIamAttachmentResolver, ApiAuthorizationIamDocumentResolver, ApiAuthorizationIamEngine } from "@class/api/authorization/iam";
+import { ApiAuthorizationIamAttachmentResolver, ApiAuthorizationIamDialectRegistry, ApiAuthorizationIamDocumentResolver, ApiAuthorizationIamEngine } from "@class/api/authorization/iam";
 import { AUTHORIZATION_AUDIT_SINK_TOKEN, AUTHORIZATION_POLICY_REGISTRY_TOKEN, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN } from "@constant/class/authorization";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api/route";
@@ -39,6 +39,8 @@ export class ApiAuthorizationRuntime {
 		@Inject(AUTHORIZATION_AUDIT_SINK_TOKEN)
 		@Optional()
 		private readonly auditSink?: IApiAuthorizationAuditSink,
+		@Optional()
+		private readonly iamDialectRegistry?: ApiAuthorizationIamDialectRegistry,
 	) {}
 
 	public async evaluate<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(options: {
@@ -146,6 +148,7 @@ export class ApiAuthorizationRuntime {
 		return await this.iamEngine.evaluate({
 			action: this.resolveIamAction(options.authorization.policyNamespace, options.action, options.routeType),
 			attachments,
+			dialect: await this.iamDialectRegistry?.resolve(options.authorization.resourceDefinition.entity),
 			documents,
 			policyNamespace: options.authorization.policyNamespace,
 			principal: options.principal,

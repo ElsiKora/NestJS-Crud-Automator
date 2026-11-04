@@ -1,9 +1,11 @@
-import type { IApiAuthorizationIamQueryField } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamColumn, IApiAuthorizationIamQueryField } from "@interface/class/api/authorization";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TTypeOrmColumnMetadataArguments, TTypeOrmEmbeddedMetadataArguments, TTypeOrmMetadataArgumentsStorage, TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
+import { AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT } from "@constant/class/authorization";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { EApiAuthorizationIamColumnFamily } from "@enum/class/authorization";
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
@@ -12,6 +14,9 @@ import { getMetadataArgsStorage } from "typeorm";
 
 // TypeORM column types that hold a boolean: `Boolean` comes from a `boolean` property without an explicit type, and `bit` is the SQL Server boolean.
 const authorizationIamQueryFieldBooleanColumnTypes: ReadonlySet<unknown> = new Set<unknown>(["bit", "bool", Boolean, "boolean"]);
+
+// Column modes TypeORM fills with a date when the decorator names no type.
+const authorizationIamQueryFieldDateModes: ReadonlySet<string> = new Set<string>(["createDate", "deleteDate", "updateDate"]);
 
 // Relations that hold several rows: a path through one has no single value to compare.
 const authorizationIamQueryFieldCollectionRelationTypes: ReadonlySet<string> = new Set<string>(["many-to-many", "one-to-many"]);
@@ -27,6 +32,8 @@ const authorizationIamQueryFieldCollectionRelationTypes: ReadonlySet<string> = n
  * A path that ends before a column, or names a property TypeORM does not map, is not resolvable. So is every path of a
  * resource entity that no TypeORM decorator maps, such as one registered only through an `EntitySchema`: its column types
  * cannot be read, so its scope fails closed instead of binding values as text.
+ * A resolvable path also carries `column`: the family, declared type and collation, transformer, nullability and primary
+ * flag of the column it ends on, from which the planner and the dialect lowerers decide which comparisons are exact.
  * @param {object} entity - Resource entity class.
  * @param {string} queryPath - Entity query path such as `isActive`, `owner.company.isVerified` or `meta.isLocked`.
  * @returns {IApiAuthorizationIamQueryField} The resolved query path.
@@ -53,8 +60,9 @@ export function AuthorizationIamReadQueryField(entity: object, queryPath: string
 			}
 
 			const metadata: Partial<TApiPropertyDescribeProperties> | undefined = MetadataStorage.getInstance().getMetadata(hierarchy[0], segment, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
+			const isBoolean: boolean = authorizationIamQueryFieldBooleanColumnTypes.has(column.options.type) || metadata?.type === EApiPropertyDescribeType.BOOLEAN;
 
-			return { isBoolean: authorizationIamQueryFieldBooleanColumnTypes.has(column.options.type) || metadata?.type === EApiPropertyDescribeType.BOOLEAN, isOptional, isResolvable: true, ...(presencePath === undefined ? {} : { presencePath }) };
+			return { column: AuthorizationIamReadColumn(column, isBoolean), isBoolean, isOptional, isResolvable: true, ...(presencePath === undefined ? {} : { presencePath }) };
 		}
 
 		const relation: TTypeOrmRelationMetadataArguments | undefined = storage.filterRelations(hierarchy).find((candidate: TTypeOrmRelationMetadataArguments): boolean => candidate.propertyName === segment);
@@ -79,6 +87,44 @@ export function AuthorizationIamReadQueryField(entity: object, queryPath: string
 	}
 
 	return { isBoolean: false, isOptional: false, isResolvable: false };
+}
+
+/**
+ * Reads what the planner needs of the column a query path ends on from its TypeORM decorator arguments: the column
+ * family, nullability, list and JSON storage, a declared collation, and a value transformer. A `createDate`,
+ * `updateDate` or `deleteDate` column without a named type holds a date, and a `version` column a number.
+ * @param {TTypeOrmColumnMetadataArguments} column - Decorator arguments of the column.
+ * @param {boolean} isBoolean - Whether the column holds a boolean by its TypeORM type or its describe metadata.
+ * @returns {IApiAuthorizationIamColumn} The column.
+ */
+function AuthorizationIamReadColumn(column: TTypeOrmColumnMetadataArguments, isBoolean: boolean): IApiAuthorizationIamColumn {
+	const declaredType: unknown = column.options.type;
+	const type: string | undefined = typeof declaredType === "string" ? declaredType.trim().toLowerCase() : undefined;
+	const isPrimary: boolean = column.options.primary === true;
+	let family: EApiAuthorizationIamColumnFamily = AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT.TYPES.get(type ?? declaredType) ?? EApiAuthorizationIamColumnFamily.OTHER;
+
+	if (declaredType === undefined && authorizationIamQueryFieldDateModes.has(column.mode)) {
+		family = EApiAuthorizationIamColumnFamily.DATE;
+	} else if (declaredType === undefined && column.mode === "version") {
+		family = EApiAuthorizationIamColumnFamily.NUMERIC;
+	}
+
+	if (column.options.array === true) {
+		family = EApiAuthorizationIamColumnFamily.ARRAY;
+	} else if (isBoolean) {
+		family = EApiAuthorizationIamColumnFamily.BOOLEAN;
+	}
+
+	return {
+		...(typeof column.options.collation === "string" ? { collation: column.options.collation } : {}),
+		family,
+		hasTransformer: column.options.transformer !== undefined,
+		isArray: family === EApiAuthorizationIamColumnFamily.ARRAY,
+		isJson: family === EApiAuthorizationIamColumnFamily.JSON,
+		isNullable: column.options.nullable === true && !isPrimary,
+		isPrimary,
+		...(type === undefined ? {} : { type }),
+	};
 }
 
 /**

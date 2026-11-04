@@ -1,8 +1,11 @@
 export * from "./attachment";
+export { ApiAuthorizationIamDialectRegistry } from "./dialect-registry.class";
 export * from "./document";
 export { ApiAuthorizationIamEngine } from "./engine.class";
 export { ApiAuthorizationIamGlob } from "./glob.class";
+export * from "./lowerer";
 export { ApiAuthorizationIamParser } from "./parser.class";
+export * from "./predicate";
 export { ApiAuthorizationIamQueryPlanner } from "./query-planner.class";
 export { ApiAuthorizationIamResourceDefinitionRegistry } from "./registry.class";
 export { ApiAuthorizationIamVariable } from "./variable.class";

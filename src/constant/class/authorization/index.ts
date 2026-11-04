@@ -1,4 +1,6 @@
 export { AUTHORIZATION_AUDIT_SINK_TOKEN } from "./audit-sink-token.constant";
+export { AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT } from "./column-family-iam.constant";
+export { AUTHORIZATION_IAM_DIALECT_CONSTANT } from "./dialect-iam.constant";
 export { AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN } from "./hook-permission-sources-token.constant";
 export { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "./metadata-decision.constant";
 export { AUTHORIZATION_GATEWAY_METADATA_CONSTANT } from "./metadata-gateway.constant";

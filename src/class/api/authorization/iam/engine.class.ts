@@ -5,7 +5,9 @@ import type {
 	IApiAuthorizationIamCondition,
 	IApiAuthorizationIamConditionValue,
 	IApiAuthorizationIamDenyExclusion,
+	IApiAuthorizationIamDialect,
 	IApiAuthorizationIamPattern,
+	IApiAuthorizationIamQueryField,
 	IApiAuthorizationIamResourceConstraint,
 	IApiAuthorizationIamResourceSegment,
 	IApiAuthorizationIamStatement,
@@ -24,6 +26,7 @@ import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/auth
 
 import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class";
 import { ApiAuthorizationIamParser } from "@class/api/authorization/iam/parser.class";
+import { ApiAuthorizationIamPredicateBuilder } from "@class/api/authorization/iam/predicate";
 import { ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam/query-planner.class";
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
@@ -44,9 +47,27 @@ const iamEngineLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorization
 export class ApiAuthorizationIamEngine {
 	public constructor(private readonly queryPlanner: ApiAuthorizationIamQueryPlanner) {}
 
+	/**
+	 * Evaluates the IAM documents of a principal for one request.
+	 * @template E - Entity type.
+	 * @template M - List pagination mode.
+	 * @param {object} options - Evaluation options.
+	 * @param {string} options.action - Namespaced IAM action.
+	 * @param {IApiResolvedPolicyAttachments} options.attachments - Identity and boundary attachments of the principal.
+	 * @param {IApiAuthorizationIamDialect} [options.dialect] - SQL dialect of the resource entity, which the query scopes are lowered to; portable when absent.
+	 * @param {ReadonlyArray<IApiPolicyDocumentRecord>} options.documents - Attached policy documents.
+	 * @param {string} options.policyNamespace - Policy namespace of the resource.
+	 * @param {IApiAuthorizationPrincipal} options.principal - Evaluated principal.
+	 * @param {IApiAuthorizationRequestMetadata<E, M>} options.requestMetadata - Request metadata.
+	 * @param {E} [options.resource] - Loaded resource, when available.
+	 * @param {IApiAuthorizationResourceDefinition<E>} options.resourceDefinition - IAM resource definition.
+	 * @param {EApiRouteType} [options.routeType] - Route type of the request.
+	 * @returns {Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>>} The decision with its scope.
+	 */
 	public evaluate<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(options: {
 		action: string;
 		attachments: IApiResolvedPolicyAttachments;
+		dialect?: IApiAuthorizationIamDialect;
 		documents: ReadonlyArray<IApiPolicyDocumentRecord>;
 		policyNamespace: string;
 		principal: IApiAuthorizationPrincipal;
@@ -79,6 +100,7 @@ export class ApiAuthorizationIamEngine {
 			}>;
 		} = this.evaluateDocumentSet({
 			action: options.action,
+			dialect: options.dialect,
 			documents: identityDocuments,
 			isCreateRequest,
 			isListRequest,
@@ -102,6 +124,7 @@ export class ApiAuthorizationIamEngine {
 			}>;
 		} = this.evaluateDocumentSet({
 			action: options.action,
+			dialect: options.dialect,
 			documents: boundaryDocuments,
 			isCreateRequest,
 			isListRequest,
@@ -116,6 +139,7 @@ export class ApiAuthorizationIamEngine {
 			isFullyCompilable: boolean;
 			scope?: IApiAuthorizationScope<E>;
 		} = this.queryPlanner.plan({
+			dialect: options.dialect,
 			principal: options.principal,
 			requestMetadata: options.requestMetadata,
 			resource: options.resource,
@@ -130,6 +154,7 @@ export class ApiAuthorizationIamEngine {
 			boundaryDocuments.length === 0
 				? { isFullyCompilable: true, scope: undefined }
 				: this.queryPlanner.plan({
+						dialect: options.dialect,
 						principal: options.principal,
 						requestMetadata: options.requestMetadata,
 						resource: options.resource,
@@ -149,6 +174,7 @@ export class ApiAuthorizationIamEngine {
 			isFullyCompilable: boolean;
 			scope?: IApiAuthorizationScope<E>;
 		} = this.queryPlanner.planExclusion({
+			dialect: options.dialect,
 			exclusions: [...identityEvaluation.denyExclusions, ...boundaryEvaluation.denyExclusions],
 			principal: options.principal,
 			requestMetadata: options.requestMetadata,
@@ -260,6 +286,7 @@ export class ApiAuthorizationIamEngine {
 
 	private evaluateDocumentSet<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: {
 		action: string;
+		dialect?: IApiAuthorizationIamDialect;
 		documents: ReadonlyArray<IApiPolicyDocumentRecord>;
 		isCreateRequest: boolean;
 		isListRequest: boolean;
@@ -295,6 +322,7 @@ export class ApiAuthorizationIamEngine {
 			for (const statement of document.document.Statement) {
 				const statementMatch: IApiAuthorizationIamStatementMatch = this.matchStatement({
 					action: options.action,
+					dialect: options.dialect,
 					isCreateRequest: options.isCreateRequest,
 					isListRequest: options.isListRequest,
 					principal: options.principal,
@@ -376,6 +404,27 @@ export class ApiAuthorizationIamEngine {
 	}
 
 	/**
+	 * Tells whether a String operator may compare a `resource.*` key of a loaded resource. A key whose field mapping
+	 * ends on a column TypeORM maps compares only a text, UUID, enum or boolean column, as its SQL scope does; a key
+	 * TypeORM does not map has no column type to check and compares its value as text.
+	 * @template E - Entity type.
+	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition with the field mappings.
+	 * @param {string} path - `resource.*` condition path.
+	 * @returns {boolean} Whether the key compares.
+	 */
+	private isStringComparableResourcePath<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, path: string): boolean {
+		const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === path);
+
+		if (!fieldDefinition) {
+			return false;
+		}
+
+		const field: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, fieldDefinition.queryPath);
+
+		return !field.isResolvable || ApiAuthorizationIamPredicateBuilder.isStringComparable(field);
+	}
+
+	/**
 	 * Tells whether a value has no text to compare although it is present: a list, an object, or an invalid date.
 	 * @param {unknown} value - Value a condition key reads.
 	 * @returns {boolean} Whether the value is structured.
@@ -392,6 +441,7 @@ export class ApiAuthorizationIamEngine {
 	 * @template M - List pagination mode.
 	 * @param {object} options - Matching options.
 	 * @param {string} options.action - Namespaced IAM action.
+	 * @param {IApiAuthorizationIamDialect} [options.dialect] - SQL dialect of the resource entity.
 	 * @param {boolean} options.isCreateRequest - Whether the request creates a resource.
 	 * @param {boolean} options.isListRequest - Whether the request lists resources.
 	 * @param {IApiAuthorizationPrincipal} options.principal - Evaluated principal.
@@ -404,6 +454,7 @@ export class ApiAuthorizationIamEngine {
 	 */
 	private matchStatement<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: {
 		action: string;
+		dialect?: IApiAuthorizationIamDialect;
 		isCreateRequest: boolean;
 		isListRequest: boolean;
 		principal: IApiAuthorizationPrincipal;
@@ -517,7 +568,8 @@ export class ApiAuthorizationIamEngine {
 			}
 
 			// A list or object value, such as `principal.roles`, has no one text to compare, so the key fails closed: it holds for a Deny and fails an Allow.
-			if (this.isStructuredValue(actualValue.value)) {
+			// So does a column a String operator cannot compare as the SQL scope would, such as a numeric or date column.
+			if (this.isStructuredValue(actualValue.value) || (path.startsWith("resource.") && !this.isStringComparableResourcePath(options.resourceDefinition, path))) {
 				if (isDeny) {
 					continue;
 				}
@@ -535,6 +587,7 @@ export class ApiAuthorizationIamEngine {
 				isMatched:
 					!hasResourceCondition ||
 					this.queryPlanner.plan({
+						dialect: options.dialect,
 						principal: options.principal,
 						requestMetadata: options.requestMetadata,
 						resource: options.resource,
@@ -675,11 +728,12 @@ export class ApiAuthorizationIamEngine {
 			const nextSegment: IApiAuthorizationIamResourceSegment | undefined = segments[index + 1];
 
 			if (!nextSegment) {
-				if (remainder.length > 0) {
+				// An empty exact remainder names the rows whose placeholder renders as "", which a NULL value does.
+				if (remainder.length > 0 || !isPrefixPattern) {
 					constraints.push({ isPrefix: isPrefixPattern, placeholder: segment.placeholder, value: remainder });
 				}
 
-				return remainder.length > 0 || isPrefixPattern ? { constraints, isMappable: true } : undefined;
+				return { constraints, isMappable: true };
 			}
 
 			if (nextSegment.placeholder !== undefined) {
@@ -701,7 +755,8 @@ export class ApiAuthorizationIamEngine {
 
 			const separatorIndex: number = remainder.indexOf(nextSegment.value);
 
-			if (separatorIndex <= 0) {
+			// A separator right at the slot names the rows whose placeholder renders as "".
+			if (separatorIndex === -1) {
 				return undefined;
 			}
 
@@ -718,7 +773,8 @@ export class ApiAuthorizationIamEngine {
 
 	/**
 	 * Splits the resource path into literal segments and placeholders; placeholders resolved from the resource or
-	 * request parameters become literals, unresolved ones keep their name and render as `*`. A request parameter of the
+	 * request parameters become literals, unresolved ones keep their name and render as `*`. On a loaded resource a
+	 * NULL, missing or empty value renders as `""`, so `item/` names the row whose `id` is NULL. A request parameter of the
 	 * placeholder's name wins; otherwise a placeholder that names a field reads the resource through its query path, as
 	 * the SQL scope does, and any other placeholder reads the resource property of its name.
 	 * @template E - Entity type.
@@ -768,6 +824,9 @@ export class ApiAuthorizationIamEngine {
 
 			if (renderedValue) {
 				appendLiteral(renderedValue);
+			} else if (resource !== undefined && (resolvedValue === undefined || resolvedValue === null || resolvedValue === "")) {
+				// A loaded resource has no unknown placeholder: a NULL or empty value renders as nothing, as its SQL row does.
+				appendLiteral("");
 			} else {
 				segments.push({ placeholder, value: "*" });
 			}
