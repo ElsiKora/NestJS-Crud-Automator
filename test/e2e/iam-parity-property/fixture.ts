@@ -2,11 +2,11 @@ import "reflect-metadata";
 
 import type { ExecutionContext } from "@nestjs/common";
 import type { IE2eIamParityDefinition } from "./generator";
-import type { IE2eIamParityItem, IE2eIamParityOwner } from "./rows";
+import type { IE2eIamParityItem, IE2eIamParityNote, IE2eIamParityOwner } from "./rows";
 
 import { Inject, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Column, Entity, ManyToOne, PrimaryColumn, Repository } from "typeorm";
+import { Column, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryColumn, Repository } from "typeorm";
 
 import { ApiController, ApiControllerSecurable, ApiPropertyDescribe, ApiService, ApiServiceBase, EApiAuthenticationType, EApiAuthorizationMode, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 
@@ -24,6 +24,7 @@ export interface IE2eIamParityRoute {
 
 export interface IE2eIamParityFixture {
 	item: new () => IE2eIamParityItem;
+	note: new () => IE2eIamParityNote;
 	owner: new () => IE2eIamParityOwner;
 	routes: ReadonlyArray<IE2eIamParityRoute>;
 	service: new () => { repository: Repository<IE2eIamParityItem> };
@@ -72,6 +73,13 @@ const FIELDS: ReadonlyArray<[string, string]> = [
 	["rank", "rank"],
 	["ratio", "ratio"],
 	["single", "single"],
+	// Columns of the related rows of a `OneToMany`; `noteCoded` has a transformer, which no subquery reads exactly.
+	["noteActive", "notes.isActive"],
+	["noteAt", "notes.occurredAt"],
+	["noteCoded", "notes.coded"],
+	["noteDay", "notes.day"],
+	["noteScore", "notes.score"],
+	["noteText", "notes.text"],
 ];
 
 // A column whose stored text differs from what the entity holds.
@@ -95,8 +103,8 @@ export class E2eIamParityGuard {
 const authentication = { guard: E2eIamParityGuard, type: EApiAuthenticationType.USER } as never;
 
 /**
- * Declares the tables and routes of one database: one entity, and one list route per resource path over it. Only the
- * path of `{id}` has a read route.
+ * Declares the tables and routes of one database: one entity, with an owner and soft-deletable related rows through a
+ * `OneToMany`, and one list route per resource path over it. Only the path of `{id}` has a read route.
  * @param {TE2eIamParityDatabase} database - Database under test.
  * @returns {IE2eIamParityFixture} Entities, service and routes of that database.
  */
@@ -161,6 +169,9 @@ export function createE2eIamParityFixture(database: TE2eIamParityDatabase): IE2e
 		@Column({ length: 64, nullable: true, type: "varchar" })
 		public note?: null | string;
 
+		@OneToMany(() => E2eIamParityNoteEntity, (note: E2eIamParityNoteEntity) => note.item)
+		public notes?: Array<E2eIamParityNoteEntity>;
+
 		@Column({ nullable: true, ...types.occurredAt })
 		public occurredAt?: Date | null;
 
@@ -179,6 +190,37 @@ export function createE2eIamParityFixture(database: TE2eIamParityDatabase): IE2e
 
 		@Column({ nullable: true, type: types.single })
 		public single?: null | number;
+	}
+
+	// A related row, which can be soft-deleted.
+	@Entity("e2e_iam_parity_notes")
+	class E2eIamParityNoteEntity implements IE2eIamParityNote {
+		@Column({ length: 64, nullable: true, transformer: CODED_TRANSFORMER, type: "varchar" })
+		public coded?: null | string;
+
+		@Column({ nullable: true, type: "date" })
+		public day?: null | string;
+
+		@DeleteDateColumn({ nullable: true })
+		public deletedAt?: Date | null;
+
+		@PrimaryColumn({ length: 36, type: "varchar" })
+		public id!: string;
+
+		@Column({ nullable: true, type: "boolean" })
+		public isActive?: boolean | null;
+
+		@ManyToOne(() => E2eIamParityItemEntity, (item: E2eIamParityItemEntity) => item.notes)
+		public item?: E2eIamParityItemEntity;
+
+		@Column({ nullable: true, ...types.occurredAt })
+		public occurredAt?: Date | null;
+
+		@Column({ nullable: true, type: "int" })
+		public score?: null | number;
+
+		@Column({ length: 64, nullable: true, type: "varchar" })
+		public text?: null | string;
 	}
 
 	@Injectable()
@@ -230,5 +272,5 @@ export function createE2eIamParityFixture(database: TE2eIamParityDatabase): IE2e
 		return { authorization, controller: E2eIamParityController, definition, url: `/iam-parity/${definition.name}` };
 	});
 
-	return { item: E2eIamParityItemEntity, owner: E2eIamParityOwnerEntity, routes, service: E2eIamParityItemService };
+	return { item: E2eIamParityItemEntity, note: E2eIamParityNoteEntity, owner: E2eIamParityOwnerEntity, routes, service: E2eIamParityItemService };
 }

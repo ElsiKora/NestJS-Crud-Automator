@@ -7,7 +7,7 @@ import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { StartedTestContainer } from "testcontainers";
 import type { Repository } from "typeorm";
 import type { IApiAuthorizationPrincipal, IApiPolicyDocumentRecord, IApiPolicyStatement } from "../../src/index";
-import type { IE2eIamParityCase, IE2eIamParityDefinition, IE2eIamParityFixture, IE2eIamParityItem, IE2eIamParityPinnedCase, IE2eIamParityRoute, TE2eIamParityDatabase } from "./iam-parity-property";
+import type { IE2eIamParityCase, IE2eIamParityDefinition, IE2eIamParityFixture, IE2eIamParityItem, IE2eIamParityNote, IE2eIamParityNoteSeed, IE2eIamParityPinnedCase, IE2eIamParityRoute, TE2eIamParityDatabase } from "./iam-parity-property";
 
 import { appendFileSync } from "node:fs";
 
@@ -21,7 +21,7 @@ import { GenericContainer, Wait } from "testcontainers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiAuthorizationSimulator, AuthorizationResolveDefaultPrincipal, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiRouteType } from "../../src/index";
-import { createE2eIamParityFixture, createE2eIamParityPinnedCase, E2E_IAM_PARITY_OWNERS, E2E_IAM_PARITY_PINNED_CASES, E2E_IAM_PARITY_ROWS, E2E_IAM_PARITY_USER, E2eIamParityGuard, generateE2eIamParityCase } from "./iam-parity-property";
+import { createE2eIamParityFixture, createE2eIamParityPinnedCase, E2E_IAM_PARITY_NOTES, E2E_IAM_PARITY_OWNERS, E2E_IAM_PARITY_PINNED_CASES, E2E_IAM_PARITY_ROWS, E2E_IAM_PARITY_USER, E2eIamParityGuard, generateE2eIamParityCase } from "./iam-parity-property";
 
 // What one in-memory evaluation of a loaded row answers; "refused" means the grammar refused the document.
 type TMemoryAnswer = "allow" | "deny" | "refused";
@@ -337,7 +337,7 @@ describe.each<{ database: TE2eIamParityDatabase; databaseName: string }>(
 
 		fixture = createE2eIamParityFixture(database);
 
-		const entities: Array<new () => unknown> = [fixture.owner, fixture.item];
+		const entities: Array<new () => unknown> = [fixture.owner, fixture.item, fixture.note];
 		const moduleReference = await Test.createTestingModule({
 			controllers: fixture.routes.map((route: IE2eIamParityRoute): new () => unknown => route.controller),
 			imports: [
@@ -367,7 +367,18 @@ describe.each<{ database: TE2eIamParityDatabase; databaseName: string }>(
 			.manager.getRepository(fixture.owner)
 			.save(E2E_IAM_PARITY_OWNERS as never);
 		await repository().save(E2E_IAM_PARITY_ROWS as never);
-		loadedRows = await repository().find({ relations: { owner: true } as never });
+
+		const notes: Repository<IE2eIamParityNote> = repository().manager.getRepository(fixture.note);
+
+		await notes.save(E2E_IAM_PARITY_NOTES.map(({ isDeleted: _isDeleted, itemId, ...note }: IE2eIamParityNoteSeed) => ({ ...note, item: { id: itemId } })) as never);
+		await notes.softDelete(E2E_IAM_PARITY_NOTES.filter((note: IE2eIamParityNoteSeed): boolean => note.isDeleted).map((note: IE2eIamParityNoteSeed): string => note.id));
+		// Memory reads each row with its whole relations, as TypeORM loads them: a soft-deleted related row is not loaded.
+		loadedRows = await repository().find({ relations: { notes: true, owner: true } as never });
+		expect(loadedRows.flatMap((row: IE2eIamParityItem): Array<string> => (row.notes ?? []).map((note: IE2eIamParityNote): string => note.id)).sort()).toEqual(
+			E2E_IAM_PARITY_NOTES.filter((note: IE2eIamParityNoteSeed): boolean => !note.isDeleted)
+				.map((note: IE2eIamParityNoteSeed): string => note.id)
+				.sort(),
+		);
 		expect(loadedRows.map((row: IE2eIamParityItem): string => row.id).sort()).toEqual([...ROW_IDS].sort());
 	}, 300_000);
 

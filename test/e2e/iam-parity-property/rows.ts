@@ -7,6 +7,18 @@ export interface IE2eIamParityOwner {
 	rank?: null | number;
 }
 
+// A related row of an item, through its to-many relation.
+export interface IE2eIamParityNote {
+	coded?: null | string;
+	day?: null | string;
+	deletedAt?: Date | null;
+	id: string;
+	isActive?: boolean | null;
+	occurredAt?: Date | null;
+	score?: null | number;
+	text?: null | string;
+}
+
 export interface IE2eIamParityItem {
 	address?: null | string;
 	amount?: null | number | string;
@@ -19,12 +31,19 @@ export interface IE2eIamParityItem {
 	kind?: null | string;
 	label: string;
 	note?: null | string;
+	notes?: Array<IE2eIamParityNote>;
 	occurredAt?: Date | null;
 	operatorId?: null | string;
 	owner?: IE2eIamParityOwner | null;
 	rank?: null | number;
 	ratio?: null | number;
 	single?: null | number;
+}
+
+// A related row as it is saved: the item it belongs to, and whether it is soft-deleted after the save.
+export interface IE2eIamParityNoteSeed extends Omit<IE2eIamParityNote, "deletedAt"> {
+	isDeleted: boolean;
+	itemId: string;
 }
 
 export const E2E_IAM_PARITY_UUID_A: string = "0b6f1c1e-7d2a-4c8e-9a51-3f4e2d1c0b9a";
@@ -96,5 +115,67 @@ export const E2E_IAM_PARITY_ROWS: ReadonlyArray<IE2eIamParityItem> = IDS.map((id
 	single: cycle(SINGLES, index),
 }));
 
-// The one principal: its attributes feed the variables of a policy, resolved, empty, and of the wrong type.
-export const E2E_IAM_PARITY_USER: Record<string, unknown> = { empty: "", id: "user-1", isEnabled: true, itemId: "item-1", list: ["ann"], name: "ann", network: "10.0.0.0/8", object: { name: "ann" }, operatorId: E2E_IAM_PARITY_UUID_A, rank: 1, since: "2024-01-01T00:00:00Z", textRank: "1.5", today: "2024-01-01" };
+type TE2eIamParityNoteValues = [text: null | string, score: null | number, isActive: boolean | null, occurredAt: Date | null, day: null | string, coded: null | string, isDeleted?: boolean];
+
+const NOTE_NULL: TE2eIamParityNoteValues = [null, null, null, null, null, null];
+const NOTE_ANN: TE2eIamParityNoteValues = ["ann", 1, true, new Date("2024-01-01T00:00:00.000Z"), "2024-01-01", "ann"];
+
+/**
+ * The related rows of an item, by the item's index: none, one, several, a related row of NULL values, several that agree,
+ * and soft-deleted ones, which do not count, so a set of only soft-deleted rows is empty. Its length differs from that of
+ * every column, so each set meets other values of the item.
+ */
+const NOTE_SETS: ReadonlyArray<ReadonlyArray<TE2eIamParityNoteValues>> = [
+	[],
+	[NOTE_ANN],
+	[NOTE_ANN, ["bob", 7, false, new Date("2024-11-03T05:30:00.000Z"), "2024-01-02", "bob"]],
+	[NOTE_NULL],
+	[NOTE_ANN, [null, 7, null, new Date("2024-03-10T07:30:00.000Z"), null, null]],
+	[["ann", 1, true, new Date("2024-01-01T00:00:00.000Z"), "2024-01-01", "ann", true]],
+	[
+		["bob", -1, false, new Date("2023-12-31T23:59:59.999Z"), "2023-12-31", "ANN"],
+		["ANN", 7, true, new Date("2024-01-01T00:00:00.000Z"), "2024-01-01", "ann", true],
+	],
+	[NOTE_ANN, NOTE_ANN],
+	[
+		["a%b", -1, false, new Date("2024-01-01T02:00:00.123Z"), "2024-02-29", "a%b"],
+		["ann ", INT32_MAX, true, new Date("2100-01-01T00:00:00.000Z"), "2100-01-01", ""],
+		["", 0, null, null, "2023-12-31", null],
+		["😀nn", INT32_MIN, true, new Date("2024-01-01T00:00:00.000Z"), "2024-01-01", "ANN"],
+	],
+	[["Ann", 2, true, new Date("2024-06-01T00:00:00.000Z"), "2024-01-01", "ann"], NOTE_NULL, ["*", 1, false, null, null, "*", true]],
+	[
+		["ANN ", 3, false, new Date("2024-03-10T07:30:00.000Z"), "2024-02-29", "a%b"],
+		["bob", 70, null, new Date("2024-01-01T00:00:00.000Z"), null, "bob"],
+	],
+];
+
+// Every related row, with the item it belongs to.
+export const E2E_IAM_PARITY_NOTES: ReadonlyArray<IE2eIamParityNoteSeed> = IDS.flatMap((itemId: string, index: number): Array<IE2eIamParityNoteSeed> => cycle(NOTE_SETS, index).map(([text, score, isActive, occurredAt, day, coded, isDeleted]: TE2eIamParityNoteValues, position: number): IE2eIamParityNoteSeed => ({ coded, day, id: `n${String(index)}-${String(position)}`, isActive, isDeleted: isDeleted ?? false, itemId, occurredAt, score, text })));
+
+/**
+ * The one principal: its attributes feed the variables of a policy, resolved, empty, and of the wrong type. Its sets hold
+ * several values, one, none, a `null` or an object; `principal.roles` holds two values and `principal.groups` none.
+ */
+export const E2E_IAM_PARITY_USER: Record<string, unknown> = {
+	empty: "",
+	emptyList: [],
+	id: "user-1",
+	isEnabled: true,
+	itemId: "item-1",
+	list: ["ann"],
+	name: "ann",
+	network: "10.0.0.0/8",
+	nothing: null,
+	nullList: ["ann", null],
+	object: { name: "ann" },
+	objectList: ["ann", { name: "ann" }],
+	operatorId: E2E_IAM_PARITY_UUID_A,
+	rank: 1,
+	ranks: [1, 7],
+	roles: ["admin", "dev"],
+	several: ["ann", "bob", "ANN"],
+	since: "2024-01-01T00:00:00Z",
+	textRank: "1.5",
+	today: "2024-01-01",
+};
