@@ -317,7 +317,7 @@ export class ApiAuthorizationIamPortableLowerer {
 	 * Lowers a comparison of an instant. A column finer than the milliseconds a value reads back with holds instants memory
 	 * floors, so it compares against the floored literal: `> L` is `>= L+1ms`, `<= L` is `< L+1ms`, and `= L` is the
 	 * millisecond starting at L. A wall-clock column cannot tell the second occurrence of a repeated hour from the
-	 * first, so such a literal fails closed.
+	 * first, nor hold a local wall clock outside the years 0001 to 9999, so such a literal fails closed.
 	 * @param {IApiAuthorizationIamPredicateCompare} atom - `COMPARE` atom with a `DATE` comparison.
 	 * @param {IApiAuthorizationIamDateValue} date - The literal instant.
 	 * @param {object} options - How the column compares.
@@ -328,8 +328,9 @@ export class ApiAuthorizationIamPortableLowerer {
 	 */
 	protected lowerInstantCompare(atom: IApiAuthorizationIamPredicateCompare, date: IApiAuthorizationIamDateValue, options: { isFiner: boolean; isWallClock: boolean; toParameter: (instant: Date) => unknown }): IApiAuthorizationIamPredicateLowered {
 		const instant: Date = new Date(date.epoch);
+		const isWallClockExact = (value: Date): boolean => !options.isWallClock || (ApiAuthorizationIamDateValue.isWallClockInRange(value) && !ApiAuthorizationIamDateValue.isRepeatedHour(value));
 
-		if (options.isWallClock && ApiAuthorizationIamDateValue.isRepeatedHour(instant)) {
+		if (!isWallClockExact(instant)) {
 			return { isExact: false };
 		}
 
@@ -339,7 +340,7 @@ export class ApiAuthorizationIamPortableLowerer {
 
 		const next: IApiAuthorizationIamDateValue | undefined = ApiAuthorizationIamDateValue.parse(new Date(date.epoch + 1));
 
-		if (!next || (options.isWallClock && ApiAuthorizationIamDateValue.isRepeatedHour(new Date(next.epoch)))) {
+		if (!next || !isWallClockExact(new Date(next.epoch))) {
 			return { isExact: false };
 		}
 

@@ -55,6 +55,19 @@ export class ApiAuthorizationIamDateValue {
 	}
 
 	/**
+	 * Tells whether the local wall clock of an instant in the process time zone lies in the years 0001 to 9999, which a
+	 * wall-clock column holds the instant as: east of UTC the last instants leave year 9999, west of it the first leave
+	 * year 0001, and the database then refuses the value or compares it unlike memory.
+	 * @param {Date} date - Instant.
+	 * @returns {boolean} Whether the wall clock lies in the years every column type holds.
+	 */
+	public static isWallClockInRange(date: Date): boolean {
+		const year: number = date.getFullYear();
+
+		return year >= PROPERTY_DATE_DECORATOR_API_CONSTANT.MINIMUM_YEAR && year <= PROPERTY_DATE_DECORATOR_API_CONSTANT.MAXIMUM_YEAR;
+	}
+
+	/**
 	 * Reads a date value. A number is no date, as epoch seconds are not in the grammar.
 	 * @param {unknown} value - A `Date`, ISO 8601 text with a zone designator, or `YYYY-MM-DD` text.
 	 * @returns {IApiAuthorizationIamDateValue | undefined} The value, or undefined when it is none.

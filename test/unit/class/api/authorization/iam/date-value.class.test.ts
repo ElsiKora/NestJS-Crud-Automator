@@ -76,4 +76,29 @@ describe("ApiAuthorizationIamDateValue", () => {
 
 		expect(ApiAuthorizationIamDateValue.isRepeatedHour(new Date("2024-10-27T01:30:00.000Z"))).toBe(false);
 	});
+
+	it("tells whether the local wall clock of an instant stays in the years 0001 to 9999", () => {
+		const last: Date = new Date("9999-12-31T23:59:59.999Z");
+		const first: Date = new Date("0001-01-01T00:00:00.000Z");
+
+		try {
+			process.env.TZ = "Europe/Moscow";
+
+			expect(ApiAuthorizationIamDateValue.isWallClockInRange(last)).toBe(false);
+			expect(ApiAuthorizationIamDateValue.isWallClockInRange(first)).toBe(true);
+
+			// Kiritimati keeps its local mean time of -10:29 before 1901, so its first instants leave year 0001 too.
+			process.env.TZ = "Pacific/Kiritimati";
+
+			expect(ApiAuthorizationIamDateValue.isWallClockInRange(last)).toBe(false);
+			expect(ApiAuthorizationIamDateValue.isWallClockInRange(first)).toBe(false);
+
+			process.env.TZ = "America/New_York";
+
+			expect(ApiAuthorizationIamDateValue.isWallClockInRange(last)).toBe(true);
+			expect(ApiAuthorizationIamDateValue.isWallClockInRange(first)).toBe(false);
+		} finally {
+			process.env.TZ = "UTC";
+		}
+	});
 });

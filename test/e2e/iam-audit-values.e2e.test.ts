@@ -58,6 +58,9 @@ const COUNTERS: ReadonlyArray<IE2eIamAuditCounter> = [
 ];
 
 // Text each typed column cannot hold, or holds only after a coercion no policy asks for.
+// The last year a date column holds.
+const MAX_YEAR: number = 9999;
+
 const UNHOLDABLE: Record<TE2eIamAuditTypedField, ReadonlyArray<string>> = {
 	at: ["abc", "2024-01-01", "2024-01-01T00:00:00Z", "0000-00-00", "9999-99-99"],
 	day: ["abc", "2024-13-45", "2024-01-01abc", "0"],
@@ -315,8 +318,13 @@ describe.each<{ database: TE2eIamAuditDatabase; databaseName: string }>([
 
 				const ns: string = readE2eIamAuditNamespace("items", database);
 				const isWallClock: boolean = database !== "sqlite";
-				// The local wall clock of the last instant leaves year 9999 east of UTC, and that of the first leaves year 1 west of it.
-				const leaving: string = timeZone === "America/New_York" ? FIRST_INSTANT : LAST_INSTANT;
+				// The local wall clock of the last instant leaves year 9999 east of UTC, and that of the first leaves year 1 west of
+				// it, as under the local mean time Kiritimati kept before 1901.
+				const isLeaving = (value: string): boolean => {
+					const year: number = new Date(value).getFullYear();
+
+					return year < 1 || year > MAX_YEAR;
+				};
 
 				for (const [operator, value] of [
 					["DateLessThan", LAST_INSTANT],
@@ -330,7 +338,7 @@ describe.each<{ database: TE2eIamAuditDatabase; databaseName: string }>([
 					const denied: IListAnswer = await list(use("items", [allow(ns), deny(ns, { Condition: condition })]));
 					const memory: Array<string> = await expectNoHardDisagreement(fixture.routes.items, denied);
 
-					if (isWallClock && value === leaving) {
+					if (isWallClock && isLeaving(value)) {
 						expect(denied.statusCode).toBe(HttpStatus.FORBIDDEN);
 						expect(allowed.ids).toEqual([]);
 					} else {
