@@ -1,0 +1,558 @@
+[
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringEquals": {
+				"resource.noteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a",
+					"b"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin IN (?, ?)))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringEquals": {
+				"resource.noteText": [
+					"a",
+					"b"
+				]
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a",
+					"b"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin IN (?, ?)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?) OR (`iam_collection_row`.`note_text` IS NULL)))))"
+			}
+		},
+		"condition": {
+			"ForAllValues:StringEquals": {
+				"resource.noteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?) OR (`iam_collection_row`.`note_text` IS NULL)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?) OR (`iam_collection_row`.`note_text` IS NULL)))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringNotEquals": {
+				"resource.noteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?) OR (`iam_collection_row`.`note_text` IS NULL)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a",
+					"b"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin IN (?, ?)))))"
+			}
+		},
+		"condition": {
+			"ForAllValues:StringNotEquals": {
+				"resource.noteText": [
+					"a",
+					"b"
+				]
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a",
+					"b"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin IN (?, ?)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))) OR (((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (1=1))))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringEqualsIfExists": {
+				"resource.noteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE (((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?)) AND EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (1=1)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?) OR (`iam_collection_row`.`note_text` IS NULL)))))"
+			}
+		},
+		"condition": {
+			"ForAllValues:StringEqualsIfExists": {
+				"resource.noteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?) OR (`iam_collection_row`.`note_text` IS NULL)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": false
+		},
+		"condition": {
+			"ForAnyValue:StringEqualsIgnoreCase": {
+				"resource.noteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": false
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a%"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin LIKE ? ESCAPE '!'))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringLike": {
+				"resource.noteText": "a*"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a%"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin LIKE ? ESCAPE '!'))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a_b"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin NOT LIKE ? ESCAPE '!') OR (`iam_collection_row`.`note_text` IS NULL)))))"
+			}
+		},
+		"condition": {
+			"ForAllValues:StringLike": {
+				"resource.noteText": "a?b"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a_b"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin NOT LIKE ? ESCAPE '!') OR (`iam_collection_row`.`note_text` IS NULL)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"7"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (`iam_collection_row`.`rank` = CAST(? AS DECIMAL(65,0))))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:NumericEquals": {
+				"resource.noteRank": 7
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"7"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (`iam_collection_row`.`rank` = CAST(? AS DECIMAL(65,0))))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"7"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (`iam_collection_row`.`rank` > CAST(? AS DECIMAL(65,0))))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:NumericGreaterThan": {
+				"resource.noteRank": 7
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"7"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (`iam_collection_row`.`rank` > CAST(? AS DECIMAL(65,0))))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"7"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((`iam_collection_row`.`rank` > CAST(? AS DECIMAL(65,0))) OR (`iam_collection_row`.`rank` IS NULL)))))"
+			}
+		},
+		"condition": {
+			"ForAllValues:NumericLessThanEquals": {
+				"resource.noteRank": 7
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"7"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND ((`iam_collection_row`.`rank` > CAST(? AS DECIMAL(65,0))) OR (`iam_collection_row`.`rank` IS NULL)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"2026-01-02T03:04:05.001Z"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (`iam_collection_row`.`at` >= ?))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:DateGreaterThan": {
+				"resource.noteAt": "2026-01-02T03:04:05.000Z"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"2026-01-02T03:04:05.001Z"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (`iam_collection_row`.`at` >= ?))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					true
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (`iam_collection_row`.`isFlagged` = ?))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:Bool": {
+				"resource.noteFlagged": "true"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					true
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (`iam_collection_row`.`isFlagged` = ?))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_soft_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND `iam_collection_row`.`deleted_at` IS NULL AND (CONVERT(`iam_collection_row`.`text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringEquals": {
+				"resource.softNoteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_soft_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND `iam_collection_row`.`deleted_at` IS NULL AND (CONVERT(`iam_collection_row`.`text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_soft_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND `iam_collection_row`.`deleted_at` IS NULL AND ((CONVERT(`iam_collection_row`.`text` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?) OR (`iam_collection_row`.`text` IS NULL)))))"
+			}
+		},
+		"condition": {
+			"ForAllValues:StringEquals": {
+				"resource.softNoteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_soft_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND `iam_collection_row`.`deleted_at` IS NULL AND ((CONVERT(`iam_collection_row`.`text` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?) OR (`iam_collection_row`.`text` IS NULL)))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_item_tags` `iam_collection_link` INNER JOIN `pin_tags` `iam_collection_row` ON `iam_collection_row`.`id` = `iam_collection_link`.`pinTagsId` WHERE `iam_collection_link`.`pinItemsId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`name` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringEquals": {
+				"resource.tagName": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_item_tags` `iam_collection_link` INNER JOIN `pin_tags` `iam_collection_row` ON `iam_collection_row`.`id` = `iam_collection_link`.`pinTagsId` WHERE `iam_collection_link`.`pinItemsId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`name` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_item_tags` `iam_collection_link` INNER JOIN `pin_tags` `iam_collection_row` ON `iam_collection_row`.`id` = `iam_collection_link`.`pinTagsId` WHERE `iam_collection_link`.`pinItemsId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`name` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		},
+		"condition": {
+			"ForAllValues:StringNotEquals": {
+				"resource.tagName": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_item_tags` `iam_collection_link` INNER JOIN `pin_tags` `iam_collection_row` ON `iam_collection_row`.`id` = `iam_collection_link`.`pinTagsId` WHERE `iam_collection_link`.`pinItemsId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`name` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((EXISTS (SELECT 1 FROM `pin_group_items` `iam_collection_link` INNER JOIN `pin_groups` `iam_collection_row` ON `iam_collection_row`.`id` = `iam_collection_link`.`pinGroupsId` WHERE `iam_collection_link`.`pinItemsId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`name` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringEquals": {
+				"resource.groupName": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((NOT EXISTS (SELECT 1 FROM `pin_group_items` `iam_collection_link` INNER JOIN `pin_groups` `iam_collection_row` ON `iam_collection_row`.`id` = `iam_collection_link`.`pinGroupsId` WHERE `iam_collection_link`.`pinItemsId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`name` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a",
+					"b"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE (((EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?)) AND EXISTS (SELECT 1 FROM `pin_item_tags` `iam_collection_link` INNER JOIN `pin_tags` `iam_collection_row` ON `iam_collection_row`.`id` = `iam_collection_link`.`pinTagsId` WHERE `iam_collection_link`.`pinItemsId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`name` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?)))))"
+			}
+		},
+		"condition": {
+			"ForAnyValue:StringEquals": {
+				"resource.noteText": "a",
+				"resource.tagName": "b"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"a",
+					"b"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((((NOT EXISTS (SELECT 1 FROM `pin_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`note_text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))) OR (((NOT EXISTS (SELECT 1 FROM `pin_item_tags` `iam_collection_link` INNER JOIN `pin_tags` `iam_collection_row` ON `iam_collection_row`.`id` = `iam_collection_link`.`pinTagsId` WHERE `iam_collection_link`.`pinItemsId` = `PinItemEntity`.`id` AND (CONVERT(`iam_collection_row`.`name` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))))"
+			}
+		}
+	},
+	{
+		"allow": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"open",
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((CONVERT(`PinItemEntity`.`status` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?) AND (EXISTS (SELECT 1 FROM `pin_soft_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND `iam_collection_row`.`deleted_at` IS NULL AND (CONVERT(`iam_collection_row`.`text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))"
+			}
+		},
+		"condition": {
+			"StringEquals": {
+				"resource.status": "open"
+			},
+			"ForAnyValue:StringEquals": {
+				"resource.softNoteText": "a"
+			}
+		},
+		"deny": {
+			"isFullyCompilable": true,
+			"query": {
+				"parameters": [
+					"open",
+					"a"
+				],
+				"sql": "SELECT `PinItemEntity`.`id` AS `PinItemEntity_id`, `PinItemEntity`.`status` AS `PinItemEntity_status` FROM `pin_items` `PinItemEntity` WHERE ((((CONVERT(`PinItemEntity`.`status` USING utf8mb4) COLLATE utf8mb4_0900_bin <> ?))) OR (((`PinItemEntity`.`status` IS NULL))) OR (((NOT EXISTS (SELECT 1 FROM `pin_soft_notes` `iam_collection_row` WHERE `iam_collection_row`.`itemId` = `PinItemEntity`.`id` AND `iam_collection_row`.`deleted_at` IS NULL AND (CONVERT(`iam_collection_row`.`text` USING utf8mb4) COLLATE utf8mb4_0900_bin = ?))))))"
+			}
+		}
+	}
+]
