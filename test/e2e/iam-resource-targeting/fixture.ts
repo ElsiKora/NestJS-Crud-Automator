@@ -13,7 +13,7 @@ export type TE2eIamTargetDatabase = "mariadb" | "mysql" | "postgres" | "sqlite";
 export interface IE2eIamTargetFixture {
 	controllers: Array<new () => unknown>;
 	entities: Array<new () => unknown>;
-	namespaces: { char: string; fold: string; item: string; tenant: string; tenantBody: string };
+	namespaces: { char: string; fold: string; item: string; region: string; tenant: string; tenantBody: string; unfiltered: string; unmapped: string };
 	services: { char: new () => IE2eIamTargetService; fold: new () => IE2eIamTargetService; item: new () => IE2eIamTargetService; tenant: new () => IE2eIamTargetService };
 }
 
@@ -47,11 +47,14 @@ const authentication = { guard: E2eIamTargetGuard, type: EApiAuthenticationType.
 const served = { security: { authentication } };
 const off = { generation: { isEnabled: false } };
 
-const authorizationOf = (entity: unknown, namespace: string, resourcePath: string): never =>
+const fieldOf = (field: string, isFilterable: boolean = true): { isFilterable: boolean; path: string; queryPath: string } => ({ isFilterable, path: `resource.${field}`, queryPath: field });
+const EVERY_FIELD: ReadonlyArray<{ isFilterable: boolean; path: string; queryPath: string }> = ["id", "status", "tenant"].map((field: string) => fieldOf(field));
+
+const authorizationOf = (entity: unknown, namespace: string, resourcePath: string, fields: ReadonlyArray<{ isFilterable: boolean; path: string; queryPath: string }> = EVERY_FIELD): never =>
 	({
 		defaultMode: EApiAuthorizationMode.IAM,
 		policyNamespace: namespace,
-		resourceDefinition: { entity, fields: ["id", "status", "tenant"].map((field: string) => ({ isFilterable: true, path: `resource.${field}`, queryPath: field })), namespace, resourcePath, resourceType: namespace },
+		resourceDefinition: { entity, fields, namespace, resourcePath, resourceType: namespace },
 	}) as never;
 
 /**
@@ -63,7 +66,7 @@ const authorizationOf = (entity: unknown, namespace: string, resourcePath: strin
 export function E2eIamTargetBuild(database: TE2eIamTargetDatabase): IE2eIamTargetFixture {
 	const suffix: string = database.charAt(0).toUpperCase() + database.slice(1);
 	const prefix: string = `tg${database.slice(0, 2)}`;
-	const namespaces: IE2eIamTargetFixture["namespaces"] = { char: `${prefix}c:item`, fold: `${prefix}f:item`, item: `${prefix}i:item`, tenant: `${prefix}t:item`, tenantBody: `${prefix}b:item` };
+	const namespaces: IE2eIamTargetFixture["namespaces"] = { char: `${prefix}c:item`, fold: `${prefix}f:item`, item: `${prefix}i:item`, region: `${prefix}r:item`, tenant: `${prefix}t:item`, tenantBody: `${prefix}b:item`, unfiltered: `${prefix}n:item`, unmapped: `${prefix}u:item` };
 
 	// A key under the default collation: case- and accent-insensitive on MySQL and MariaDB, binary on PostgreSQL and SQLite.
 	@Entity("e2e_iam_target_items")
@@ -201,8 +204,32 @@ export function E2eIamTargetBuild(database: TE2eIamTargetDatabase): IE2eIamTarge
 		public readonly service!: TenantService;
 	}
 
+	// No field maps the placeholder: its name is a property of the entity.
+	@ApiControllerSecurable()
+	@ApiController<ItemEntity>({ authorization: authorizationOf(ItemEntity, namespaces.unmapped, `${namespaces.unmapped}/{id}`, [fieldOf("status"), fieldOf("tenant")]), entity: ItemEntity, name: `E2eIamTargetUnmapped${suffix}`, path: "iam-target/unmapped", routes: everyRoute })
+	class UnmappedController {
+		@Inject(ItemService)
+		public readonly service!: ItemService;
+	}
+
+	// A field maps the placeholder, but no policy key or client filter may read it.
+	@ApiControllerSecurable()
+	@ApiController<ItemEntity>({ authorization: authorizationOf(ItemEntity, namespaces.unfiltered, `${namespaces.unfiltered}/{id}`, [fieldOf("id", false), fieldOf("status"), fieldOf("tenant")]), entity: ItemEntity, name: `E2eIamTargetUnfiltered${suffix}`, path: "iam-target/unfiltered", routes: everyRoute })
+	class UnfilteredController {
+		@Inject(ItemService)
+		public readonly service!: ItemService;
+	}
+
+	// The path parameter scopes the tenant column, but the placeholder `{region}` resolves to no column of the entity.
+	@ApiControllerSecurable()
+	@ApiController<TenantEntity>({ authorization: authorizationOf(TenantEntity, namespaces.region, `${namespaces.region}/{region}/i/{id}`), entity: TenantEntity, name: `E2eIamTargetRegions${suffix}`, path: "iam-target/regions/:region/items", pathScope: { parameters: [{ field: "tenant", parameter: "region" }] }, routes: everyRoute } as never)
+	class RegionController {
+		@Inject(TenantService)
+		public readonly service!: TenantService;
+	}
+
 	return {
-		controllers: [ItemController, FoldController, CharController, TenantController, TenantBodyController],
+		controllers: [ItemController, FoldController, CharController, TenantController, TenantBodyController, UnmappedController, UnfilteredController, RegionController],
 		entities: [ItemEntity, FoldEntity, CharEntity, TenantEntity],
 		namespaces,
 		services: { char: CharService as never, fold: FoldService as never, item: ItemService as never, tenant: TenantService as never },

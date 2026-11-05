@@ -257,6 +257,123 @@ describe.each<{ database: TE2eIamTargetDatabase; databaseName: string }>([
 		});
 	});
 
+	describe("a row route reads the stored row whether or not a filterable field maps the placeholder", () => {
+		// Spellings the default collation of MySQL and MariaDB reads as the row `secret`; PostgreSQL and SQLite find no row.
+		const SPELLINGS: Array<string> = ["SECRET", "s%C3%A9cret", "secret%20"];
+
+		const ROUTES: Array<[string, () => string, string]> = [
+			["no field mapping", () => namespaces.unmapped, "/iam-target/unmapped"],
+			["a mapping that is not filterable", () => namespaces.unfiltered, "/iam-target/unfiltered"],
+		];
+
+		describe.each(ROUTES)("on a varchar key with %s", (_name: string, namespaceOf: () => string, url: string) => {
+			const expectRowKept = async (): Promise<void> => {
+				expect(await repository(fixture.services.item).findOneBy({ status: "active", tenant: "t1" })).toMatchObject({ id: "secret" });
+			};
+
+			it.each(SPELLINGS)("refuses GET, PATCH and DELETE of %s under a Deny of the row, and writes nothing", async (spelling: string) => {
+				use(namespaceOf(), denyResource(namespaceOf(), `${namespaceOf()}/secret`));
+
+				expect(REFUSED).toContain(await statusOf("GET", `${url}/${spelling}`));
+				expect(REFUSED).toContain(await statusOf("PATCH", `${url}/${spelling}`, { status: "changed" }));
+				await expectRowKept();
+				expect(REFUSED).toContain(await statusOf("DELETE", `${url}/${spelling}`));
+				await expectRowKept();
+			});
+
+			it.each(SPELLINGS)("refuses %s under a Deny that names the row by a wildcard", async (spelling: string) => {
+				use(namespaceOf(), denyResource(namespaceOf(), `${namespaceOf()}/sec*`));
+
+				expect(REFUSED).toContain(await statusOf("GET", `${url}/${spelling}`));
+			});
+
+			it.each(SPELLINGS)("refuses %s outside an Allow NotResource", async (spelling: string) => {
+				use(namespaceOf(), [{ Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.ALLOW, NotResource: [`${namespaceOf()}/secret`] }]);
+
+				expect(REFUSED).toContain(await statusOf("GET", `${url}/${spelling}`));
+			});
+
+			it("refuses the exact spelling with 403 and reads a row the Deny does not name", async () => {
+				use(namespaceOf(), denyResource(namespaceOf(), `${namespaceOf()}/secret`));
+
+				expect(await statusOf("GET", `${url}/secret`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await statusOf("GET", `${url}/public`)).toBe(HttpStatus.OK);
+			});
+
+			it("reads only the row an Allow names", async () => {
+				use(namespaceOf(), [{ Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.ALLOW, Resource: [`${namespaceOf()}/secret`] }]);
+
+				expect(await statusOf("GET", `${url}/secret`)).toBe(HttpStatus.OK);
+				expect(REFUSED).toContain(await statusOf("GET", `${url}/public`));
+			});
+
+			it("leaves the list closed, as a list scope still reads only a filterable field", async () => {
+				use(namespaceOf(), denyResource(namespaceOf(), `${namespaceOf()}/secret`));
+
+				expect(await listIds(url)).toBe(HttpStatus.FORBIDDEN);
+			});
+		});
+
+		describe("on a placeholder that resolves to no column", () => {
+			const namespaceOf = (): string => namespaces.region;
+			const rows = (region: string): string => `/iam-target/regions/${region}/items`;
+
+			it("denies every row route and every list under a Deny whose pattern constrains it", async () => {
+				use(namespaceOf(), denyResource(namespaceOf(), `${namespaceOf()}/t1/*`));
+
+				expect(await statusOf("GET", `${rows("t1")}/x`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await statusOf("GET", `${rows("T1")}/x`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await statusOf("PATCH", `${rows("T1")}/x`, { status: "changed" })).toBe(HttpStatus.FORBIDDEN);
+				expect(await statusOf("DELETE", `${rows("T1")}/x`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await repository(fixture.services.tenant).findOneBy({ id: "x" })).toMatchObject({ status: "active", tenant: "t1" });
+				expect(await statusOf("GET", `${rows("t2")}/y`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await listIds(rows("t1"))).toBe(HttpStatus.FORBIDDEN);
+				expect(await listIds(rows("t2"))).toBe(HttpStatus.FORBIDDEN);
+			});
+
+			it("denies under a Deny NotResource whose pattern constrains it", async () => {
+				use(namespaceOf(), [allowAll(namespaceOf()), { Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.DENY, NotResource: [`${namespaceOf()}/t1/*`] }]);
+
+				expect(await statusOf("GET", `${rows("t1")}/x`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await statusOf("GET", `${rows("t2")}/y`)).toBe(HttpStatus.FORBIDDEN);
+			});
+
+			it("grants nothing by an Allow whose pattern constrains it", async () => {
+				use(namespaceOf(), [{ Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.ALLOW, Resource: [`${namespaceOf()}/t1/*`] }]);
+
+				expect(REFUSED).toContain(await statusOf("GET", `${rows("t1")}/x`));
+				expect(REFUSED).toContain(await statusOf("GET", `${rows("T1")}/x`));
+				expect(REFUSED).toContain(await statusOf("PATCH", `${rows("t1")}/x`, { status: "changed" }));
+				expect(REFUSED).toContain(await statusOf("GET", `${rows("t2")}/y`));
+				expect(await listIds(rows("t1"))).toBe(HttpStatus.FORBIDDEN);
+			});
+
+			it("grants nothing by an Allow NotResource whose pattern constrains it", async () => {
+				use(namespaceOf(), [{ Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.ALLOW, NotResource: [`${namespaceOf()}/t1/*`] }]);
+
+				expect(REFUSED).toContain(await statusOf("GET", `${rows("t2")}/y`));
+				expect(REFUSED).toContain(await statusOf("GET", `${rows("t1")}/x`));
+			});
+
+			it.each([
+				["only a star over it", (namespace: string): string => `${namespace}/*/i/*`],
+				["a star over the whole path", (namespace: string): string => `${namespace}/*`],
+			])("leaves %s unaffected", async (_name: string, patternOf: (namespace: string) => string) => {
+				use(namespaceOf(), [{ Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.ALLOW, Resource: [patternOf(namespaceOf())] }]);
+
+				expect(await statusOf("GET", `${rows("t1")}/x`)).toBe(HttpStatus.OK);
+				expect(await listIds(rows("t1"))).toEqual(["x"]);
+			});
+
+			it("still decides the column placeholder beside a star over it", async () => {
+				use(namespaceOf(), denyResource(namespaceOf(), `${namespaceOf()}/*/i/x`));
+
+				expect(await statusOf("GET", `${rows("t1")}/x`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await statusOf("GET", `${rows("t2")}/y`)).toBe(HttpStatus.OK);
+			});
+		});
+	});
+
 	describe("a Deny Resource applies to the row a create stores", () => {
 		const CASES: Array<[string, () => string, () => string, () => string, Record<string, string>, Record<string, string>]> = [
 			["an exact id", () => namespaces.item, () => `${namespaces.item}/secret`, () => "/iam-target/items", { id: "secret" }, { id: "other" }],

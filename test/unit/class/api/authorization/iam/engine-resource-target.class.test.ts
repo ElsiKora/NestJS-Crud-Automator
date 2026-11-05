@@ -485,6 +485,85 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 		});
 	});
 
+	describe("a path value with no filterable field", () => {
+		const withoutId = (fields: IApiAuthorizationResourceDefinition<EngineTargetItemEntity>["fields"]): IApiAuthorizationResourceDefinition<EngineTargetItemEntity> => ({ ...itemDefinition, fields });
+		const others: IApiAuthorizationResourceDefinition<EngineTargetItemEntity>["fields"] = itemDefinition.fields.filter((field) => field.path !== "resource.id");
+
+		const DEFINITIONS: Array<[string, IApiAuthorizationResourceDefinition<EngineTargetItemEntity>]> = [
+			["no field mapping", withoutId(others)],
+			["a mapping that is not filterable", withoutId([{ isFilterable: false, path: "resource.id", queryPath: "id" }, ...others])],
+		];
+
+		describe.each(DEFINITIONS)("on a text column with %s", (_name: string, resourceDefinition: IApiAuthorizationResourceDefinition<EngineTargetItemEntity>) => {
+			const on = (id: string): IRequest => ({ ...read(id), dialect: SQLITE, resourceDefinition });
+
+			it("scopes the read a Deny of the row does not decide by its text", async () => {
+				const decision = await evaluate(on("ITEM-1"), [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })]);
+
+				expect(decision.trace.decisionType).toBe(ALLOWED);
+				expect(decision.scope).toBeDefined();
+			});
+
+			it("denies the read of the exact spelling", async () => {
+				expect(await readType(on("item-1"), [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })])).toBe(DENIED);
+			});
+
+			it("scopes the read an Allow of the row grants, and grants another spelling nothing", async () => {
+				const statements: Array<IApiPolicyStatement> = [allow({ Resource: ["gameport:admin:item/item-1"] })];
+
+				expect((await evaluate(on("item-1"), statements)).scope).toBeDefined();
+				expect(await readType(on("item-1"), statements)).toBe(ALLOWED);
+				expect(await readType(on("ITEM-1"), statements)).toBe(IMPLICIT);
+			});
+
+			it("keeps a list of such a placeholder closed", async () => {
+				expect(await readType({ ...LIST, dialect: SQLITE, resourceDefinition }, [allow({ Resource: ["gameport:admin:item/item-1"] })])).toBe(IMPLICIT);
+			});
+		});
+
+		describe("on a placeholder that resolves to no column", () => {
+			const resourceDefinition: IApiAuthorizationResourceDefinition<EngineTargetItemEntity> = { ...itemDefinition, resourcePath: "gameport:admin:item/{ref}" };
+			const on = (ref: string): IRequest => ({ action: "admin:item:read", dialect: SQLITE, requestMetadata: { parameters: { ref } }, resourceDefinition, routeType: EApiRouteType.GET });
+
+			it.each([
+				["the value it names", "item-1"],
+				["a value it does not name", "item-2"],
+			])("denies %s under a Deny that constrains it", async (_name: string, ref: string) => {
+				expect(await readType(on(ref), [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })])).toBe(DENIED);
+				expect(await readType(on(ref), [allowAll, deny({ Resource: ["gameport:admin:item/item-*"] })])).toBe(DENIED);
+			});
+
+			it("grants nothing by an Allow that constrains it", async () => {
+				expect(await readType(on("item-1"), [allow({ Resource: ["gameport:admin:item/item-1"] })])).toBe(IMPLICIT);
+				expect(await readType(on("item-1"), [allow({ NotResource: ["gameport:admin:item/item-2"] })])).toBe(IMPLICIT);
+			});
+
+			it("leaves a star over it unaffected", async () => {
+				const decision = await evaluate(on("item-1"), [allow({ Resource: ["gameport:admin:item/*"] })]);
+
+				expect(decision.trace.decisionType).toBe(ALLOWED);
+				expect(decision.scope).toBeUndefined();
+				expect(await readType(on("item-1"), [allowAll, deny({ Resource: ["gameport:other/*"] })])).toBe(ALLOWED);
+			});
+
+			it("fails closed on a mapping whose column does not resolve", async () => {
+				const definition: IApiAuthorizationResourceDefinition<EngineTargetItemEntity> = { ...resourceDefinition, fields: [...resourceDefinition.fields, { isFilterable: true, path: "resource.ref", queryPath: "missing.column" }] };
+
+				expect(await readType({ ...on("item-1"), resourceDefinition: definition }, [allow({ Resource: ["gameport:admin:item/item-1"] })])).toBe(IMPLICIT);
+			});
+		});
+
+		it("keeps the text path of a column that is not text", async () => {
+			const resourceDefinition: IApiAuthorizationResourceDefinition<EngineTargetItemEntity> = { ...itemDefinition, entity: EngineTargetRankEntity as never, fields: [] };
+			const on = (id: string): IRequest => ({ ...read(id), dialect: SQLITE, resourceDefinition });
+			const statements: Array<IApiPolicyStatement> = [allowAll, deny({ Resource: ["gameport:admin:item/7"] })];
+
+			expect(await readType(on("7"), statements)).toBe(DENIED);
+			expect(await readType(on("8"), statements)).toBe(ALLOWED);
+			expect((await evaluate(on("8"), statements)).scope).toBeUndefined();
+		});
+	});
+
 	describe("Deny with row patterns", () => {
 		it("scopes a create to the rows a row pattern does not name, which the create reads back before it commits", async () => {
 			expect((await evaluate(CREATE, [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })])).scope).toEqual({ where: [{ id: Not(Equal("item-1")) }, { id: IsNull() }] });
