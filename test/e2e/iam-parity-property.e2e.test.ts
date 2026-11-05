@@ -30,12 +30,15 @@ interface IViewAnswers {
 	list: { ids: Array<string>; statusCode: number };
 	memoryList: Map<string, TMemoryAnswer>;
 	memoryRead: Map<string, TMemoryAnswer>;
+	// Memory on the row without its to-many relation, which fails a key through it closed.
+	memoryUnloaded: Map<string, TMemoryAnswer>;
 	reads: Map<string, number>;
 }
 
 /**
- * One way the views disagree. A hard one shows a row that memory denies, or answers an error no view explains; a soft one
- * withholds a row that memory allows, which fails closed and is reported by rule.
+ * One way the views disagree. A hard one shows a row that memory denies, answers an error no view explains, or allows in
+ * memory a row without its to-many relation that memory denies with it; a soft one withholds a row that memory allows,
+ * which fails closed and is reported by rule.
  */
 interface IDisagreement {
 	answers: string;
@@ -116,7 +119,7 @@ const startMariaDb = async (): Promise<StartedTestContainer> =>
  */
 function compareViews(answers: IViewAnswers, hasRead: boolean): Array<IDisagreement> {
 	const disagreements: Array<IDisagreement> = [];
-	const { list, memoryList, memoryRead, reads }: IViewAnswers = answers;
+	const { list, memoryList, memoryRead, memoryUnloaded, reads }: IViewAnswers = answers;
 	const isRefusedByGrammar: boolean = [...memoryList.values()].includes("refused");
 
 	if (isRefusedByGrammar) {
@@ -139,6 +142,10 @@ function compareViews(answers: IViewAnswers, hasRead: boolean): Array<IDisagreem
 
 		if (!isShown && memory === "allow") {
 			hidden.push(id);
+		}
+
+		if (memoryUnloaded.get(id) === "allow" && memory !== "allow") {
+			disagreements.push({ answers: `unloaded=allow memory=${memory}`, isHard: true, row: id, rule: "memory allows a row without its to-many relation that it denies with it" });
 		}
 	}
 
@@ -287,9 +294,13 @@ describe.each<{ database: TE2eIamParityDatabase; databaseName: string }>(
 		const memoryList: Map<string, TMemoryAnswer> = new Map<string, TMemoryAnswer>();
 		const memoryRead: Map<string, TMemoryAnswer> = new Map<string, TMemoryAnswer>();
 		const reads: Map<string, number> = new Map<string, number>();
+		const memoryUnloaded: Map<string, TMemoryAnswer> = new Map<string, TMemoryAnswer>();
 
 		for (const row of loadedRows) {
+			const { notes: _notes, ...unloaded }: IE2eIamParityItem = row;
+
 			memoryList.set(row.id, await remember(route, EApiRouteType.GET_LIST, row));
+			memoryUnloaded.set(row.id, await remember(route, EApiRouteType.GET_LIST, unloaded));
 
 			if (definition.hasRead) {
 				memoryRead.set(row.id, await remember(route, EApiRouteType.GET, row));
@@ -300,7 +311,7 @@ describe.each<{ database: TE2eIamParityDatabase; databaseName: string }>(
 			}
 		}
 
-		return { list, memoryList, memoryRead, reads };
+		return { list, memoryList, memoryRead, memoryUnloaded, reads };
 	};
 
 	// Takes edits away from a policy for as long as the same rule still breaks on the same row.
