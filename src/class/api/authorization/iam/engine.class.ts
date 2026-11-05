@@ -613,27 +613,6 @@ export class ApiAuthorizationIamEngine {
 		return { constraints: [...left.constraints, ...right.constraints], kind: EApiAuthorizationIamResourceClass.PARTIAL };
 	}
 
-	/**
-	 * Tells whether a placeholder reads a text column the database scope compares: a filterable field that maps it to a
-	 * resolvable text column of the resource or of a to-one relation. Only text has a collation that can find a row by
-	 * another spelling of the path value; a number, a date, a UUID or a boolean path value is canonical text already.
-	 * @template E - Entity type.
-	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
-	 * @param {string} placeholder - Placeholder name.
-	 * @returns {boolean} Whether a scope can compare the placeholder on the stored row.
-	 */
-	private isColumnPlaceholder<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, placeholder: string): boolean {
-		const field: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === `resource.${placeholder}` && candidate.isFilterable);
-
-		if (!field) {
-			return false;
-		}
-
-		const queryField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, field.queryPath);
-
-		return queryField.isResolvable && queryField.collectionPath === undefined && queryField.column?.family === EApiAuthorizationIamColumnFamily.TEXT;
-	}
-
 	private isRecord(value: unknown): value is Record<string, unknown> {
 		return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 	}
@@ -951,8 +930,13 @@ export class ApiAuthorizationIamEngine {
 			if (renderedValue) {
 				appendLiteral(segments, renderedValue);
 
-				if (resource === undefined && isParameter && this.isColumnPlaceholder(resourceDefinition, placeholder)) {
-					rowSegments.push({ placeholder, value: "*" });
+				const storedRow: { isText: boolean; queryPath?: string } | undefined = resource === undefined && isParameter ? this.resolveStoredRowColumn(resourceDefinition, placeholder) : undefined;
+
+				if (storedRow?.isText === false && storedRow.queryPath !== undefined) {
+					// Only a text column gets the stored-row comparison; any other column keeps the path text.
+					appendLiteral(rowSegments, renderedValue);
+				} else if (storedRow) {
+					rowSegments.push({ placeholder, storedRow: storedRow.queryPath === undefined ? {} : { queryPath: storedRow.queryPath }, value: "*" });
 					alphabets.set(placeholder, this.createSlotAlphabet(alphabets.get(placeholder), separatorClass));
 					hasRowPlaceholder = true;
 				} else {
@@ -1049,5 +1033,29 @@ export class ApiAuthorizationIamEngine {
 		}
 
 		return hasRows ? { constraintSets, kind: EApiAuthorizationIamResourceClass.PARTIAL } : { constraintSets: [], kind: EApiAuthorizationIamResourceClass.NONE };
+	}
+
+	/**
+	 * Resolves the column a placeholder filled by a path value reads on the stored row. A field that maps the placeholder
+	 * gives its column, whether or not it is filterable, as the filterable flag only limits what a policy key or a client
+	 * filter may read. Without a mapping the placeholder name is read as a property of the resource entity. A text column
+	 * has a collation that can find a row by another spelling of the path value, so the row is compared where it is
+	 * stored; any other column keeps the path text. A placeholder that resolves to no column, or to a to-many relation,
+	 * has no query path, so a pattern that constrains it fails closed.
+	 * @template E - Entity type.
+	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
+	 * @param {string} placeholder - Placeholder name.
+	 * @returns {{ isText: boolean; queryPath?: string }} Whether the column is text, and its query path when one resolves.
+	 */
+	private resolveStoredRowColumn<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, placeholder: string): { isText: boolean; queryPath?: string } {
+		const field: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === `resource.${placeholder}`);
+		const queryPath: string = field?.queryPath ?? placeholder;
+		const queryField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, queryPath);
+
+		if (!queryField.isResolvable || queryField.collectionPath !== undefined || queryField.column === undefined) {
+			return { isText: false };
+		}
+
+		return { isText: queryField.column.family === EApiAuthorizationIamColumnFamily.TEXT, queryPath };
 	}
 }

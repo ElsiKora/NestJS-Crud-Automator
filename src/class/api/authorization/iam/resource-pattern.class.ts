@@ -222,6 +222,7 @@ export class ApiAuthorizationIamResourcePattern {
 			}
 
 			const placeholder: string | undefined = segments[segmentIndex]?.placeholder;
+			const storedRow: IApiAuthorizationIamResourceSegment["storedRow"] = segments[segmentIndex]?.storedRow;
 
 			for (const exit of readExits(segmentIndex, state)) {
 				if (!isViable(segmentIndex + 1, exit)) {
@@ -238,7 +239,7 @@ export class ApiAuthorizationIamResourcePattern {
 				// A slot that may hold anything constrains no row.
 				const isConstraining: boolean = slotPattern.length !== 1 || slotPattern[0]?.type !== EApiAuthorizationIamTokenType.STAR;
 
-				visit(segmentIndex + 1, exit, isConstraining ? [...constraints, { pattern: slotPattern, placeholder }] : constraints);
+				visit(segmentIndex + 1, exit, isConstraining ? [...constraints, { pattern: slotPattern, placeholder, ...(storedRow ? { storedRow } : {}) }] : constraints);
 			}
 		};
 

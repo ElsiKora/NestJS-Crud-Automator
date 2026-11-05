@@ -8,4 +8,6 @@ export interface IApiAuthorizationIamResourceConstraint {
 	pattern: ReadonlyArray<IApiAuthorizationIamToken>;
 	// Placeholder of the resource path.
 	placeholder: string;
+	// Set when the constraint reads the stored row of a path value: the query path of the text column it compares, or no query path when the placeholder resolves to no column, which no scope can compare.
+	storedRow?: { queryPath?: string };
 }

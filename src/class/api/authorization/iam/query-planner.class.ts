@@ -359,6 +359,10 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * @returns {IApiAuthorizationIamPredicatePair | undefined} The pair, or undefined when the constraint cannot compile.
 	 */
 	private buildConstraintPair<E extends IApiBaseEntity>(constraint: IApiAuthorizationIamResourceConstraint, resourceDefinition: IApiAuthorizationResourceDefinition<E>): IApiAuthorizationIamPredicatePair | undefined {
+		if (constraint.storedRow) {
+			return this.buildStoredRowConstraintPair(constraint, resourceDefinition, constraint.storedRow.queryPath);
+		}
+
 		const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = this.resolveFilterableField(resourceDefinition, `resource.${constraint.placeholder}`);
 
 		if (!fieldDefinition) {
@@ -601,6 +605,37 @@ export class ApiAuthorizationIamQueryPlanner {
 		}
 
 		return ApiAuthorizationIamPredicateBuilder.and(holds);
+	}
+
+	/**
+	 * Builds the pair of a constraint on the stored row of a path value: the text column the engine resolved for the
+	 * placeholder, from its field mapping filterable or not, or from the entity property of its name. A client filter's
+	 * rules do not apply, as the server compares the row it loads. A placeholder that resolves to no column compiles to
+	 * nothing, so the statement fails closed.
+	 * @template E - Entity type.
+	 * @param {IApiAuthorizationIamResourceConstraint} constraint - Placeholder constraint.
+	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
+	 * @param {string} [queryPath] - Query path of the text column, when the placeholder resolves to one.
+	 * @returns {IApiAuthorizationIamPredicatePair | undefined} The pair, or undefined when the constraint cannot compile.
+	 */
+	private buildStoredRowConstraintPair<E extends IApiBaseEntity>(constraint: IApiAuthorizationIamResourceConstraint, resourceDefinition: IApiAuthorizationResourceDefinition<E>, queryPath?: string): IApiAuthorizationIamPredicatePair | undefined {
+		if (queryPath === undefined || !this.isPatternBindable(constraint.pattern)) {
+			return undefined;
+		}
+
+		const field: IApiAuthorizationIamQueryField = this.resolveField(resourceDefinition.entity, queryPath);
+
+		if (!field.isResolvable || !ApiAuthorizationIamPredicateBuilder.isTextColumn(field)) {
+			return undefined;
+		}
+
+		const column: IApiAuthorizationIamPredicateColumn = { field, queryPath };
+
+		if (constraint.pattern.some((token: IApiAuthorizationIamToken): boolean => token.type !== EApiAuthorizationIamTokenType.LITERAL)) {
+			return ApiAuthorizationIamPredicateBuilder.buildPatternConstraint({ column, pattern: constraint.pattern });
+		}
+
+		return ApiAuthorizationIamPredicateBuilder.buildExactConstraint({ column, comparison: EApiAuthorizationIamPredicateComparison.TEXT, value: constraint.pattern.map((token: IApiAuthorizationIamToken): string => token.value ?? "").join("") });
 	}
 
 	/**
