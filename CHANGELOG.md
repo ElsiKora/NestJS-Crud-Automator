@@ -1,3 +1,39 @@
+# [5.2.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.1.0...v5.2.0) (2026-11-05)
+
+### Bug Fixes
+
+- **authorization:** cap where branches before each merge and limit document size ([9cad8d2](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/9cad8d2a9db292a5308651a3101dab1b7305284b))
+- **authorization:** compare a placeholder natively only where the column holds its text ([9f935cc](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/9f935cc8f7513a6218b74990a95affd85760090c))
+- **authorization:** compare postgresql uuid and enum columns exactly in iam scopes ([cdb2677](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/cdb2677e80ee7bde55f177063e104885e99925a5))
+- **authorization:** fail an iam instant closed outside the local wall-clock years ([3a3312b](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3a3312bad698e024f0bbf9d2243c4e397d9deda1))
+- **authorization:** fail portable iam text equality closed ([935be45](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/935be453ccc9fc6ff0de559083da174df9a29616))
+- **authorization:** give each row one path spelling and literal like filters ([a9ef664](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a9ef66448065ae9d048f2ca3bd03c687fd958de6))
+- **authorization:** give each where branch its own operator ([c5b5e39](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/c5b5e39a55099d9dd89de96cfc5d99bad0488115))
+- **authorization:** keep sqlite nul rows out of an iam glob ([843983d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/843983dfe85917b65f02e087cd86bd17b443e664))
+- **authorization:** limit the length of patterns and condition values ([6969a6c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/6969a6cb22a67e59dae21ab9c7c7759d47d7619d))
+- **authorization:** match no row on postgresql for uuid and enum values a column cannot hold ([db9016a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/db9016af2dfc9055bbe6cb660f30929ca1a38109))
+- **authorization:** match row routes by the stored row and refuse values that cross a separator ([39ec52f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/39ec52f00ef0f65468866afab03980a38fcf6a9a))
+- **authorization:** merge lowered iam sql into a cursor list ([8279f75](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/8279f75660b98a97dcaead594ea13a5a7587866a))
+- **authorization:** name no row by placeholder text a typed column cannot render ([c3f6983](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/c3f6983c88f7a43267ad0184537b32eb3a39b344))
+- **authorization:** read a path value on the stored row with no filterable field ([ddcf0fe](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ddcf0feb12bd22ccf893a9111ecb662e1d0610d3))
+- **authorization:** read an ipv4-mapped iam range as ipv4 ([3e3f11e](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3e3f11e02f2600c2e2307db89c5f0bd177b4fcd1))
+- **authorization:** read iam header keys in lower case ([4c604d8](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/4c604d8ffb9fd96fafaf67176778fa608fa9f5b8))
+- **authorization:** read only own properties on an iam path ([ee5dc7d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ee5dc7d14a23a58c87960a07fef48f843283d10e))
+- **authorization:** read only text placeholders on the stored row ([75ce813](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/75ce81356a8a9c61023273c85a8b3d49290ef92b))
+- **authorization:** read separators of a loaded row as its list reads them ([0cae3d2](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/0cae3d2ab5f6fa17d80b79ae7ebe6a244993ca0b))
+- **authorization:** refuse a create that stores a row a deny resource names ([3056801](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/30568013f78592aac33e5223e630a0b3ffa20116))
+- **authorization:** refuse a nul character in path and filter values ([0ca87b2](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/0ca87b2ddd0bc5b0f8f0503e2c8cf50efae4930d))
+- **authorization:** refuse an empty default in an iam pattern ([21c31ad](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/21c31ad07137cb1ab20f24a62a9ba0be8368e79a))
+- **authorization:** skip documents of another namespace and ignore unasked documents ([d2f4f77](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d2f4f77a928fe345f9d575b6d70687de46dea5ad))
+
+### Features
+
+- **authorization:** evaluate every iam operator family in sql and in memory ([1bbe99c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/1bbe99cc125e4aefedcd7f71721e91fb943fba35))
+- **authorization:** evaluate notaction and notresource and scope lists by row patterns ([a5d7e6d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a5d7e6d2661078920aea97e72e7fd2f0a4b5b463))
+- **authorization:** evaluate several values, set qualifiers and to-many resource keys ([7e97cec](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/7e97cec26d88f25fbdcd508b587c27c9a25fb05e))
+- **authorization:** lower iam scopes per sql dialect through a predicate ir ([80fb99b](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/80fb99b6314df2f496f7fc13c77e58c82cf57c1a))
+- **authorization:** read iam policy documents with one strict grammar ([fe01329](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/fe01329175b0b5e0346def934a3152ec7d416225))
+
 # [5.1.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.0.3...v5.1.0) (2026-11-04)
 
 ### Bug Fixes
