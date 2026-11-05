@@ -622,10 +622,20 @@ const document: IApiPolicyDocument = {
 			Effect: EApiPolicyEffect.DENY,
 			NotResource: ["admin:item/${principal.attributes.itemId}"],
 		},
+		{
+			// The header name reads in lower case, as Node reads it: this is `request.headers.x-tenant`.
+			// A range written IPv4-mapped reads as `10.0.0.0/8` for a request address.
+			Action: ["admin:item:*"],
+			Condition: { IpAddress: { "request.ip": "::ffff:10.0.0.0/104" }, StringNotEquals: { "request.headers.X-Tenant": "${principal.attributes.tenantId}" } },
+			Effect: EApiPolicyEffect.DENY,
+			Resource: ["*"],
+		},
 	],
 	Version: "2012-10-17",
 };
 ```
+
+Text no row of a typed placeholder column renders names no row instead of reaching the database: with `resourcePath: "admin:item/{price}"` on a `decimal` column, a Deny of `admin:item/abc` or `admin:item/1e1` keeps every row and an Allow of it lists none. An empty default in a pattern, such as `"admin:item/${principal.attributes.prefix, ''}*"`, is refused at save and at load; give a pattern a default that names no row instead, such as `'none'`.
 
 ## IAM Several Values And Set Qualifiers
 
