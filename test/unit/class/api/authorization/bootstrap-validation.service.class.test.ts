@@ -210,7 +210,7 @@ function defineIamControllerMetadata(controller: new () => unknown, resourcePath
 }
 
 // An IAM controller over the collection entity whose only route is the generated GET.
-function defineCollectionControllerMetadata(controller: new () => unknown, fields: Array<{ isFilterable: boolean; path: string; queryPath: string }>): void {
+function defineCollectionControllerMetadata(controller: new () => unknown, fields: Array<{ isFilterable: boolean; path: string; queryPath: string }>, resourcePath: string = "validation/{id}"): void {
 	Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
 	Reflect.defineMetadata(
 		CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
@@ -218,7 +218,7 @@ function defineCollectionControllerMetadata(controller: new () => unknown, field
 			authorization: {
 				defaultMode: EApiAuthorizationMode.IAM,
 				policyNamespace: "validation",
-				resourceDefinition: { entity: ValidationCollectionEntity, fields, namespace: "validation", resourcePath: "validation/{id}", resourceType: "validation" },
+				resourceDefinition: { entity: ValidationCollectionEntity, fields, namespace: "validation", resourcePath, resourceType: "validation" },
 			},
 			entity: ValidationCollectionEntity,
 			routes: {
@@ -468,7 +468,7 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 	});
 
 	it.each([
-		["a OneToMany relation", "resource.noteText", "notes.text", "notes"],
+		["a OneToMany relation to a further relation", "resource.noteItem", "notes.item.id", "notes"],
 		["a ManyToMany relation behind a to-one relation", "resource.ownerLabel", "owner.labels.name", "owner.labels"],
 	])("does not start a resource field whose query path crosses %s", (_name: string, path: string, queryPath: string, collectionPath: string) => {
 		class CollectionFieldController {}
@@ -480,7 +480,27 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 
 		expect(() => {
 			createIamService([CollectionFieldController], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap();
-		}).toThrow(`Controller "CollectionFieldController" resource field "${path}" queryPath "${queryPath}" crosses the to-many relation "${collectionPath}"; map a column of the resource or of a to-one relation`);
+		}).toThrow(`Controller "CollectionFieldController" resource field "${path}" queryPath "${queryPath}" crosses the to-many relation "${collectionPath}"; map a column of the resource, of a to-one relation, or of a to-many relation of the resource itself`);
+	});
+
+	it("starts a resource field that maps a column of a to-many relation of the resource", () => {
+		class ToManyFieldController {}
+
+		defineCollectionControllerMetadata(ToManyFieldController, [{ isFilterable: true, path: "resource.noteText", queryPath: "notes.text" }]);
+
+		expect(() => {
+			createIamService([ToManyFieldController], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap();
+		}).not.toThrow();
+	});
+
+	it("does not start a resource path whose placeholder reads a to-many relation, which has no one value to render", () => {
+		class ToManyPlaceholderController {}
+
+		defineCollectionControllerMetadata(ToManyPlaceholderController, [{ isFilterable: true, path: "resource.noteText", queryPath: "notes.text" }], "validation/{noteText}");
+
+		expect(() => {
+			createIamService([ToManyPlaceholderController], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap();
+		}).toThrow('Controller "ToManyPlaceholderController" resource path placeholder "noteText" reads the to-many relation "notes", which holds no one value to render');
 	});
 
 	it("starts a resource field whose query path crosses only to-one relations", () => {

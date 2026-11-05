@@ -1,4 +1,4 @@
-import type { IApiAuthorizationIamPredicateColumn } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamCollection, IApiAuthorizationIamPredicateColumn } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamPredicate, TApiAuthorizationIamPredicateAtom } from "@type/class/api/authorization/iam";
 
 import { ApiAuthorizationIamPredicateBuilder, ApiAuthorizationIamPredicateNormalForm } from "@class/api/authorization/iam";
@@ -42,6 +42,23 @@ describe("ApiAuthorizationIamPredicateNormalForm", () => {
 		const predicate: TApiAuthorizationIamPredicate = ApiAuthorizationIamPredicateBuilder.or([ApiAuthorizationIamPredicateBuilder.and([equals(NAME, "a"), equals(NAME, "a")]), ApiAuthorizationIamPredicateBuilder.and([isNull(NAME), notNull(NAME)])]);
 
 		expect(ApiAuthorizationIamPredicateNormalForm.toBranches(predicate, 4)).toEqual([[equals(NAME, "a")]]);
+	});
+
+	it("keeps an EXISTS atom whole, and tells it apart by negation, relation, column and related predicate", () => {
+		const collection: IApiAuthorizationIamCollection = { correlationPath: "id", element: "row.text", elementPath: "text", from: "notes row", link: "row.itemId" };
+		const exists: TApiAuthorizationIamPredicateAtom = { collection, column: NAME, isNegated: false, kind: EApiAuthorizationIamPredicateKind.EXISTS, predicate: ApiAuthorizationIamPredicateBuilder.or([equals(CODE, "a"), isNull(CODE)]) };
+		const atoms: Array<TApiAuthorizationIamPredicateAtom> = [
+			exists,
+			{ ...exists, isNegated: true } as TApiAuthorizationIamPredicateAtom,
+			{ ...exists, collection: { ...collection, from: "tags row" } } as TApiAuthorizationIamPredicateAtom,
+			{ ...exists, collection: { ...collection, element: "row.other" } } as TApiAuthorizationIamPredicateAtom,
+			{ ...exists, column: CODE } as TApiAuthorizationIamPredicateAtom,
+			{ ...exists, predicate: equals(CODE, "a") } as TApiAuthorizationIamPredicateAtom,
+		];
+
+		expect(ApiAuthorizationIamPredicateNormalForm.toBranches(exists, 1)).toEqual([[exists]]);
+		expect(ApiAuthorizationIamPredicateNormalForm.toBranches(ApiAuthorizationIamPredicateBuilder.and([exists, exists]), 1)).toEqual([[exists]]);
+		expect(new Set<string>(atoms.map((atom: TApiAuthorizationIamPredicateAtom): string => ApiAuthorizationIamPredicateNormalForm.readAtomKey(atom))).size).toBe(atoms.length);
 	});
 
 	it("tells atoms apart by kind, path, comparison, negation and values", () => {

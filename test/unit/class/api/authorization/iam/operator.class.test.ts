@@ -24,9 +24,16 @@ const CONTEXT: Record<string, unknown> = {
 
 const evaluate = (operator: string, value: unknown, actual: unknown, isColumn: boolean = false): boolean | undefined => {
 	const condition: IApiAuthorizationIamCondition = readCondition(operator, value);
-	const operand: IApiAuthorizationIamOperand | undefined = ApiAuthorizationIamOperator.readOperand(condition, CONTEXT);
+	const operands: Array<IApiAuthorizationIamOperand> | undefined = ApiAuthorizationIamOperator.readOperands(condition, CONTEXT);
 
-	return operand ? ApiAuthorizationIamOperator.evaluate(condition, actual === MISSING ? undefined : actual, operand, isColumn) : undefined;
+	return operands ? ApiAuthorizationIamOperator.evaluate(condition, actual === MISSING ? undefined : actual, operands, isColumn) : undefined;
+};
+
+const evaluateSet = (operator: string, value: unknown, actual: unknown, isColumn: boolean = false): boolean | undefined => {
+	const condition: IApiAuthorizationIamCondition = readCondition(operator, value);
+	const operands: Array<IApiAuthorizationIamOperand> | undefined = ApiAuthorizationIamOperator.readOperands(condition, CONTEXT);
+
+	return operands ? ApiAuthorizationIamOperator.evaluateSet(condition, actual === MISSING ? undefined : actual, operands, isColumn) : undefined;
 };
 
 // Each row: positive operator, negated operator, a value, a value that holds, a value that does not, and a malformed value (undefined when the family reads any scalar).
@@ -360,8 +367,162 @@ describe("ApiAuthorizationIamOperator", () => {
 		});
 	});
 
-	describe("readOperand", () => {
-		const read = (operator: string, value: unknown, key?: string): IApiAuthorizationIamOperand | undefined => ApiAuthorizationIamOperator.readOperand(readCondition(operator, value, key), CONTEXT);
+	describe("several values of one key", () => {
+		// Positive operator, negated operator, two values, a value matching the first, one matching the second, and one matching neither.
+		const CASES: Array<[string, string, [unknown, unknown], unknown, unknown, unknown]> = [
+			["StringEquals", "StringNotEquals", ["ann", "bob"], "ann", "bob", "eve"],
+			["StringEqualsIgnoreCase", "StringNotEqualsIgnoreCase", ["Ann", "Bob"], "aNN", "BOB", "eve"],
+			["StringLike", "StringNotLike", ["a*", "b?b"], "ann", "bob", "eve"],
+			["NumericEquals", "NumericNotEquals", ["1.5", "2"], "1.50", "2.0", "3"],
+			["DateEquals", "DateNotEquals", ["2024-01-01T00:00:00Z", "2024-01-02T00:00:00Z"], "2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z", "2024-01-03T00:00:00.000Z"],
+			["IpAddress", "NotIpAddress", ["10.0.0.0/8", "192.168.0.0/16"], "10.1.2.3", "192.168.1.1", "11.0.0.1"],
+			["ArnEquals", "ArnNotEquals", ["a:*:c", "x:y:*"], "a:b:c", "x:y:z", "a:b:d"],
+			["ArnLike", "ArnNotLike", ["a:*:c", "x:y:*"], "a:b:c", "x:y:z", "a:b:d"],
+		];
+
+		it.each(CASES)("%s holds if any value matches and %s if none does", (positive: string, negated: string, values: [unknown, unknown], first: unknown, second: unknown, neither: unknown) => {
+			expect([first, second, neither].map((actual: unknown): boolean | undefined => evaluate(positive, values, actual))).toEqual([true, true, false]);
+			expect([first, second, neither].map((actual: unknown): boolean | undefined => evaluate(negated, values, actual))).toEqual([false, false, true]);
+		});
+
+		it.each(CASES)("%s and %s read a missing value as they do with one value", (positive: string, negated: string, values: [unknown, unknown]) => {
+			expect(evaluate(positive, values, MISSING)).toBe(evaluate(positive, values[0], MISSING));
+			expect(evaluate(negated, values, MISSING)).toBe(evaluate(negated, values[0], MISSING));
+			expect(evaluate(positive, values, null, true)).toBe(evaluate(positive, values[0], null, true));
+			expect(evaluate(negated, values, null, true)).toBe(evaluate(negated, values[0], null, true));
+		});
+
+		it("holds Bool on either value and Null on either answer", () => {
+			expect(evaluate("Bool", ["true", "false"], true)).toBe(true);
+			expect(evaluate("Bool", ["true", "false"], false)).toBe(true);
+			expect(evaluate("Bool", ["true", "false"], MISSING)).toBe(false);
+			expect(evaluate("Null", ["true", "false"], MISSING)).toBe(true);
+			expect(evaluate("Null", ["true", "false"], "x")).toBe(true);
+			expect(evaluate("Null", ["true", "true"], "x")).toBe(false);
+		});
+
+		it("holds an operator with IfExists on a missing value", () => {
+			expect(evaluate("StringEqualsIfExists", ["ann", "bob"], MISSING)).toBe(true);
+			expect(evaluate("StringEqualsIfExists", ["ann", "bob"], "eve")).toBe(false);
+		});
+
+		it.each([
+			["NumericEquals", ["1", "2"], "abc"],
+			["NumericNotEquals", ["1", "2"], "abc"],
+			["DateEquals", ["2024-01-01T00:00:00Z", "2024-01-02T00:00:00Z"], "yesterday"],
+			["IpAddress", ["10.0.0.0/8", "192.168.0.0/16"], "not-an-ip"],
+			["Bool", ["true", "false"], "yes"],
+			["StringEquals", ["ann", "bob"], ["ann"]],
+			["StringNotEquals", ["ann", "bob"], { a: 1 }],
+		])("cannot read for %s %j a value %j the family cannot read", (operator: string, values: Array<string>, actual: unknown) => {
+			expect(evaluate(operator, values, actual)).toBeUndefined();
+		});
+
+		it("reads one operand per value, and none when any value does not resolve", () => {
+			expect(ApiAuthorizationIamOperator.readOperands(readCondition("StringEquals", ["a", "${principal.id}"]), CONTEXT)).toEqual([{ text: "a" }, { text: "user-1" }]);
+			expect(ApiAuthorizationIamOperator.readOperands(readCondition("StringEquals", ["a", "${principal.attributes.missing}"]), CONTEXT)).toBeUndefined();
+			expect(evaluate("StringEquals", ["ann", "${principal.attributes.missing}"], "ann")).toBeUndefined();
+		});
+	});
+
+	describe("set qualifiers", () => {
+		// Qualified operator, values, the set a key reads, and whether the key holds.
+		it.each<[string, unknown, unknown, boolean]>([
+			["ForAnyValue:StringEquals", ["a", "b"], MISSING, false],
+			["ForAnyValue:StringEquals", ["a", "b"], null, false],
+			["ForAnyValue:StringEquals", ["a", "b"], [], false],
+			["ForAnyValue:StringEquals", ["a", "b"], ["c"], false],
+			["ForAnyValue:StringEquals", ["a", "b"], ["c", "b"], true],
+			["ForAnyValue:StringEquals", ["a", "b"], ["a", "b"], true],
+			["ForAnyValue:StringEquals", ["a", "b"], "a", true],
+			["ForAnyValue:StringEquals", ["a", "b"], "c", false],
+			["ForAllValues:StringEquals", ["a", "b"], MISSING, true],
+			["ForAllValues:StringEquals", ["a", "b"], null, true],
+			["ForAllValues:StringEquals", ["a", "b"], [], true],
+			["ForAllValues:StringEquals", ["a", "b"], ["c"], false],
+			["ForAllValues:StringEquals", ["a", "b"], ["a", "c"], false],
+			["ForAllValues:StringEquals", ["a", "b"], ["b", "a", "a"], true],
+			["ForAllValues:StringEquals", ["a", "b"], "a", true],
+			["ForAnyValue:StringNotEquals", ["a", "b"], MISSING, false],
+			["ForAnyValue:StringNotEquals", ["a", "b"], [], false],
+			["ForAnyValue:StringNotEquals", ["a", "b"], ["a", "b"], false],
+			["ForAnyValue:StringNotEquals", ["a", "b"], ["a", "c"], true],
+			["ForAllValues:StringNotEquals", ["a", "b"], MISSING, true],
+			["ForAllValues:StringNotEquals", ["a", "b"], [], true],
+			["ForAllValues:StringNotEquals", ["a", "b"], ["c", "d"], true],
+			["ForAllValues:StringNotEquals", ["a", "b"], ["c", "a"], false],
+			["ForAnyValue:StringEqualsIfExists", "a", MISSING, true],
+			["ForAnyValue:StringEqualsIfExists", "a", null, true],
+			["ForAnyValue:StringEqualsIfExists", "a", [], true],
+			["ForAnyValue:StringEqualsIfExists", "a", ["c"], false],
+			["ForAnyValue:StringEqualsIfExists", "a", ["c", "a"], true],
+			["ForAllValues:StringEqualsIfExists", "a", MISSING, true],
+			["ForAllValues:StringEqualsIfExists", "a", [], true],
+			["ForAllValues:StringEqualsIfExists", "a", ["a", "c"], false],
+			["ForAnyValue:StringNotEqualsIfExists", "a", MISSING, true],
+			["ForAnyValue:StringNotEqualsIfExists", "a", ["a"], false],
+			["ForAnyValue:StringLike", ["a*", "b*"], ["x", "bc"], true],
+			["ForAllValues:StringLike", ["a*", "b*"], ["ax", "bc"], true],
+			["ForAllValues:StringLike", ["a*", "b*"], ["ax", "c"], false],
+			["ForAllValues:StringNotLike", ["a*", "b*"], ["c", "d"], true],
+			["ForAnyValue:NumericGreaterThan", ["10", "5"], [1, 7], true],
+			["ForAllValues:NumericGreaterThan", ["10", "5"], [1, 7], false],
+			["ForAnyValue:Bool", "true", [false, true], true],
+			["ForAllValues:Bool", "true", [false, true], false],
+			["ForAnyValue:DateLessThan", "2024-01-02T00:00:00Z", ["2024-01-03T00:00:00Z", "2024-01-01T00:00:00Z"], true],
+			["ForAnyValue:IpAddress", "10.0.0.0/8", ["11.0.0.1", "10.0.0.1"], true],
+			["ForAllValues:NotIpAddress", "10.0.0.0/8", ["11.0.0.1", "10.0.0.1"], false],
+			["ForAnyValue:ArnLike", "a:*", ["b:c", "a:c"], true],
+		])("%s %j on %j", (operator: string, values: unknown, actual: unknown, isHolding: boolean) => {
+			expect(evaluateSet(operator, values, actual)).toBe(isHolding);
+		});
+
+		it.each<[string, unknown]>([
+			["ForAnyValue:StringEquals", ["a", { nested: true }]],
+			["ForAllValues:StringEquals", ["a", { nested: true }]],
+			["ForAnyValue:StringEquals", ["a", null]],
+			["ForAllValues:StringNotEquals", ["c", undefined]],
+			["ForAnyValue:StringEquals", ["a", ["b"]]],
+			["ForAnyValue:StringEquals", { a: 1 }],
+		])("cannot read for %s a request set %j with an element that is no scalar, whatever the other elements say", (operator: string, actual: unknown) => {
+			expect(evaluateSet(operator, "a", actual)).toBeUndefined();
+		});
+
+		it("cannot read an element the family cannot read", () => {
+			expect(evaluateSet("ForAnyValue:NumericEquals", "1", [1, "abc"])).toBeUndefined();
+			expect(evaluateSet("ForAllValues:NumericEquals", "1", [2, "abc"])).toBeUndefined();
+		});
+
+		// A NULL related column compares as the operator does on a NULL column, and a list holds no missing element.
+		it.each<[string, unknown, unknown, boolean]>([
+			["ForAnyValue:StringEquals", "a", [null], false],
+			["ForAnyValue:StringNotEquals", "a", [null], true],
+			["ForAllValues:StringEquals", "a", ["a", null], false],
+			["ForAllValues:StringNotEquals", "a", ["b", null], true],
+			["ForAnyValue:StringLike", "*", [null], true],
+			["ForAllValues:StringLike", "a*", [null], false],
+			["ForAnyValue:StringEqualsIgnoreCase", "a", [null], false],
+			["ForAnyValue:NumericEquals", "1", [null], false],
+			["ForAnyValue:NumericNotEquals", "1", [null], true],
+			["ForAnyValue:Bool", "true", [null], false],
+			["ForAnyValue:DateEquals", "2024-01-01T00:00:00Z", [null], false],
+			["ForAllValues:DateNotEquals", "2024-01-01T00:00:00Z", [null], true],
+			["ForAnyValue:IpAddress", "10.0.0.0/8", [null], false],
+			["ForAllValues:NotIpAddress", "10.0.0.0/8", [null], true],
+			["ForAnyValue:ArnLike", "a:*", [null], false],
+			["ForAnyValue:NumericGreaterThan", "1", ["NaN"], true],
+		])("%s %j on the column values %j", (operator: string, values: unknown, actual: unknown, isHolding: boolean) => {
+			expect(evaluateSet(operator, values, actual, true)).toBe(isHolding);
+		});
+
+		it("keeps the unresolved operand closed", () => {
+			expect(evaluateSet("ForAllValues:StringEquals", "${principal.attributes.missing}", [])).toBeUndefined();
+			expect(evaluateSet("ForAnyValue:StringEquals", ["a", "${principal.attributes.missing}"], ["a"])).toBeUndefined();
+		});
+	});
+
+	describe("readOperands", () => {
+		const read = (operator: string, value: unknown, key?: string): IApiAuthorizationIamOperand | undefined => ApiAuthorizationIamOperator.readOperands(readCondition(operator, value, key), CONTEXT)?.[0];
 
 		it.each([
 			["a variable that names nothing", "StringEquals", "${principal.attributes.missing}"],
@@ -403,11 +564,11 @@ describe("ApiAuthorizationIamOperator", () => {
 		it("reads a variable in a pattern as literal text: its `*` and `?` are no wildcards", () => {
 			const context: Record<string, unknown> = { principal: { attributes: { value: "a*b?" }, id: "user-1", type: "user" } };
 			const condition: IApiAuthorizationIamCondition = readCondition("StringLike", "${principal.attributes.value}-*", "principal.attributes.other");
-			const operand: IApiAuthorizationIamOperand | undefined = ApiAuthorizationIamOperator.readOperand(condition, context);
+			const operands: Array<IApiAuthorizationIamOperand> | undefined = ApiAuthorizationIamOperator.readOperands(condition, context);
 
-			expect(operand).toBeDefined();
-			expect(ApiAuthorizationIamOperator.evaluate(condition, "a*b?-x", operand as IApiAuthorizationIamOperand, false)).toBe(true);
-			expect(ApiAuthorizationIamOperator.evaluate(condition, "axby-x", operand as IApiAuthorizationIamOperand, false)).toBe(false);
+			expect(operands).toBeDefined();
+			expect(ApiAuthorizationIamOperator.evaluate(condition, "a*b?-x", operands as Array<IApiAuthorizationIamOperand>, false)).toBe(true);
+			expect(ApiAuthorizationIamOperator.evaluate(condition, "axby-x", operands as Array<IApiAuthorizationIamOperand>, false)).toBe(false);
 		});
 
 		it("unmaps an address only when a variable names it, not when a document writes it", () => {

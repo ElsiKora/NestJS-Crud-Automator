@@ -1,4 +1,4 @@
-import type { IApiAuthorizationIamDialect, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamCollection, IApiAuthorizationIamDialect, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamPredicate } from "@type/class/api/authorization/iam";
 import type { DataSource } from "typeorm";
 
@@ -13,6 +13,8 @@ const ENUM_NAME: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("n
 const CANONICAL_UUID: string = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
 const textIn = (column: IApiAuthorizationIamPredicateColumn, values: Array<string>, isNegated: boolean = false): TApiAuthorizationIamPredicate => ({ column, comparison: EApiAuthorizationIamPredicateComparison.TEXT, isNegated, kind: EApiAuthorizationIamPredicateKind.IN, values });
+
+const ignoreCaseValues = (column: IApiAuthorizationIamPredicateColumn, values: Array<string>, isNegated: boolean = false): TApiAuthorizationIamPredicate => ({ column, comparison: EApiAuthorizationIamPredicateComparison.TEXT_IGNORE_CASE, isNegated, kind: EApiAuthorizationIamPredicateKind.IN, values });
 
 const like = (column: IApiAuthorizationIamPredicateColumn, pattern: Array<IApiAuthorizationIamToken>, isNegated: boolean = false): TApiAuthorizationIamPredicate => ({ column, isNegated, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern });
 
@@ -278,6 +280,92 @@ describe("IAM predicate lowering to SQL", () => {
 
 			expect(renderIamLowererWhere(sqlite, unresolved, textIn(NAME, ["ann"]))).toBeUndefined();
 			expect(renderIamLowererWhere(sqlite, unresolved, { kind: EApiAuthorizationIamPredicateKind.TRUE })).toEqual({ parameters: [], where: "" });
+		});
+	});
+
+	describe("a subquery on a to-many relation", () => {
+		const ID: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("id", { isPrimary: true });
+		const TEXT: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("text");
+		const COLLECTION: IApiAuthorizationIamCollection = { correlationPath: "id", element: "row.text", elementPath: "text", from: "notes row", link: "row.itemId" };
+		const exists = (predicate: TApiAuthorizationIamPredicate, isNegated: boolean = false, collection: IApiAuthorizationIamCollection = COLLECTION): TApiAuthorizationIamPredicate => ({ collection, column: ID, isNegated, kind: EApiAuthorizationIamPredicateKind.EXISTS, predicate });
+
+		it.each<[string, IApiAuthorizationIamDialect, () => DataSource, string, string]>([
+			["PostgreSQL", POSTGRES, () => postgres, `"IamLowererItemEntity"."id"`, "row.text IN ($1, $2)"],
+			["MySQL", MYSQL, () => mysql, "`IamLowererItemEntity`.`id`", "CONVERT(row.text USING utf8mb4) COLLATE utf8mb4_0900_bin IN (?, ?)"],
+			["MariaDB", MARIADB, () => mysql, "`IamLowererItemEntity`.`id`", "CONVERT(row.text USING utf8mb4) COLLATE utf8mb4_nopad_bin IN (?, ?)"],
+			["SQLite", SQLITE, () => sqlite, `"IamLowererItemEntity"."id"`, "row.text IN (?, ?)"],
+		])("%s correlates on the column of the resource and compares a related row as its dialect compares any column", (_name: string, dialect: IApiAuthorizationIamDialect, dataSource: () => DataSource, correlation: string, comparison: string) => {
+			const rendered = renderIamLowererWhere(dataSource(), dialect, exists(textIn(TEXT, ["a", "b"])));
+
+			expect(rendered?.where).toContain(`EXISTS (SELECT 1 FROM notes row WHERE row.itemId = ${correlation} AND (${comparison}))`);
+			expect(rendered?.where).not.toContain("NOT EXISTS");
+			expect(rendered?.parameters).toEqual(["a", "b"]);
+		});
+
+		it("negates the subquery, not what it compares", () => {
+			expect(renderIamLowererWhere(sqlite, SQLITE, exists(textIn(TEXT, ["a"]), true))?.where).toContain("NOT EXISTS (SELECT 1 FROM notes row WHERE");
+		});
+
+		it("adds the condition on a related row, for a soft-deletable entity", () => {
+			expect(renderIamLowererWhere(sqlite, SQLITE, exists(textIn(TEXT, ["a"]), false, { ...COLLECTION, rowCondition: "row.deletedAt IS NULL" }))?.where).toContain(`row.itemId = "IamLowererItemEntity"."id" AND row.deletedAt IS NULL AND (`);
+		});
+
+		it("writes the branches of the related predicate as an OR of ANDs", () => {
+			const other: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("text", {}, {});
+			const predicate: TApiAuthorizationIamPredicate = ApiAuthorizationIamPredicateBuilder.or([ApiAuthorizationIamPredicateBuilder.and([textIn(other, ["a"], true), textIn(other, ["b"], true)]), { column: TEXT, kind: EApiAuthorizationIamPredicateKind.IS_NULL }]);
+
+			expect(renderIamLowererWhere(sqlite, SQLITE, exists(predicate))?.where).toContain("((NOT (row.text = ?) AND NOT (row.text = ?)) OR (row.text IS NULL))");
+		});
+
+		it("writes every row for the TRUE predicate and no row for an empty IN", () => {
+			expect(renderIamLowererWhere(sqlite, SQLITE, exists({ kind: EApiAuthorizationIamPredicateKind.TRUE }, true))?.where).toContain("AND (1=1)");
+			expect(renderIamLowererWhere(sqlite, SQLITE, exists({ kind: EApiAuthorizationIamPredicateKind.FALSE }))?.where).toContain("AND (1=0)");
+		});
+
+		it("binds a value in a subquery under another name than the same value on a column of the resource", () => {
+			const outer = ApiAuthorizationIamPredicateBuilder.and([exists(ignoreCaseValues(TEXT, ["a"])), ignoreCaseValues(NAME, ["a"])]);
+			const parameters = renderIamLowererWhere(postgres, POSTGRES, outer)?.parameters;
+
+			expect(parameters).toEqual(["a", "a"]);
+		});
+
+		it.each<[string, IApiAuthorizationIamDialect, () => DataSource]>([
+			["the portable dialect, whose collation nothing checks", PORTABLE, () => sqlite],
+			["an unresolved dialect", { type: EApiAuthorizationIamDialect.UNRESOLVED }, () => sqlite],
+		])("does not lower on %s", (_name: string, dialect: IApiAuthorizationIamDialect, dataSource: () => DataSource) => {
+			expect(renderIamLowererWhere(dataSource(), dialect, exists(textIn(TEXT, ["a"])))).toBeUndefined();
+		});
+
+		it("does not lower a related column with a value transformer, which the subquery bypasses", () => {
+			expect(renderIamLowererWhere(sqlite, SQLITE, exists(textIn(createIamLowererColumn("text", { hasTransformer: true }), ["a"])))).toBeUndefined();
+		});
+
+		it("does not lower an atom that reads anything but the related column", () => {
+			expect(renderIamLowererWhere(sqlite, SQLITE, exists(textIn(NAME, ["a"])))).toBeUndefined();
+		});
+
+		it("does not lower a related atom its dialect cannot express", () => {
+			expect(renderIamLowererWhere(mysql, MYSQL, exists(ignoreCaseValues(TEXT, ["a"])))).toBeUndefined();
+		});
+	});
+
+	describe("several values", () => {
+		it("SQLite compares IgnoreCase with one GLOB per value, positive or negated", () => {
+			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"]))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `(("IamLowererItemEntity"."name" GLOB ? OR "IamLowererItemEntity"."name" GLOB ?))` });
+			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"], true))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `(("IamLowererItemEntity"."name" NOT GLOB ? AND "IamLowererItemEntity"."name" NOT GLOB ?))` });
+		});
+
+		it("PostgreSQL folds the column and binds every value of IgnoreCase", () => {
+			expect(renderIamLowererWhere(postgres, POSTGRES, ignoreCaseValues(NAME, ["ab", "c"]))?.parameters).toEqual(["ab", "c"]);
+		});
+
+		it.each([
+			["PostgreSQL", POSTGRES, () => postgres],
+			["MySQL", MYSQL, () => mysql],
+			["SQLite", SQLITE, () => sqlite],
+		] as Array<[string, IApiAuthorizationIamDialect, () => DataSource]>)("%s binds every value of a text comparison", (_name: string, dialect: IApiAuthorizationIamDialect, dataSource: () => DataSource) => {
+			expect(renderIamLowererWhere(dataSource(), dialect, textIn(NAME, ["a", "b"]))?.parameters).toEqual(["a", "b"]);
+			expect(renderIamLowererWhere(dataSource(), dialect, textIn(NAME, ["a", "b"], true))?.parameters).toEqual(["a", "b"]);
 		});
 	});
 

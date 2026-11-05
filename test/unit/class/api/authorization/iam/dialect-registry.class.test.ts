@@ -37,7 +37,7 @@ describe("ApiAuthorizationIamDialectRegistry", () => {
 	])("reads the %s driver type without a query", async (type: string, dialect: EApiAuthorizationIamDialect) => {
 		const dataSource: DataSource = createDataSource(type);
 
-		await expect(resolve(dataSource)).resolves.toEqual({ driverType: type, type: dialect });
+		await expect(resolve(dataSource)).resolves.toEqual({ dataSource, driverType: type, type: dialect });
 		expect(dataSource.query).not.toHaveBeenCalled();
 	});
 
@@ -53,7 +53,7 @@ describe("ApiAuthorizationIamDialectRegistry", () => {
 	])("probes %s", async (_name: string, type: string, version: string, charset: string, dialect: unknown) => {
 		const dataSource: DataSource = createDataSource(type, { charset, version });
 
-		await expect(resolve(dataSource)).resolves.toEqual(dialect);
+		await expect(resolve(dataSource)).resolves.toEqual({ ...(dialect as object), dataSource });
 		expect(dataSource.query).toHaveBeenCalledWith(AUTHORIZATION_IAM_DIALECT_CONSTANT.MYSQL_PROBE_QUERY);
 	});
 
@@ -74,7 +74,7 @@ describe("ApiAuthorizationIamDialectRegistry", () => {
 		const dataSource: DataSource = createDataSource("mysql", { isInitialized: false });
 
 		registry.register(DialectItemEntity, dataSource);
-		await expect(registry.resolve(DialectItemEntity)).resolves.toEqual({ driverType: "mysql", type: EApiAuthorizationIamDialect.UNRESOLVED });
+		await expect(registry.resolve(DialectItemEntity)).resolves.toEqual({ dataSource, driverType: "mysql", type: EApiAuthorizationIamDialect.UNRESOLVED });
 
 		Reflect.set(dataSource, "isInitialized", true);
 		await expect(registry.resolve(DialectItemEntity)).resolves.toMatchObject({ type: EApiAuthorizationIamDialect.MYSQL });
@@ -89,7 +89,7 @@ describe("ApiAuthorizationIamDialectRegistry", () => {
 					},
 				}),
 			),
-		).resolves.toEqual({ driverType: "mysql", type: EApiAuthorizationIamDialect.UNRESOLVED });
+		).resolves.toMatchObject({ driverType: "mysql", type: EApiAuthorizationIamDialect.UNRESOLVED });
 	});
 
 	it("fails closed for an entity read through DataSources of different dialects", async () => {
@@ -101,7 +101,8 @@ describe("ApiAuthorizationIamDialectRegistry", () => {
 		await expect(registry.resolve(DialectItemEntity)).resolves.toEqual({ type: EApiAuthorizationIamDialect.UNRESOLVED });
 	});
 
-	it("keeps one dialect for an entity read through two DataSources of the same dialect", async () => {
+	// A to-many key names tables and columns, which only the one DataSource that reads the entity spells for sure.
+	it("keeps one dialect, and names no DataSource, for an entity read through two DataSources of the same dialect", async () => {
 		const registry: ApiAuthorizationIamDialectRegistry = new ApiAuthorizationIamDialectRegistry();
 
 		registry.register(DialectItemEntity, createDataSource("postgres"));

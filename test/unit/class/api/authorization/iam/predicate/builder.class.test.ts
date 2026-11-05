@@ -1,8 +1,8 @@
-import type { IApiAuthorizationIamCondition, IApiAuthorizationIamNetwork, IApiAuthorizationIamOperand, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamCollection, IApiAuthorizationIamCondition, IApiAuthorizationIamNetwork, IApiAuthorizationIamOperand, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamPredicate } from "@type/class/api/authorization/iam";
 
 import { ApiAuthorizationIamDecimal, ApiAuthorizationIamGlob, ApiAuthorizationIamNetwork, ApiAuthorizationIamOperator, ApiAuthorizationIamParser, ApiAuthorizationIamPredicateBuilder, ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam";
-import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType, EApiPolicyConditionOperator, EApiPolicyConditionOperatorFamily } from "@enum/class/authorization";
+import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType, EApiPolicyConditionOperator, EApiPolicyConditionOperatorFamily, EApiPolicyConditionQualifier } from "@enum/class/authorization";
 import { createIamLowererColumn } from "@test/unit/class/api/authorization/iam/fixture/lowerer";
 import { describe, expect, it } from "vitest";
 
@@ -186,7 +186,64 @@ function readCondition(operator: string, operand: string): IApiAuthorizationIamC
 	return condition;
 }
 
+/**
+ * Reads one condition key with several values the way the grammar reads it.
+ * @param {string} operator - Operator as written.
+ * @param {ReadonlyArray<string>} operands - Values as written.
+ * @returns {IApiAuthorizationIamCondition} The condition key.
+ */
+function readConditionValues(operator: string, operands: ReadonlyArray<string>): IApiAuthorizationIamCondition {
+	const condition: IApiAuthorizationIamCondition | undefined = ApiAuthorizationIamParser.readStatement({ Action: ["a:*"], Condition: { [operator]: { "principal.id": operands } }, Effect: "Allow", Resource: ["*"] }).conditions[0];
+
+	if (!condition) {
+		throw new Error(`The grammar read no condition for ${operator}`);
+	}
+
+	return condition;
+}
+
+const COLLECTION: IApiAuthorizationIamCollection = { correlationPath: "id", element: `"row"."text"`, elementPath: "text", from: `"notes" "row"`, link: `"row"."itemId"` };
+const ROW_ID: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("id", { isPrimary: true });
+const ELEMENT: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("text");
+const ELEMENT_IN: TApiAuthorizationIamPredicate = { column: ELEMENT, comparison: EApiAuthorizationIamPredicateComparison.TEXT, isNegated: false, kind: EApiAuthorizationIamPredicateKind.IN, values: ["a"] };
+const ELEMENT_NOT_IN: TApiAuthorizationIamPredicate = { column: ELEMENT, comparison: EApiAuthorizationIamPredicateComparison.TEXT, isNegated: true, kind: EApiAuthorizationIamPredicateKind.IN, values: ["a"] };
+const ELEMENT_PAIR: IApiAuthorizationIamPredicatePair = { fails: ELEMENT_NOT_IN, holds: ELEMENT_IN };
+
+const exists = (predicate: TApiAuthorizationIamPredicate, isNegated: boolean): TApiAuthorizationIamPredicate => ({ collection: COLLECTION, column: ROW_ID, isNegated, kind: EApiAuthorizationIamPredicateKind.EXISTS, predicate });
+
+const qualified = (qualifier: EApiPolicyConditionQualifier, isIfExists: boolean = false, element: IApiAuthorizationIamPredicatePair = ELEMENT_PAIR): IApiAuthorizationIamPredicatePair => ApiAuthorizationIamPredicateBuilder.buildQualified({ collection: COLLECTION, column: ROW_ID, condition: { ...createCondition(false, isIfExists), qualifier }, element });
+
 describe("ApiAuthorizationIamPredicateBuilder", () => {
+	describe("set qualifiers on a to-many relation", () => {
+		const EVERY_ROW: TApiAuthorizationIamPredicate = { kind: EApiAuthorizationIamPredicateKind.TRUE };
+
+		it("reads ForAnyValue as a related row that holds", () => {
+			expect(qualified(EApiPolicyConditionQualifier.FOR_ANY_VALUE)).toEqual({ fails: exists(ELEMENT_IN, true), holds: exists(ELEMENT_IN, false) });
+		});
+
+		it("reads ForAllValues as no related row that fails, so no related row holds it", () => {
+			expect(qualified(EApiPolicyConditionQualifier.FOR_ALL_VALUES)).toEqual({ fails: exists(ELEMENT_NOT_IN, false), holds: exists(ELEMENT_NOT_IN, true) });
+		});
+
+		it("adds the rows with no related row to ForAnyValue with IfExists", () => {
+			expect(qualified(EApiPolicyConditionQualifier.FOR_ANY_VALUE, true)).toEqual({
+				fails: { children: [exists(ELEMENT_IN, true), exists(EVERY_ROW, false)], kind: EApiAuthorizationIamPredicateKind.AND },
+				holds: { children: [exists(ELEMENT_IN, false), exists(EVERY_ROW, true)], kind: EApiAuthorizationIamPredicateKind.OR },
+			});
+		});
+
+		it("changes nothing for ForAllValues with IfExists", () => {
+			expect(qualified(EApiPolicyConditionQualifier.FOR_ALL_VALUES, true)).toEqual(qualified(EApiPolicyConditionQualifier.FOR_ALL_VALUES));
+		});
+
+		it("folds an element no related row can hold", () => {
+			const never: IApiAuthorizationIamPredicatePair = { fails: EVERY_ROW, holds: { kind: EApiAuthorizationIamPredicateKind.FALSE } };
+
+			expect(qualified(EApiPolicyConditionQualifier.FOR_ANY_VALUE, false, never)).toEqual({ fails: EVERY_ROW, holds: { kind: EApiAuthorizationIamPredicateKind.FALSE } });
+			expect(qualified(EApiPolicyConditionQualifier.FOR_ALL_VALUES, false, { fails: { kind: EApiAuthorizationIamPredicateKind.FALSE }, holds: EVERY_ROW })).toEqual({ fails: { kind: EApiAuthorizationIamPredicateKind.FALSE }, holds: EVERY_ROW });
+		});
+	});
+
 	describe("complementarity over every operator family", () => {
 		const planner: ApiAuthorizationIamQueryPlanner = new ApiAuthorizationIamQueryPlanner();
 
@@ -194,19 +251,19 @@ describe("ApiAuthorizationIamPredicateBuilder", () => {
 
 		it.each(operators)("%s %s: holds XOR fails on every row, and holds equals memory", (operator: string, operand: string, operatorCase: IOperatorCase) => {
 			const condition: IApiAuthorizationIamCondition = readCondition(operator, operand);
-			const memoryOperand: IApiAuthorizationIamOperand | undefined = ApiAuthorizationIamOperator.readOperand(condition, {});
+			const memoryOperands: Array<IApiAuthorizationIamOperand> | undefined = ApiAuthorizationIamOperator.readOperands(condition, {});
 			const shape: { family: EApiAuthorizationIamColumnFamily; type?: string } = operatorCase.type === undefined ? { family: operatorCase.family } : { family: operatorCase.family, type: operatorCase.type };
 			const rootColumn: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("code", shape);
 			const optionalColumn: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("owner.code", shape, { isBoolean: operatorCase.family === EApiAuthorizationIamColumnFamily.BOOLEAN, isOptional: true, presencePath: "owner.id" });
 			const rootField: IApiAuthorizationIamPredicateColumn = operatorCase.family === EApiAuthorizationIamColumnFamily.BOOLEAN ? createIamLowererColumn("code", shape, { isBoolean: true }) : rootColumn;
 
-			expect(memoryOperand).toBeDefined();
+			expect(memoryOperands).toBeDefined();
 
 			for (const [column, presence, missing] of [
 				[rootField, undefined, false],
 				[optionalColumn, PRESENCE, true],
 			] as Array<[IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicateColumn | undefined, boolean]>) {
-				const pair: IApiAuthorizationIamPredicatePair | undefined = planner["buildOperandPair"](condition, memoryOperand ?? {}, column, presence);
+				const pair: IApiAuthorizationIamPredicatePair | undefined = planner["buildOperandPair"](condition, memoryOperands ?? [], column, presence);
 
 				expect(pair).toBeDefined();
 
@@ -217,18 +274,69 @@ describe("ApiAuthorizationIamPredicateBuilder", () => {
 				}
 
 				for (const { actual, row } of rows) {
-					const expected: boolean | undefined = ApiAuthorizationIamOperator.evaluate(condition, actual, memoryOperand ?? {}, true);
+					const expected: boolean | undefined = ApiAuthorizationIamOperator.evaluate(condition, actual, memoryOperands ?? [], true);
 
 					expect({ fails: isSelected(pair?.fails ?? { kind: EApiAuthorizationIamPredicateKind.FALSE }, row), holds: isSelected(pair?.holds ?? { kind: EApiAuthorizationIamPredicateKind.FALSE }, row), row }).toEqual({ fails: expected !== true, holds: expected === true, row });
 				}
 			}
 		});
 
+		// One family per row: the operators, two values, and the non-NULL values a row may hold.
+		it.each<[string, EApiAuthorizationIamColumnFamily, string | undefined, ReadonlyArray<string>, [string, string], ReadonlyArray<string>]>([
+			["String", EApiAuthorizationIamColumnFamily.TEXT, undefined, ["StringEquals", "StringNotEquals"], ["ann", "bob"], ["", "ann", "bob", "eve"]],
+			["IgnoreCase", EApiAuthorizationIamColumnFamily.TEXT, undefined, ["StringEqualsIgnoreCase", "StringNotEqualsIgnoreCase"], ["AnN", "BoB"], ["", "ann", "BOB", "eve"]],
+			["StringLike", EApiAuthorizationIamColumnFamily.TEXT, undefined, ["StringLike", "StringNotLike"], ["a*", "b?b"], ["", "ann", "bob", "bb", "eve"]],
+			["StringLike matching an empty text", EApiAuthorizationIamColumnFamily.TEXT, undefined, ["StringLike", "StringNotLike"], ["a*", "*"], ["", "ann", "eve"]],
+			["Arn", EApiAuthorizationIamColumnFamily.TEXT, undefined, ["ArnLike", "ArnNotLike"], ["a:*", "b:c"], ["", "a:b", "b:c", "b:d"]],
+			["Numeric", EApiAuthorizationIamColumnFamily.NUMERIC, "numeric", ["NumericEquals", "NumericNotEquals", "NumericLessThan", "NumericGreaterThanEquals"], ["1", "5"], ["0", "1", "3", "5", "7"]],
+			["Date", EApiAuthorizationIamColumnFamily.DATE, "timestamptz", ["DateEquals", "DateNotEquals", "DateGreaterThan", "DateLessThanEquals"], ["2024-01-01T00:00:00.000Z", "2024-02-01T00:00:00.000Z"], ["2023-12-01T00:00:00.000Z", "2024-01-01T00:00:00.000Z", "2024-01-15T00:00:00.000Z", "2024-02-01T00:00:00.000Z", "2024-03-01T00:00:00.000Z"]],
+			["IP", EApiAuthorizationIamColumnFamily.NETWORK, "inet", ["IpAddress", "NotIpAddress"], ["10.0.0.0/8", "192.168.0.0/16"], ["10.1.2.3", "192.168.1.1", "11.0.0.1"]],
+		])("%s with two values: holds XOR fails on every row, and holds equals memory", (_name: string, family: EApiAuthorizationIamColumnFamily, type: string | undefined, conditionOperators: ReadonlyArray<string>, values: [string, string], rowValues: ReadonlyArray<string>) => {
+			const shape: { family: EApiAuthorizationIamColumnFamily; type?: string } = type === undefined ? { family } : { family, type };
+
+			for (const operator of conditionOperators.flatMap((name: string): Array<string> => [name, `${name}IfExists`])) {
+				const condition: IApiAuthorizationIamCondition = readConditionValues(operator, values);
+				const operands: Array<IApiAuthorizationIamOperand> | undefined = ApiAuthorizationIamOperator.readOperands(condition, {});
+
+				for (const [column, presence, isOptional] of [
+					[createIamLowererColumn("code", shape), undefined, false],
+					[createIamLowererColumn("owner.code", shape, { isOptional: true, presencePath: "owner.id" }), PRESENCE, true],
+				] as Array<[IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicateColumn | undefined, boolean]>) {
+					const pair: IApiAuthorizationIamPredicatePair | undefined = new ApiAuthorizationIamQueryPlanner()["buildOperandPair"](condition, operands ?? [], column, presence);
+					const rows: Array<{ actual: null | string | undefined; row: TRow }> = [{ actual: null, row: { [column.queryPath]: null, "owner.id": "o1" } }, ...rowValues.map((value: string): { actual: string; row: TRow } => ({ actual: value, row: { [column.queryPath]: value, "owner.id": "o1" } })), ...(isOptional ? [{ actual: undefined, row: { [column.queryPath]: null, "owner.id": null } }] : [])];
+
+					expect(pair).toBeDefined();
+
+					for (const { actual, row } of rows) {
+						const expected: boolean | undefined = ApiAuthorizationIamOperator.evaluate(condition, actual, operands ?? [], true);
+
+						expect({ fails: isSelected(pair?.fails ?? { kind: EApiAuthorizationIamPredicateKind.FALSE }, row), holds: isSelected(pair?.holds ?? { kind: EApiAuthorizationIamPredicateKind.FALSE }, row), operator, row }).toEqual({ fails: expected !== true, holds: expected === true, operator, row });
+					}
+				}
+			}
+		});
+
+		it("Bool with both values holds on every value but NULL, in one IN", () => {
+			const condition: IApiAuthorizationIamCondition = readConditionValues("Bool", ["true", "false"]);
+			const pair: IApiAuthorizationIamPredicatePair | undefined = ApiAuthorizationIamPredicateBuilder.buildCondition({ column: NAME, comparison: EApiAuthorizationIamPredicateComparison.BOOLEAN, condition, values: [true, false] });
+
+			expect(pair?.holds).toEqual({ column: NAME, comparison: EApiAuthorizationIamPredicateComparison.BOOLEAN, isNegated: false, kind: EApiAuthorizationIamPredicateKind.IN, values: [true, false] });
+		});
+
+		it("Null with both answers holds on every row and fails on none", () => {
+			const pair: IApiAuthorizationIamPredicatePair = ApiAuthorizationIamPredicateBuilder.buildNull({ answers: [true, false], column: NAME });
+
+			expect(isSelected(pair.holds, { "owner.name": null })).toBe(true);
+			expect(isSelected(pair.holds, { "owner.name": "ann" })).toBe(true);
+			expect(isSelected(pair.fails, { "owner.name": null })).toBe(false);
+			expect(isSelected(pair.fails, { "owner.name": "ann" })).toBe(false);
+		});
+
 		it.each([
 			["true", [true, false, false]],
 			["false", [false, true, true]],
 		])("Null %s holds XOR fails, with a missing value as NULL", (operand: string, expected: Array<boolean>) => {
-			const pair: IApiAuthorizationIamPredicatePair = ApiAuthorizationIamPredicateBuilder.buildNull({ column: NAME, isNull: operand === "true" });
+			const pair: IApiAuthorizationIamPredicatePair = ApiAuthorizationIamPredicateBuilder.buildNull({ answers: [operand === "true"], column: NAME });
 			const rows: Array<TRow> = [
 				{ "owner.id": null, "owner.name": null },
 				{ "owner.id": "o1", "owner.name": "ann" },

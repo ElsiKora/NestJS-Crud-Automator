@@ -7,7 +7,7 @@ import { AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT } from "@constant/class/
 import { EApiPolicyConditionOperator, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { IsApiPolicyDocument } from "@validator/policy-document.validator";
 import { validate as validateObject } from "class-validator";
-import { Column, Entity, PrimaryColumn } from "typeorm";
+import { Column, Entity, ManyToOne, OneToMany, PrimaryColumn } from "typeorm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 @Entity("validator_items")
@@ -24,6 +24,9 @@ class ValidatorItemEntity {
 	@Column({ type: "boolean" })
 	public isArchived!: boolean;
 
+	@OneToMany(() => ValidatorNoteEntity, (note: ValidatorNoteEntity) => note.item)
+	public notes!: Array<ValidatorNoteEntity>;
+
 	@Column({ type: "int" })
 	public rank!: number;
 
@@ -34,6 +37,30 @@ class ValidatorItemEntity {
 	public status!: string;
 }
 
+@Entity("validator_notes")
+class ValidatorNoteEntity {
+	@Column({ type: "datetime" })
+	public createdAt!: Date;
+
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@Column({ type: "boolean" })
+	public isRead!: boolean;
+
+	@ManyToOne(() => ValidatorItemEntity, (item: ValidatorItemEntity) => item.notes)
+	public item!: ValidatorItemEntity;
+
+	@Column({ type: "int" })
+	public score!: number;
+
+	@Column({ transformer: { from: (value: string): string => value, to: (value: string): string => value }, type: "varchar" })
+	public secret!: string;
+
+	@Column({ type: "varchar" })
+	public text!: string;
+}
+
 const itemResourceDefinition: IApiAuthorizationResourceDefinition<ValidatorItemEntity> = {
 	entity: ValidatorItemEntity,
 	fields: [
@@ -41,6 +68,12 @@ const itemResourceDefinition: IApiAuthorizationResourceDefinition<ValidatorItemE
 		{ isFilterable: true, path: "resource.day", queryPath: "day" },
 		{ isFilterable: true, path: "resource.id", queryPath: "id" },
 		{ isFilterable: true, path: "resource.isArchived", queryPath: "isArchived" },
+		{ isFilterable: true, path: "resource.noteAt", queryPath: "notes.createdAt" },
+		{ isFilterable: true, path: "resource.noteFlag", queryPath: "notes.isRead" },
+		{ isFilterable: true, path: "resource.noteItem", queryPath: "notes.item.id" },
+		{ isFilterable: true, path: "resource.noteScore", queryPath: "notes.score" },
+		{ isFilterable: true, path: "resource.noteSecret", queryPath: "notes.secret" },
+		{ isFilterable: true, path: "resource.noteText", queryPath: "notes.text" },
 		{ isFilterable: true, path: "resource.rank", queryPath: "rank" },
 		{ isFilterable: true, path: "resource.status", queryPath: "status" },
 		{ isFilterable: false, path: "resource.secret", queryPath: "secret" },
@@ -91,6 +124,19 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["a request header key", { StringEquals: { "request.headers.x-tenant-id": "t-1" } }],
 			["a request ip key", { StringEquals: { "request.ip": "127.0.0.1" } }],
 			["a principal role key", { StringEquals: { "principal.roles": "admin" } }],
+			["several values", { StringEquals: { "principal.id": ["a", "b"] } }],
+			["64 values", { StringEquals: { "principal.id": Array.from({ length: 64 }, (_value: unknown, index: number) => `v${index}`) } }],
+			["several values on a resource column", { StringNotEquals: { "resource.status": ["a", "b"] } }],
+			["several values with a variable", { StringEquals: { "resource.status": ["a", "${principal.attributes.status}"] } }],
+			["a qualifier on a principal key that holds a list", { "ForAnyValue:StringEquals": { "principal.roles": "admin" } }],
+			["a qualifier and IfExists on a principal group", { "ForAllValues:StringLikeIfExists": { "principal.groups": ["a*", "b*"] } }],
+			["a qualifier on a principal attribute", { "ForAnyValue:NumericEquals": { "principal.attributes.levels": ["1", "2"] } }],
+			["a qualifier on a request key", { "ForAllValues:StringEquals": { "request.body.tags": ["a", "b"] } }],
+			["ForAnyValue on a to-many key", { "ForAnyValue:StringEquals": { "resource.noteText": ["a", "b"] } }],
+			["ForAllValues on a to-many key", { "ForAllValues:StringNotEquals": { "resource.noteText": "a" } }],
+			["a Numeric operator on a numeric to-many column", { "ForAnyValue:NumericGreaterThan": { "resource.noteScore": "1" } }],
+			["a boolean on a to-many boolean column", { "ForAnyValue:Bool": { "resource.noteFlag": "true" } }],
+			["an instant on a to-many date column", { "ForAllValues:DateLessThan": { "resource.noteAt": "2024-01-01T00:00:00.000Z" } }],
 			["an empty Condition", {}],
 		])("accepts %s", (_name: string, condition: unknown) => {
 			expect(inspectCondition(condition)).toEqual([]);
@@ -206,7 +252,16 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["an unknown qualifier", { "ForSomeValues:StringEquals": { "principal.roles": "a" } }, 'document.Statement[0].Condition["ForSomeValues:StringEquals"]', codes.CONDITION_QUALIFIER_UNKNOWN],
 			["a qualifier on Null", { "ForAnyValue:Null": { "principal.roles": "true" } }, 'document.Statement[0].Condition["ForAnyValue:Null"]', codes.CONDITION_QUALIFIER_UNSUPPORTED],
 			["a qualifier on a single-valued key", { "ForAllValues:StringEquals": { "principal.id": "a" } }, operatorProperty("ForAllValues:StringEquals", "principal.id"), codes.CONDITION_QUALIFIER_UNSUPPORTED],
-			["a qualifier on a multi-valued key", { "ForAnyValue:StringEquals": { "principal.roles": "a" } }, operatorProperty("ForAnyValue:StringEquals", "principal.roles"), codes.NOT_SUPPORTED_YET],
+			["a qualifier on a column of the resource", { "ForAnyValue:StringEquals": { "resource.status": "a" } }, operatorProperty("ForAnyValue:StringEquals", "resource.status"), codes.CONDITION_QUALIFIER_UNSUPPORTED],
+			["a to-many key without a qualifier", { StringEquals: { "resource.noteText": "a" } }, operatorProperty("StringEquals", "resource.noteText"), codes.CONDITION_QUALIFIER_REQUIRED],
+			["a to-many key with IfExists and no qualifier", { StringNotEqualsIfExists: { "resource.noteText": "a" } }, operatorProperty("StringNotEqualsIfExists", "resource.noteText"), codes.CONDITION_QUALIFIER_REQUIRED],
+			["a Null check of a to-many key", { Null: { "resource.noteText": "true" } }, operatorProperty("Null", "resource.noteText"), codes.CONDITION_QUALIFIER_REQUIRED],
+			["a qualifier on a to-many path that goes on through a relation", { "ForAnyValue:StringEquals": { "resource.noteItem": "a" } }, operatorProperty("ForAnyValue:StringEquals", "resource.noteItem"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a Numeric operator on a text column of a to-many relation", { "ForAnyValue:NumericEquals": { "resource.noteText": "1" } }, operatorProperty("ForAnyValue:NumericEquals", "resource.noteText"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a String operator on a numeric column of a to-many relation", { "ForAllValues:StringEquals": { "resource.noteScore": "1" } }, operatorProperty("ForAllValues:StringEquals", "resource.noteScore"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a String operator on a to-many column with a value transformer", { "ForAnyValue:StringEquals": { "resource.noteSecret": "a" } }, operatorProperty("ForAnyValue:StringEquals", "resource.noteSecret"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["text other than true or false on a to-many boolean column", { "ForAnyValue:StringEquals": { "resource.noteFlag": "yes" } }, operatorProperty("ForAnyValue:StringEquals", "resource.noteFlag"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a calendar date on a to-many instant column", { "ForAnyValue:DateEquals": { "resource.noteAt": "2024-01-01" } }, operatorProperty("ForAnyValue:DateEquals", "resource.noteAt"), codes.CONDITION_KEY_TYPE_MISMATCH],
 			["an unknown key", { StringEquals: { "user.id": "a" } }, operatorProperty("StringEquals", "user.id"), codes.CONDITION_KEY_UNKNOWN],
 			["an unmapped resource key", { StringEquals: { "resource.unknown": "a" } }, operatorProperty("StringEquals", "resource.unknown"), codes.CONDITION_KEY_UNKNOWN],
 			["request.secureTransport", { StringEquals: { "request.secureTransport": "true" } }, operatorProperty("StringEquals", "request.secureTransport"), codes.CONDITION_KEY_NOT_ALLOWED],
@@ -228,7 +283,9 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 			["a malformed ${...} value", { StringEquals: { "principal.id": "${principal" } }, operatorProperty("StringEquals", "principal.id"), codes.CONDITION_VALUE_INVALID],
 			["an empty value list", { StringEquals: { "principal.id": [] } }, operatorProperty("StringEquals", "principal.id"), codes.CONDITION_VALUE_EMPTY],
 			["65 values", { StringEquals: { "principal.id": Array.from({ length: 65 }, (_value: unknown, index: number) => `v${index}`) } }, operatorProperty("StringEquals", "principal.id"), codes.CONDITION_VALUE_TOO_MANY],
-			["several values", { StringEquals: { "principal.id": ["a", "b"] } }, operatorProperty("StringEquals", "principal.id"), codes.NOT_SUPPORTED_YET],
+			["an object among several values", { StringEquals: { "principal.id": ["a", { nested: true }] } }, 'document.Statement[0].Condition.StringEquals["principal.id"][1]', codes.CONDITION_VALUE_INVALID],
+			["text other than true or false among several values on a boolean column", { StringEquals: { "resource.isArchived": ["true", "yes"] } }, operatorProperty("StringEquals", "resource.isArchived"), codes.CONDITION_KEY_TYPE_MISMATCH],
+			["a calendar date among several instants", { DateEquals: { "resource.createdAt": ["2024-01-01T00:00:00.000Z", "2024-01-01"] } }, operatorProperty("DateEquals", "resource.createdAt"), codes.CONDITION_KEY_TYPE_MISMATCH],
 			["an unknown variable", { StringEquals: { "principal.id": "${user.id}" } }, operatorProperty("StringEquals", "principal.id"), codes.VARIABLE_UNKNOWN],
 			["a whole-resource variable", { StringEquals: { "principal.id": "${resource}" } }, operatorProperty("StringEquals", "principal.id"), codes.VARIABLE_UNKNOWN],
 			["a request body variable", { StringEquals: { "resource.status": "${request.body.status}" } }, operatorProperty("StringEquals", "resource.status"), codes.VARIABLE_NOT_ALLOWED],
@@ -382,7 +439,7 @@ describe("ApiAuthorizationIamDocumentValidator", () => {
 
 	describe("validate", () => {
 		it("refuses a loaded document that fails the grammar", () => {
-			expect(() => new ApiAuthorizationIamDocumentValidator().validate(createRecord({ Statement: [{ ...baseStatement, Condition: { StringEquals: { "principal.id": ["a", "b"] } } }], Version: "2012-10-17" }))).toThrow('Policy document "policy-a" is invalid: iamPolicyNotSupportedYet at document.Statement[0].Condition.StringEquals["principal.id"]');
+			expect(() => new ApiAuthorizationIamDocumentValidator().validate(createRecord({ Statement: [{ ...baseStatement, Condition: { StringEquals: { "principal.id": { nested: true } } } }], Version: "2012-10-17" }))).toThrow('Policy document "policy-a" is invalid: iamPolicyConditionValueInvalid at document.Statement[0].Condition.StringEquals["principal.id"]');
 		});
 
 		it("checks resource keys of a registered namespace", () => {

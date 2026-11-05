@@ -7,7 +7,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiAuthorizationIamDialect, EApiAuthorizationIamTokenType, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { describe, expect, it, vi } from "vitest";
-import { And, ChildEntity, Column, Entity, Equal, IsNull, JoinTable, ManyToMany, ManyToOne, Not, OneToMany, PrimaryColumn, TableInheritance } from "typeorm";
+import { And, ChildEntity, Column, Entity, Equal, In, IsNull, JoinTable, ManyToMany, ManyToOne, Not, OneToMany, PrimaryColumn, TableInheritance } from "typeorm";
 
 @Entity("planner_teams")
 class PlannerTeamEntity {
@@ -333,11 +333,59 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 
 		it.each([
 			["an object value", { StringEquals: { "resource.status": { nested: true } } }, "iamPolicyConditionValueInvalid"],
-			["several values", { StringEquals: { "resource.status": ["a", "b"] } }, "iamPolicyNotSupportedYet"],
-			["a qualifier", { "ForAnyValue:StringEquals": { "principal.roles": "a" } }, "iamPolicyNotSupportedYet"],
+			["a qualifier on a key that holds one value", { "ForAnyValue:StringEquals": { "principal.id": "a" } }, "iamPolicyConditionQualifierUnsupported"],
 		])("refuses a statement with %s", (_name: string, condition: Record<string, Record<string, unknown>>, code: string) => {
 			expect(() => planAllow(condition)).toThrow(code);
 			expect(() => planDeny([{ condition }])).toThrow(code);
+		});
+
+		describe("several values", () => {
+			it("binds them in one IN for an Allow, and keeps the rest for a Deny", () => {
+				expect(planAllow({ StringEquals: { "resource.status": ["a", "b"] } })).toEqual({ isFullyCompilable: true, scope: { where: { status: In(["a", "b"]) } } });
+				expect(planDeny([{ condition: { StringEquals: { "resource.status": ["a", "b"] } } }]).scope).toEqual({ where: [{ status: Not(In(["a", "b"])) }, { status: IsNull() }] });
+			});
+
+			it("swaps the pair for a negated operator: no value may match", () => {
+				expect(planAllow({ StringNotEquals: { "resource.status": ["a", "b"] } }).scope).toEqual({ where: [{ status: Not(In(["a", "b"])) }, { status: IsNull() }] });
+				expect(planDeny([{ condition: { StringNotEquals: { "resource.status": ["a", "b"] } } }]).scope).toEqual({ where: { status: In(["a", "b"]) } });
+			});
+
+			it("binds a value once when a list repeats it", () => {
+				expect(planAllow({ StringEquals: { "resource.status": ["a", "a"] } })).toEqual(planAllow({ StringEquals: { "resource.status": "a" } }));
+			});
+
+			it.each([
+				["a value that does not resolve", ["a", "${principal.attributes.missing}"]],
+				["a value that resolves to NULL", ["a", "${principal.attributes.nullValue}"]],
+				["a variable that resolves to an empty string", ["a", "${principal.attributes.emptyValue}"]],
+				["an empty string", ["a", ""]],
+			])("does not compile a list with %s, whatever the other values say", (_name: string, values: Array<string>) => {
+				expect(planAllow({ StringEquals: { "resource.status": values } })).toEqual({ isFullyCompilable: false });
+				expect(planDeny([{ condition: { StringEquals: { "resource.status": values } } }])).toEqual({ isFullyCompilable: false });
+				expect(planDeny([{ condition: { StringNotEquals: { "resource.status": values } } }])).toEqual({ isFullyCompilable: false });
+			});
+
+			it("fails closed when the values of a key exceed the branch cap", () => {
+				const previous: number = AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES;
+
+				Reflect.set(AUTHORIZATION_IAM_SCOPE_CONSTANT, "MAX_WHERE_BRANCHES", 1);
+
+				try {
+					expect(planDeny([{ condition: { StringEquals: { "resource.status": ["a", "b"] } } }])).toEqual({ isFullyCompilable: false });
+				} finally {
+					Reflect.set(AUTHORIZATION_IAM_SCOPE_CONSTANT, "MAX_WHERE_BRANCHES", previous);
+				}
+			});
+		});
+
+		it.each([
+			["a column of the resource", { "ForAnyValue:StringEquals": { "resource.status": "a" } }],
+			["a column of a to-one relation", { "ForAllValues:StringEquals": { "resource.operatorName": "a" } }],
+			["a to-many key with no DataSource to name its tables", { "ForAnyValue:StringEquals": { "resource.tagName": "a" } }],
+			["a to-many relation behind a to-one relation", { "ForAnyValue:StringEquals": { "resource.operatorLabelName": "a" } }],
+		])("does not compile a qualifier on %s", (_name: string, condition: Record<string, Record<string, unknown>>) => {
+			expect(planAllow(condition)).toEqual({ isFullyCompilable: false });
+			expect(planDeny([{ condition }])).toEqual({ isFullyCompilable: false });
 		});
 
 		it("returns no scope for statements without resource conditions", () => {

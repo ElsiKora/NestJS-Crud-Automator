@@ -6,8 +6,8 @@ import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization"
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiAuthorizationDecisionType, EApiAuthorizationIamDialect, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
-import { describe, expect, it } from "vitest";
-import { And, Column, Entity, Equal, In, IsNull, ManyToOne, Not, OneToMany, PrimaryColumn } from "typeorm";
+import { beforeAll, describe, expect, it } from "vitest";
+import { And, Column, DataSource, Entity, Equal, In, IsNull, ManyToOne, Not, OneToMany, PrimaryColumn } from "typeorm";
 
 const describeEngineStringProperty = (description: string): PropertyDecorator =>
 	ApiPropertyDescribe({
@@ -230,7 +230,7 @@ describe("ApiAuthorizationIamEngine", () => {
 		});
 
 		it.each([
-			["a form the engine does not evaluate yet", { StringEquals: { "principal.id": ["a", "b"] } }, "iamPolicyNotSupportedYet"],
+			["a qualifier on a key that holds one value", { "ForAnyValue:StringEquals": { "principal.id": "a" } }, "iamPolicyConditionQualifierUnsupported"],
 			["an unknown operator", { StringMatches: { "principal.id": "other" } }, "iamPolicyConditionOperatorUnknown"],
 			["an unknown key", { StringEquals: { "user.id": "other" } }, "iamPolicyConditionKeyUnknown"],
 			["a whole-resource variable", { StringEquals: { "principal.attributes.missing": "${resource}" } }, "iamPolicyVariableUnknown"],
@@ -421,7 +421,6 @@ describe("ApiAuthorizationIamEngine", () => {
 		});
 
 		it.each([
-			["several values", ["archived", "active"], "iamPolicyNotSupportedYet"],
 			["an object", { value: "archived" }, "iamPolicyConditionValueInvalid"],
 			["null", null, "iamPolicyConditionValueInvalid"],
 		])("refuses to evaluate %s as an operand", async (_name: string, operand: unknown, code: string) => {
@@ -491,6 +490,161 @@ describe("ApiAuthorizationIamEngine", () => {
 		it("renders a placeholder that names a field through its query path", async () => {
 			expect((await read([allowAll, deny({ Resource: ["gameport:admin:item/archived"] })])).effect).toBe(EApiPolicyEffect.DENY);
 			expect((await read([allowAll, deny({ Resource: ["gameport:admin:item/active"] })])).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+	});
+
+	describe("several values of one key on a loaded resource", () => {
+		const resource = { id: "item-1", operatorId: "operator-1", secret: "s", status: "archived", tenantId: "t" } as unknown as EngineItemEntity;
+		const read = async (statements: ReadonlyArray<IApiPolicyStatement>) => await evaluate({ action: "admin:item:read", resource, routeType: EApiRouteType.GET, statements });
+
+		it("holds a positive operator if any value matches, and a negated one if none does", async () => {
+			expect((await read([{ ...allowAll, Condition: { StringEquals: { "resource.status": ["active", "archived"] } } }])).effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await read([{ ...allowAll, Condition: { StringEquals: { "resource.status": ["active", "draft"] } } }])).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await read([{ ...allowAll, Condition: { StringNotEquals: { "resource.status": ["active", "draft"] } } }])).effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await read([{ ...allowAll, Condition: { StringNotEquals: { "resource.status": ["active", "archived"] } } }])).effect).toBe(EApiPolicyEffect.DENY);
+		});
+
+		it("fails an Allow and holds a Deny when a value of the list does not resolve", async () => {
+			const values: Array<string> = ["archived", "${principal.attributes.missing}"];
+
+			expect((await read([{ ...allowAll, Condition: { StringEquals: { "resource.status": values } } }])).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.status": ["active", "${principal.attributes.missing}"] } } })])).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("evaluates several values of a context key", async () => {
+			expect((await read([{ ...allowAll, Condition: { StringEquals: { "principal.id": ["user-1", "user-2"] } } }])).effect).toBe(EApiPolicyEffect.ALLOW);
+			expect((await read([{ ...allowAll, Condition: { StringNotEquals: { "principal.id": ["user-1", "user-2"] } } }])).effect).toBe(EApiPolicyEffect.DENY);
+		});
+	});
+
+	describe("set qualifiers on context keys", () => {
+		const withSets: IApiAuthorizationPrincipal = { ...principal, attributes: { malformed: ["a", { nested: true }] }, groups: [], roles: ["admin", "dev"] };
+		const list = async (condition: Record<string, Record<string, unknown>>, statement: "allow" | "deny") => await evaluate({ principal: withSets, statements: statement === "allow" ? [{ ...allowAll, Condition: condition }] : [allowAll, deny({ Condition: condition })] });
+
+		it.each<[string, Record<string, Record<string, unknown>>, boolean]>([
+			["ForAnyValue with a role that matches", { "ForAnyValue:StringEquals": { "principal.roles": ["admin", "x"] } }, true],
+			["ForAnyValue with no role that matches", { "ForAnyValue:StringEquals": { "principal.roles": "x" } }, false],
+			["ForAllValues with every role listed", { "ForAllValues:StringEquals": { "principal.roles": ["admin", "dev"] } }, true],
+			["ForAllValues with a role not listed", { "ForAllValues:StringEquals": { "principal.roles": "admin" } }, false],
+			["ForAnyValue on an empty set", { "ForAnyValue:StringEquals": { "principal.groups": "x" } }, false],
+			["ForAllValues on an empty set", { "ForAllValues:StringEquals": { "principal.groups": "x" } }, true],
+			["ForAnyValue on a missing key", { "ForAnyValue:StringEquals": { "principal.attributes.none": "x" } }, false],
+			["ForAllValues on a missing key", { "ForAllValues:StringEquals": { "principal.attributes.none": "x" } }, true],
+			["ForAnyValue with IfExists on a missing key", { "ForAnyValue:StringEqualsIfExists": { "principal.attributes.none": "x" } }, true],
+		])("%s: an Allow and a Deny answer alike", async (_name: string, condition: Record<string, Record<string, unknown>>, isHolding: boolean) => {
+			expect((await list(condition, "allow")).effect).toBe(isHolding ? EApiPolicyEffect.ALLOW : EApiPolicyEffect.DENY);
+			expect((await list(condition, "deny")).effect).toBe(isHolding ? EApiPolicyEffect.DENY : EApiPolicyEffect.ALLOW);
+		});
+
+		it.each(["ForAnyValue:StringEquals", "ForAllValues:StringEquals", "ForAllValues:StringNotEquals", "ForAnyValue:StringNotEquals"])("%s on a list with an element that is no scalar fails an Allow and holds a Deny", async (operator: string) => {
+			const condition: Record<string, Record<string, unknown>> = { [operator]: { "principal.attributes.malformed": "a" } };
+
+			expect((await list(condition, "allow")).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await list(condition, "deny")).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it.each(["StringEquals", "StringNotEquals", "StringEqualsIfExists"])("keeps an unqualified %s on a list closed", async (operator: string) => {
+			const condition: Record<string, Record<string, unknown>> = { [operator]: { "principal.roles": "admin" } };
+
+			expect((await list(condition, "allow")).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await list(condition, "deny")).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+	});
+
+	describe("set qualifiers on a to-many relation", () => {
+		const toManyResourceDefinition: IApiAuthorizationResourceDefinition<EngineItemEntity> = {
+			...itemResourceDefinition,
+			fields: [
+				{ isFilterable: true, path: "resource.id", queryPath: "id" },
+				{ isFilterable: true, path: "resource.noteText", queryPath: "notes.text" },
+				{ isFilterable: true, path: "resource.status", queryPath: "status" },
+			],
+		};
+		const item = (notes: unknown): EngineItemEntity => ({ id: "item-1", notes, operatorId: "operator-1", secret: "s", status: "archived", tenantId: "t" }) as unknown as EngineItemEntity;
+		let dialect: IApiAuthorizationIamDialect;
+
+		const read = async (statements: ReadonlyArray<IApiPolicyStatement>, resource: EngineItemEntity, resourceDialect: IApiAuthorizationIamDialect = dialect) => await evaluate({ action: "admin:item:read", dialect: resourceDialect, resource, resourceDefinition: toManyResourceDefinition, routeType: EApiRouteType.GET, statements });
+
+		beforeAll(async () => {
+			const dataSource: DataSource = new DataSource({ database: ":memory:", entities: [EngineItemEntity, EngineNoteEntity], type: "better-sqlite3" });
+
+			await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+			dialect = { dataSource, driverType: "better-sqlite3", type: EApiAuthorizationIamDialect.SQLITE };
+		});
+
+		// The texts of the loaded notes, and whether the key holds on them.
+		it.each<[string, string, Array<null | string>, boolean]>([
+			["ForAnyValue:StringEquals", "x", [], false],
+			["ForAnyValue:StringEquals", "x", ["x"], true],
+			["ForAnyValue:StringEquals", "x", ["y"], false],
+			["ForAnyValue:StringEquals", "x", [null], false],
+			["ForAnyValue:StringEquals", "x", ["y", "x"], true],
+			["ForAllValues:StringEquals", "x", [], true],
+			["ForAllValues:StringEquals", "x", ["x"], true],
+			["ForAllValues:StringEquals", "x", ["x", "y"], false],
+			["ForAllValues:StringEquals", "x", ["x", null], false],
+			["ForAnyValue:StringNotEquals", "x", [], false],
+			["ForAnyValue:StringNotEquals", "x", [null], true],
+			["ForAnyValue:StringNotEquals", "x", ["x"], false],
+			["ForAllValues:StringNotEquals", "x", [], true],
+			["ForAllValues:StringNotEquals", "x", [null], true],
+			["ForAllValues:StringNotEquals", "x", ["y", "x"], false],
+			["ForAnyValue:StringEqualsIfExists", "x", [], true],
+			["ForAnyValue:StringEqualsIfExists", "x", ["y"], false],
+			["ForAllValues:StringEqualsIfExists", "x", [], true],
+			["ForAnyValue:StringLike", "*", [null], true],
+			["ForAnyValue:StringLike", "*", [], false],
+		])("%s %s on the notes %j", async (operator: string, value: string, texts: Array<null | string>, isHolding: boolean) => {
+			const resource: EngineItemEntity = item(texts.map((text: null | string): { text: null | string } => ({ text })));
+
+			expect((await read([{ ...allowAll, Condition: { [operator]: { "resource.noteText": value } } }], resource)).effect).toBe(isHolding ? EApiPolicyEffect.ALLOW : EApiPolicyEffect.DENY);
+			expect((await read([allowAll, deny({ Condition: { [operator]: { "resource.noteText": value } } })], resource)).effect).toBe(isHolding ? EApiPolicyEffect.DENY : EApiPolicyEffect.ALLOW);
+		});
+
+		it.each<[string, unknown]>([
+			["is not loaded", undefined],
+			["is NULL", null],
+			["is a promise of a lazy relation", Promise.resolve([])],
+			["holds a row that is no record", ["x"]],
+			["holds a row without the column", [{ id: "note-1" }]],
+		])("fails an Allow and holds a Deny when the relation %s", async (_name: string, notes: unknown) => {
+			for (const operator of ["ForAnyValue:StringEquals", "ForAllValues:StringEquals", "ForAllValues:StringNotEquals", "ForAnyValue:StringEqualsIfExists"]) {
+				expect((await read([{ ...allowAll, Condition: { [operator]: { "resource.noteText": "x" } } }], item(notes))).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+				expect((await read([allowAll, deny({ Condition: { [operator]: { "resource.noteText": "x" } } })], item(notes))).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			}
+		});
+
+		it.each<[string, IApiAuthorizationIamDialect]>([
+			["no DataSource to name the tables", { type: EApiAuthorizationIamDialect.PORTABLE }],
+			["a dialect that could not be resolved", { type: EApiAuthorizationIamDialect.UNRESOLVED }],
+		])("fails a loaded row closed with %s, as its list does", async (_name: string, resourceDialect: IApiAuthorizationIamDialect) => {
+			const resource: EngineItemEntity = item([{ text: "x" }]);
+
+			expect((await read([{ ...allowAll, Condition: { "ForAnyValue:StringEquals": { "resource.noteText": "x" } } }], resource, resourceDialect)).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await read([allowAll, deny({ Condition: { "ForAnyValue:StringEquals": { "resource.noteText": "y" } } })], resource, resourceDialect)).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("fails a qualifier on a column of the resource closed", async () => {
+			const resource: EngineItemEntity = item([]);
+
+			expect((await read([{ ...allowAll, Condition: { "ForAnyValue:StringEquals": { "resource.status": "archived" } } }], resource)).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await read([allowAll, deny({ Condition: { "ForAllValues:StringEquals": { "resource.status": "active" } } })], resource)).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("scopes a list with a subquery on the row's key", async () => {
+			const decision = await evaluate({ action: "admin:item:list", dialect, resourceDefinition: toManyResourceDefinition, routeType: EApiRouteType.GET_LIST, statements: [{ ...allowAll, Condition: { "ForAnyValue:StringEquals": { "resource.noteText": "x" } } }] });
+			const where = decision.scope?.where as { id: FindOperator<unknown> };
+
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(where.id.type).toBe("raw");
+			expect((where.id as unknown as { getSql: (alias: string) => string }).getSql("alias")).toContain(`EXISTS (SELECT 1 FROM "engine_notes" "iam_collection_row" WHERE "iam_collection_row"."itemId" = alias AND (`);
+		});
+
+		it("excludes rows of a Deny with the subquery negated", async () => {
+			const decision = await evaluate({ action: "admin:item:list", dialect, resourceDefinition: toManyResourceDefinition, routeType: EApiRouteType.GET_LIST, statements: [allowAll, deny({ Condition: { "ForAnyValue:StringEquals": { "resource.noteText": "x" } } })] });
+			const where = decision.scope?.where as { id: FindOperator<unknown> };
+
+			expect((where.id as unknown as { getSql: (alias: string) => string }).getSql("alias")).toContain(`NOT EXISTS (SELECT 1 FROM "engine_notes" "iam_collection_row"`);
 		});
 	});
 

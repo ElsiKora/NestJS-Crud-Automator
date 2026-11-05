@@ -1,4 +1,5 @@
 export * from "./attachment";
+export * from "./collection.class.test";
 export * from "./date-value.class.test";
 export * from "./decimal.class.test";
 export * from "./dialect-registry.class.test";

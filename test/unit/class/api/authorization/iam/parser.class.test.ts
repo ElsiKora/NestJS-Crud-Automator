@@ -76,9 +76,30 @@ describe("ApiAuthorizationIamParser", () => {
 		});
 
 		it("reports the qualifier and operator path in bracket form", () => {
-			const result = ApiAuthorizationIamParser.readDocument({ Statement: [{ Action: ["*"], Condition: { "ForAnyValue:StringEquals": { "principal.groups": "a" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }], Version: "2012-10-17" });
+			const result = ApiAuthorizationIamParser.readDocument({ Statement: [{ Action: ["*"], Condition: { "ForAnyValue:StringEquals": { "principal.id": "a" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }], Version: "2012-10-17" });
 
-			expect(result.failures.map((failure) => [failure.property, failure.code])).toEqual([['document.Statement[0].Condition["ForAnyValue:StringEquals"]["principal.groups"]', "iamPolicyNotSupportedYet"]]);
+			expect(result.failures.map((failure) => [failure.property, failure.code])).toEqual([['document.Statement[0].Condition["ForAnyValue:StringEquals"]["principal.id"]', "iamPolicyConditionQualifierUnsupported"]]);
+		});
+
+		it("reads several values of a key in order, and each with its variables", () => {
+			const statement = ApiAuthorizationIamParser.readStatement({ Action: ["*"], Condition: { StringEquals: { "principal.id": ["a", "${principal.attributes.other}"] } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] });
+
+			expect(statement.conditions[0]?.values.map((value) => value.source)).toEqual(["a", "${principal.attributes.other}"]);
+		});
+
+		it("reads a qualifier on a key that holds a list", () => {
+			const statement = ApiAuthorizationIamParser.readStatement({ Action: ["*"], Condition: { "ForAllValues:StringLikeIfExists": { "principal.groups": ["a*", "b*"] }, "ForAnyValue:StringEquals": { "principal.roles": "a" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] });
+
+			expect(statement.conditions.map((condition) => [condition.qualifier, condition.operator, condition.isIfExists, condition.key, condition.values.length])).toEqual([
+				["ForAllValues", "StringLike", true, "principal.groups", 2],
+				["ForAnyValue", "StringEquals", false, "principal.roles", 1],
+			]);
+		});
+
+		it("reads a qualifier on a resource key when the namespace has no definitions to check it against", () => {
+			const statement = ApiAuthorizationIamParser.readStatement({ Action: ["*"], Condition: { "ForAnyValue:StringEquals": { "resource.tags": "a" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] });
+
+			expect(statement.conditions[0]?.qualifier).toBe("ForAnyValue");
 		});
 	});
 
