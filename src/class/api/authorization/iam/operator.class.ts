@@ -199,7 +199,7 @@ export class ApiAuthorizationIamOperator {
 	 * Evaluates the positive form of an IP operator.
 	 * @param {unknown} actual - Value the key reads, neither missing nor NULL.
 	 * @param {IApiAuthorizationIamNetwork} operand - Range.
-	 * @param {boolean} isColumn - Whether the value comes from a database column, which may hold a network and keeps its family; a request holds one address, which may be IPv4-mapped.
+	 * @param {boolean} isColumn - Whether the value comes from a database column, which may hold a network and keeps its family; a request holds one address, which may be IPv4-mapped, and an IPv4-mapped range reads as IPv4 for it.
 	 * @returns {boolean | undefined} Whether the value lies within the range, or undefined when the value cannot be read.
 	 */
 	private static evaluateNetwork(actual: unknown, operand: IApiAuthorizationIamNetwork, isColumn: boolean): boolean | undefined {
@@ -213,7 +213,8 @@ export class ApiAuthorizationIamOperator {
 			return undefined;
 		}
 
-		return ApiAuthorizationIamNetwork.isContained(operand, isColumn ? network : ApiAuthorizationIamNetwork.unmap(network));
+		// A request address reads as IPv4 when it is IPv4-mapped, so the range does too: `::ffff:10.0.0.0/104` is `10.0.0.0/8`.
+		return isColumn ? ApiAuthorizationIamNetwork.isContained(operand, network) : ApiAuthorizationIamNetwork.isContained(ApiAuthorizationIamNetwork.unmap(operand), ApiAuthorizationIamNetwork.unmap(network));
 	}
 
 	/**
