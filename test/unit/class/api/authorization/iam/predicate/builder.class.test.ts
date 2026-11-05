@@ -78,6 +78,10 @@ function evaluateSql(predicate: TApiAuthorizationIamPredicate, row: TRow): boole
 			break;
 		}
 
+		case EApiAuthorizationIamPredicateKind.EXISTS: {
+			throw new Error("A row of one table holds no related rows to evaluate");
+		}
+
 		case EApiAuthorizationIamPredicateKind.FALSE: {
 			return false;
 		}

@@ -60,15 +60,12 @@ class CollectionGroupEntity {
 class CollectionShapeEntity {
 	@PrimaryColumn({ type: "varchar" })
 	public id!: string;
-
-	@ManyToOne(() => CollectionItemEntity)
-	public item!: unknown;
 }
 
 @ChildEntity("circle")
 class CollectionCircleEntity extends CollectionShapeEntity {
 	@ManyToOne(() => CollectionItemEntity, (item: CollectionItemEntity) => item.circles)
-	public override item!: unknown;
+	public item!: unknown;
 
 	@Column({ nullable: true, type: "varchar" })
 	public radius!: null | string;
@@ -164,8 +161,8 @@ describe("ApiAuthorizationIamCollection", () => {
 			correlationPath: "id",
 			element: `"iam_collection_row"."name"`,
 			elementPath: "name",
-			from: `"collection_item_tags" "iam_collection_link" INNER JOIN "collection_tags" "iam_collection_row" ON "iam_collection_row"."id" = "iam_collection_link"."collection_tags_id"`,
-			link: `"iam_collection_link"."collection_items_id"`,
+			from: `"collection_item_tags" "iam_collection_link" INNER JOIN "collection_tags" "iam_collection_row" ON "iam_collection_row"."id" = "iam_collection_link"."collectionTagsId"`,
+			link: `"iam_collection_link"."collectionItemsId"`,
 		});
 	});
 
@@ -174,8 +171,8 @@ describe("ApiAuthorizationIamCollection", () => {
 			correlationPath: "id",
 			element: `"iam_collection_row"."name"`,
 			elementPath: "name",
-			from: `"collection_group_items" "iam_collection_link" INNER JOIN "collection_groups" "iam_collection_row" ON "iam_collection_row"."id" = "iam_collection_link"."collection_groups_id"`,
-			link: `"iam_collection_link"."collection_items_id"`,
+			from: `"collection_group_items" "iam_collection_link" INNER JOIN "collection_groups" "iam_collection_row" ON "iam_collection_row"."id" = "iam_collection_link"."collectionGroupsId"`,
+			link: `"iam_collection_link"."collectionItemsId"`,
 		});
 	});
 

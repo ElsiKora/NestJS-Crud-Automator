@@ -351,8 +351,8 @@ describe("IAM predicate lowering to SQL", () => {
 
 	describe("several values", () => {
 		it("SQLite compares IgnoreCase with one GLOB per value, positive or negated", () => {
-			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"]))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `(("IamLowererItemEntity"."name" GLOB ? OR "IamLowererItemEntity"."name" GLOB ?))` });
-			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"], true))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `(("IamLowererItemEntity"."name" NOT GLOB ? AND "IamLowererItemEntity"."name" NOT GLOB ?))` });
+			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"]))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `((((("IamLowererItemEntity"."name" GLOB ? OR "IamLowererItemEntity"."name" GLOB ?)))))` });
+			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"], true))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `((((("IamLowererItemEntity"."name" NOT GLOB ? AND "IamLowererItemEntity"."name" NOT GLOB ?)))))` });
 		});
 
 		it("PostgreSQL folds the column and binds every value of IgnoreCase", () => {
