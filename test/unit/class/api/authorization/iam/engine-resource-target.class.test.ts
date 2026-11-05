@@ -183,7 +183,9 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 			expect(await readType(read("a/b"), [allowAll])).toBe(IMPLICIT);
 			expect(await readType(read("a/b"), [allowAll, deny({ Resource: ["gameport:other/*"] })])).toBe(DENIED);
 			expect(await readType({ ...LIST, requestMetadata: { parameters: { tenantId: "t-1/item/x" } }, resourceDefinition: tenantDefinition }, [allowAll])).toBe(IMPLICIT);
-			expect(await readType({ ...read("x"), resource: { id: "x", status: "active", tenantId: "t-1/item/y" } as EngineTargetItemEntity, resourceDefinition: tenantDefinition }, [allowAll])).toBe(IMPLICIT);
+			// A loaded row is read as a list reads it, so a stored value that holds a separator is matched as its text.
+			expect(await readType({ ...read("x"), resource: { id: "x", status: "active", tenantId: "t-1/item/y" } as EngineTargetItemEntity, resourceDefinition: tenantDefinition }, [allowAll])).toBe(ALLOWED);
+			expect(await readType({ ...CREATE, requestMetadata: { body: { id: "c/d" } } }, [allowAll])).toBe(IMPLICIT);
 		});
 
 		it("reads a row loaded for an update the same way", async () => {

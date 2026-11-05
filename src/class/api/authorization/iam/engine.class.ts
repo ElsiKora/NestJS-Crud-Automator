@@ -877,8 +877,9 @@ export class ApiAuthorizationIamEngine {
 	 * the value of each placeholder that names a field, through its query path, as the SQL scope reads it; otherwise a
 	 * request parameter of the placeholder's name gives it, and any other placeholder reads the resource property of its
 	 * name. A placeholder a path value fills and a filterable column maps is also kept as a placeholder in the row reading,
-	 * which the database compares on the stored row; that placeholder renders no separator of the resource path. A value
-	 * that holds such a separator, `/` or a non-alphanumeric character between or after placeholders, names no resource.
+	 * which the database compares on the stored row; that placeholder renders no separator of the resource path. A path or
+	 * body value that holds such a separator, `/` or a non-alphanumeric character between or after placeholders, names no
+	 * resource. A loaded row is read as its list reads it, separators and all.
 	 * @template E - Entity type.
 	 * @template M - List pagination mode.
 	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
@@ -939,7 +940,10 @@ export class ApiAuthorizationIamEngine {
 			// A body that writes the placeholder's field would store a row whose resource string another resource could own.
 			const bodyValue: string | undefined = resource === undefined && this.isRecord(requestMetadata.body) ? this.renderResourceValue(this.readResourceValue(resourceDefinition, requestMetadata.body as E, `resource.${placeholder}`).value) : undefined;
 
-			if ((renderedValue && separatorPattern.test(renderedValue)) || (bodyValue !== undefined && separatorPattern.test(bodyValue))) {
+			// A stored row is read as it is, as its list reads it; only a value the request writes can cross a separator.
+			const isRequestValue: boolean = isParameter && !(resource !== undefined && resourceValue.isDeclared);
+
+			if ((isRequestValue && renderedValue !== undefined && separatorPattern.test(renderedValue)) || (bodyValue !== undefined && separatorPattern.test(bodyValue))) {
 				isNamingNoResource = true;
 			}
 
