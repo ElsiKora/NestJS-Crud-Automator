@@ -220,9 +220,12 @@ export class ApiAuthorizationIamEngine {
 			);
 		}
 
-		const scope: IApiAuthorizationScope<E> | undefined = this.mergeScopes(this.mergeScopes(identityScope.scope, boundaryScope.scope), exclusionScope.scope);
+		// Each merge builds the product of its branches, so the cap is checked before each one is built.
+		const boundedScope: { isWithinCap: boolean; scope?: IApiAuthorizationScope<E> } = this.mergeScopes(identityScope.scope, boundaryScope.scope);
+		const mergedScope: { isWithinCap: boolean; scope?: IApiAuthorizationScope<E> } = boundedScope.isWithinCap ? this.mergeScopes(boundedScope.scope, exclusionScope.scope) : boundedScope;
+		const scope: IApiAuthorizationScope<E> | undefined = mergedScope.scope;
 
-		if (exclusionScope.scope && Array.isArray(scope?.where) && scope.where.length > AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES) {
+		if (!mergedScope.isWithinCap) {
 			iamEngineLogger.warn(`IAM authorization resolved explicit deny for principal "${options.principal.id}" action "${options.action}": the scope exceeds ${AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES} where branches.`);
 
 			return Promise.resolve(
@@ -655,19 +658,33 @@ export class ApiAuthorizationIamEngine {
 		};
 	}
 
-	private mergeScopes<E extends IApiBaseEntity>(baseScope: IApiAuthorizationScope<E> | undefined, additionalScope: IApiAuthorizationScope<E> | undefined): IApiAuthorizationScope<E> | undefined {
+	/**
+	 * ANDs two scopes, unless their product would pass the branch cap; the product is then never built.
+	 * @template E - Entity type.
+	 * @param {IApiAuthorizationScope<E> | undefined} baseScope - First scope; none restricts nothing.
+	 * @param {IApiAuthorizationScope<E> | undefined} additionalScope - Second scope; none restricts nothing.
+	 * @returns {{ isWithinCap: boolean; scope?: IApiAuthorizationScope<E> }} The merged scope, or a result over the cap that must deny.
+	 */
+	private mergeScopes<E extends IApiBaseEntity>(baseScope: IApiAuthorizationScope<E> | undefined, additionalScope: IApiAuthorizationScope<E> | undefined): { isWithinCap: boolean; scope?: IApiAuthorizationScope<E> } {
 		if (!baseScope) {
-			return additionalScope;
+			return { isWithinCap: true, scope: additionalScope };
 		}
 
 		if (!additionalScope) {
-			return baseScope;
+			return { isWithinCap: true, scope: baseScope };
+		}
+
+		if (ApiAuthorizationIamQueryPlanner.countBranches(baseScope.where) * ApiAuthorizationIamQueryPlanner.countBranches(additionalScope.where) > AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES) {
+			return { isWithinCap: false };
 		}
 
 		return {
-			...baseScope,
-			...additionalScope,
-			where: AuthorizationScopeMergeWhere(baseScope.where, additionalScope.where),
+			isWithinCap: true,
+			scope: {
+				...baseScope,
+				...additionalScope,
+				where: AuthorizationScopeMergeWhere(baseScope.where, additionalScope.where),
+			},
 		};
 	}
 

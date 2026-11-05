@@ -8,7 +8,7 @@ import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class
 import { ApiAuthorizationIamNetwork } from "@class/api/authorization/iam/network.class";
 import { ApiAuthorizationIamPredicateBuilder } from "@class/api/authorization/iam/predicate/builder.class";
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
-import { AUTHORIZATION_POLICY_CONDITION_OPERATOR_CONSTANT, AUTHORIZATION_POLICY_CONTEXT_KEY_CONSTANT, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT } from "@constant/class/authorization";
+import { AUTHORIZATION_POLICY_CONDITION_OPERATOR_CONSTANT, AUTHORIZATION_POLICY_CONTEXT_KEY_CONSTANT, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT, AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT } from "@constant/class/authorization";
 import { EApiAuthorizationIamSupport, EApiAuthorizationIamTokenType, EApiPolicyConditionOperator, EApiPolicyConditionOperatorFamily, EApiPolicyConditionQualifier, EApiPolicyEffect } from "@enum/class/authorization";
 import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query-field.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
@@ -113,6 +113,21 @@ export class ApiAuthorizationIamParser {
 
 		if (!ApiAuthorizationIamParser.isRecord(input)) {
 			ApiAuthorizationIamParser.fail(scope, "document", AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.DOCUMENT_INVALID, "Policy document must be an object");
+
+			return { failures: scope.failures, statements };
+		}
+
+		// A document over the limits is refused before any statement is read, so it costs no more than its size.
+		const length: number | undefined = ApiAuthorizationIamParser.readDocumentLength(input);
+
+		if (length === undefined || length > AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_DOCUMENT_LENGTH) {
+			ApiAuthorizationIamParser.fail(scope, "document", AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.DOCUMENT_INVALID, `Policy document must be JSON of at most ${AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_DOCUMENT_LENGTH} characters`);
+
+			return { failures: scope.failures, statements };
+		}
+
+		if (Array.isArray(input.Statement) && input.Statement.length > AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_STATEMENTS) {
+			ApiAuthorizationIamParser.fail(scope, "document.Statement", AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.DOCUMENT_INVALID, `Policy document must hold at most ${AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_STATEMENTS} statements`);
 
 			return { failures: scope.failures, statements };
 		}
@@ -600,6 +615,19 @@ export class ApiAuthorizationIamParser {
 		}
 
 		return conditions;
+	}
+
+	/**
+	 * Reads the size of a document as its JSON text.
+	 * @param {Record<string, unknown>} input - Policy document.
+	 * @returns {number | undefined} The length in UTF-16 code units, or undefined when the document has no JSON text, such as a cyclic one.
+	 */
+	private static readDocumentLength(input: Record<string, unknown>): number | undefined {
+		try {
+			return JSON.stringify(input).length;
+		} catch {
+			return undefined;
+		}
 	}
 
 	/**

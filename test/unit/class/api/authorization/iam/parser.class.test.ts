@@ -1,6 +1,7 @@
 import type { IApiAuthorizationIamStatement } from "@interface/class/api/authorization";
 
 import { ApiAuthorizationIamParser } from "@class/api/authorization/iam";
+import { AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT } from "@constant/class/authorization";
 import { EApiAuthorizationIamTokenType, EApiPolicyConditionOperator, EApiPolicyConditionOperatorFamily, EApiPolicyEffect } from "@enum/class/authorization";
 import { describe, expect, it } from "vitest";
 
@@ -73,6 +74,22 @@ describe("ApiAuthorizationIamParser", () => {
 
 			expect(result.failures).toEqual([]);
 			expect(result.statements).toHaveLength(1);
+		});
+
+		it("refuses a document with more statements than the limit, and reads one at the limit", () => {
+			const document = (count: number) => ({ Statement: Array.from({ length: count }, () => ({ Action: ["admin:item:read"], Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] })), Version: "2012-10-17" });
+
+			expect(ApiAuthorizationIamParser.readDocument(document(AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_STATEMENTS)).failures).toEqual([]);
+			expect(ApiAuthorizationIamParser.readDocument(document(AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_STATEMENTS + 1)).failures.map((failure) => [failure.property, failure.code])).toEqual([["document.Statement", "iamPolicyDocumentInvalid"]]);
+		});
+
+		it("refuses a document longer than the limit, and one without JSON text", () => {
+			const long = { Statement: [{ Action: ["admin:item:read"], Effect: EApiPolicyEffect.ALLOW, Resource: ["*"], Sid: "a".repeat(AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_DOCUMENT_LENGTH) }], Version: "2012-10-17" };
+			const cyclic: Record<string, unknown> = { Statement: [], Version: "2012-10-17" };
+			cyclic.Id = cyclic;
+
+			expect(ApiAuthorizationIamParser.readDocument(long).failures.map((failure) => [failure.property, failure.code])).toEqual([["document", "iamPolicyDocumentInvalid"]]);
+			expect(ApiAuthorizationIamParser.readDocument(cyclic).failures.map((failure) => [failure.property, failure.code])).toEqual([["document", "iamPolicyDocumentInvalid"]]);
 		});
 
 		it("reports the qualifier and operator path in bracket form", () => {

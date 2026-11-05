@@ -75,6 +75,16 @@ const IAM_QUERY_PLANNER_INSTANT_TEXT: RegExp = /^(?:[+-]\d{6}|\d{4})-\d{2}-\d{2}
 @Injectable()
 export class ApiAuthorizationIamQueryPlanner {
 	/**
+	 * Counts the `where` branches a scope ORs; merging two scopes builds the product of their counts.
+	 * @template E - Entity type.
+	 * @param {TApiAuthorizationScopeWhere<E>} where - Scope WHERE.
+	 * @returns {number} The number of branches: one for a single object or no WHERE, which restricts nothing.
+	 */
+	public static countBranches<E extends IApiBaseEntity>(where: TApiAuthorizationScopeWhere<E>): number {
+		return Array.isArray(where) ? where.length : 1;
+	}
+
+	/**
 	 * Tells whether a `resource.*` key compiles for a dialect, in both directions. A key that does not fails closed on a
 	 * loaded resource too, where memory alone could read it, so a row decides alike whichever way it reached the check.
 	 * @template E - Entity type.
@@ -157,6 +167,13 @@ export class ApiAuthorizationIamQueryPlanner {
 			return hasStatement ? { isFullyCompilable: false } : { isFullyCompilable: true, scope: undefined };
 		}
 
+		// The branches of all statements together are capped as each statement's are, so a query never grows past the cap.
+		if (branches.length > AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES) {
+			iamQueryPlannerLogger.warn(`IAM query scope for resource type "${options.resourceDefinition.resourceType}" exceeds ${AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES} where branches.`);
+
+			return { isFullyCompilable: false };
+		}
+
 		iamQueryPlannerLogger.verbose(`IAM query scope for resource type "${options.resourceDefinition.resourceType}" resolved with ${branches.length} where branches.`);
 
 		return {
@@ -211,13 +228,14 @@ export class ApiAuthorizationIamQueryPlanner {
 				continue;
 			}
 
-			where = AuthorizationScopeMergeWhere(where, lowered.branches.length === 1 ? lowered.branches[0] : lowered.branches);
-
-			if (Array.isArray(where) && where.length > AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES) {
+			// The merge builds every pair of branches, so its size is checked before it is built.
+			if (ApiAuthorizationIamQueryPlanner.countBranches(where) * lowered.branches.length > AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES) {
 				iamQueryPlannerLogger.warn(`IAM exclusion scope for resource type "${options.resourceDefinition.resourceType}" exceeds ${AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES} where branches.`);
 
 				return { isFullyCompilable: false };
 			}
+
+			where = AuthorizationScopeMergeWhere(where, lowered.branches.length === 1 ? lowered.branches[0] : lowered.branches);
 		}
 
 		return {
