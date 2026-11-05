@@ -627,6 +627,42 @@ const document: IApiPolicyDocument = {
 };
 ```
 
+## IAM Several Values And Set Qualifiers
+
+```ts
+// resourceDefinition fields: { path: "resource.noteText", queryPath: "notes.text", isFilterable: true }
+const document: IApiPolicyDocument = {
+	Statement: [
+		{
+			Action: ["admin:item:*"],
+			Condition: {
+				// Any role of the principal is one of these. On no roles this fails: an Allow grants nothing.
+				"ForAnyValue:StringEquals": { "principal.roles": ["editor", "owner"] },
+				// A list on one column: status IN ('draft', 'live').
+				StringEquals: { "resource.status": ["draft", "live"] },
+			},
+			Effect: EApiPolicyEffect.ALLOW,
+			Resource: ["admin:item/*"],
+		},
+		{
+			Action: ["admin:item:*"],
+			// Hides rows with a blocked note: kept rows are NOT EXISTS (SELECT 1 FROM notes ... text IN ('blocked')).
+			Condition: { "ForAnyValue:StringEquals": { "resource.noteText": "blocked" } },
+			Effect: EApiPolicyEffect.DENY,
+			Resource: ["*"],
+		},
+		{
+			Action: ["admin:item:read"],
+			// Every note is public. Holds on a row with no notes, so require one with ForAnyValue when it must have one.
+			Condition: { "ForAllValues:StringEquals": { "resource.noteText": "public" } },
+			Effect: EApiPolicyEffect.ALLOW,
+			Resource: ["admin:item/*"],
+		},
+	],
+	Version: "2012-10-17",
+};
+```
+
 ## Function Subscriber
 
 ```ts
