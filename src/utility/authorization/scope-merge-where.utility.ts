@@ -82,6 +82,30 @@ function areValuesEquivalent(left: unknown, right: unknown): boolean {
 }
 
 /**
+ * Copies an operator and the operators it holds, because TypeORM rewrites the value of an operator through a column
+ * transformer in place: one operator shared between branches, or with another query, would be rewritten once per use.
+ * @param {unknown} value - Operator, a list a conjunction holds, or a plain value.
+ * @returns {unknown} The value with a copy of each operator in it.
+ */
+function cloneOperatorValue(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map((item: unknown): unknown => cloneOperatorValue(item));
+	}
+
+	if (!isFindOperator(value)) {
+		return value;
+	}
+
+	const clone: object = Object.create(Object.getPrototypeOf(value) as null | object) as object;
+
+	for (const [key, descriptor] of Object.entries<PropertyDescriptor>(Object.getOwnPropertyDescriptors(value))) {
+		Object.defineProperty(clone, key, "value" in descriptor ? { ...descriptor, value: cloneOperatorValue(descriptor.value) } : descriptor);
+	}
+
+	return clone;
+}
+
+/**
  * Builds a TypeORM conjunction without approximating database operator semantics.
  * @param {unknown} baseValue - Existing scalar or operator.
  * @param {unknown} scopedValue - Scoped scalar or operator.
@@ -372,11 +396,11 @@ function normalizeWhereRecord(value: Record<string, unknown>): Record<string, un
 /**
  * Converts scalar leaves to exact TypeORM equality while retaining relation structure.
  * @param {unknown} value - Validated WHERE value.
- * @returns {unknown} Normalized TypeORM condition.
+ * @returns {unknown} Normalized TypeORM condition, with an operator of its own.
  */
 function normalizeWhereValue(value: unknown): unknown {
 	if (isFindOperator(value)) {
-		return value;
+		return cloneOperatorValue(value);
 	}
 
 	if (Array.isArray(value)) {

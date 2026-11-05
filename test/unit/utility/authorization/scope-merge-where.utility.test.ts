@@ -1,7 +1,8 @@
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
+import type { FindOperator, ValueTransformer } from "typeorm";
 
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
-import { DataSource, EntitySchema, Equal, IsNull, Like } from "typeorm";
+import { DataSource, EntitySchema, Equal, InstanceChecker, IsNull, Like, Not } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 class ScopeEntity {
@@ -483,5 +484,34 @@ describe("AuthorizationScopeMergeWhere", () => {
 		expect(result[2]?.id).toMatchObject({ _type: "equal", _value: "own-id" });
 		expect(result[2]?.operatorId).toMatchObject({ _type: "equal", _value: "operator-1" });
 		expect(result[3]?.id).toMatchObject({ _type: "equal", _value: "own-id" });
+	});
+
+	it("gives each branch an operator of its own, as TypeORM rewrites one through a column transformer in place", () => {
+		const shared: FindOperator<string> = Not(Equal("ann"));
+		const transformer: ValueTransformer = { from: (value: string): string => value, to: (value: string): string => `x-${value}` };
+		const result: Array<{ status: FindOperator<string> }> = AuthorizationScopeMergeWhere<ScopeEntity>(undefined, [
+			{ status: shared, tenantId: "t-1" },
+			{ status: shared, tenantId: "t-2" },
+		]) as Array<{ status: FindOperator<string> }>;
+
+		for (const branch of result) {
+			branch.status.transformValue(transformer);
+		}
+
+		expect(result[0]?.status.child?.value).toBe("x-ann");
+		expect(result[1]?.status.child?.value).toBe("x-ann");
+		expect(shared.child?.value).toBe("ann");
+		expect(InstanceChecker.isFindOperator(result[0]?.status)).toBe(true);
+	});
+
+	it("copies the operators a conjunction holds, and leaves the values it compares", () => {
+		const shared: FindOperator<string> = Equal("ann");
+		const result: { status: FindOperator<FindOperator<string>> } = AuthorizationScopeMergeWhere<ScopeEntity>({ status: shared }, { status: Like("a%") }) as unknown as { status: FindOperator<FindOperator<string>> };
+		const [first, second]: Array<FindOperator<string>> = result.status.value as unknown as Array<FindOperator<string>>;
+
+		expect(first).not.toBe(shared);
+		expect(first?.value).toBe("ann");
+		expect(InstanceChecker.isEqualOperator(first)).toBe(true);
+		expect(second?.value).toBe("a%");
 	});
 });
