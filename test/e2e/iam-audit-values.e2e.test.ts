@@ -62,9 +62,19 @@ const UNHOLDABLE: Record<TE2eIamAuditTypedField, ReadonlyArray<string>> = {
 	at: ["abc", "2024-01-01", "2024-01-01T00:00:00Z", "0000-00-00", "9999-99-99"],
 	day: ["abc", "2024-13-45", "2024-01-01abc", "0"],
 	flag: ["abc", "2", "yes", "0"],
-	price: ["abc", "10.5abc", "1e1", "0x10", "Infinity"],
-	ratio: ["abc", "1.5abc", "NaN", "Infinity"],
+	price: ["abc", "10.5abc", "1e1", "0x10"],
+	ratio: ["abc", "1.5abc", "1e1"],
 };
+
+// Text some database of the family holds, such as `NaN` and `Infinity` in a PostgreSQL `numeric`: it fails closed or names what memory names.
+const HELD_ELSEWHERE: Array<[TE2eIamAuditTypedField, string]> = [
+	["price", "Infinity"],
+	["price", "NaN"],
+	["ratio", "NaN"],
+	["ratio", "-Infinity"],
+	["day", "infinity"],
+	["day", "2024-02-30"],
+];
 
 const startMariaDb = async (): Promise<StartedTestContainer> =>
 	await new GenericContainer("mariadb:11")
@@ -265,6 +275,25 @@ describe.each<{ database: TE2eIamAuditDatabase; databaseName: string }>([
 
 			expect(await expectNoHardDisagreement(fixture.routes[field], allowed)).toEqual([]);
 			expect(allowed.ids).toEqual([]);
+		});
+
+		it.each(HELD_ELSEWHERE)("%s = %j fails closed or names what memory names, with no coercion", async (field: TE2eIamAuditTypedField, value: string) => {
+			const ns: string = readE2eIamAuditNamespace(field, database);
+			const target: string = `${ns}/${value}`;
+			const every: Array<string> = (await items().find()).map((row: IE2eIamAuditItem): string => row.id).sort();
+
+			for (const policy of [[allow(ns), deny(ns, { Resource: [target] })], [allow(ns, { NotResource: [target] })], [allow(ns, { Resource: [target] })]]) {
+				const answer: IListAnswer = await list(use(field, policy));
+				const remembered: Array<string> = await expectNoHardDisagreement(fixture.routes[field], answer);
+
+				expect([HttpStatus.OK, HttpStatus.FORBIDDEN]).toContain(answer.statusCode);
+
+				if (answer.statusCode === HttpStatus.OK) {
+					expect(answer.ids).toEqual(remembered);
+				}
+
+				expect(remembered.length === 0 || remembered.length === every.length).toBe(true);
+			}
 		});
 
 		it("reads a principal value no decimal column holds as no row", async () => {

@@ -783,8 +783,8 @@ describe("ApiAuthorizationIamQueryPlanner on boolean columns TypeORM maps", () =
 		expect(planPartDeny({}, [exact("special", value)])).toEqual({ isFullyCompilable: true, scope: { where: [{ isSpecial: Not(Equal(expected)) }, { isSpecial: IsNull() }] } });
 	});
 
-	it.each(["1", "0", "TRUE", "yes", " true"])("does not compile an exact resource-pattern constraint %j on a boolean placeholder", (value: string) => {
-		expect(planPartDeny({}, [exact("special", value)])).toEqual({ isFullyCompilable: false });
+	it.each(["1", "0", "TRUE", "yes", " true"])("names no row by an exact resource-pattern constraint %j on a boolean placeholder, which renders only true or false", (value: string) => {
+		expect(planPartDeny({}, [exact("special", value)])).toEqual({ isFullyCompilable: true, scope: undefined });
 	});
 
 	it.each([

@@ -166,7 +166,7 @@ export class ApiAuthorizationIamPredicateBuilder {
 	 */
 	public static buildIntegerConstraint(options: { column: IApiAuthorizationIamPredicateColumn; value: string }): IApiAuthorizationIamPredicatePair {
 		if (!IAM_PREDICATE_CANONICAL_INTEGER.test(options.value)) {
-			return { fails: { kind: EApiAuthorizationIamPredicateKind.TRUE }, holds: { kind: EApiAuthorizationIamPredicateKind.FALSE } };
+			return ApiAuthorizationIamPredicateBuilder.buildNoRowConstraint();
 		}
 
 		const createAtom: (operator: EApiAuthorizationIamPredicateOperator) => TApiAuthorizationIamPredicate = (operator: EApiAuthorizationIamPredicateOperator): TApiAuthorizationIamPredicate => ({ column: options.column, comparison: EApiAuthorizationIamPredicateComparison.NUMERIC, kind: EApiAuthorizationIamPredicateKind.COMPARE, operator, value: options.value });
@@ -215,6 +215,15 @@ export class ApiAuthorizationIamPredicateBuilder {
 			isNullIn: options.patterns.some((pattern: ReadonlyArray<IApiAuthorizationIamToken>): boolean => pattern.every((token: IApiAuthorizationIamToken): boolean => token.type === EApiAuthorizationIamTokenType.STAR)),
 			presence: options.presence,
 		});
+	}
+
+	/**
+	 * Builds the pair of one exact resource-pattern constraint whose text no row of the column renders: it holds for no
+	 * row and fails for every row, NULL included, so the text never reaches the database.
+	 * @returns {IApiAuthorizationIamPredicatePair} The pair.
+	 */
+	public static buildNoRowConstraint(): IApiAuthorizationIamPredicatePair {
+		return { fails: { kind: EApiAuthorizationIamPredicateKind.TRUE }, holds: { kind: EApiAuthorizationIamPredicateKind.FALSE } };
 	}
 
 	/**

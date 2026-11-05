@@ -53,6 +53,18 @@ const IAM_QUERY_PLANNER_PORTABLE_DIALECT: IApiAuthorizationIamDialect = Object.f
 // A NUL character, which PostgreSQL refuses in text.
 const IAM_QUERY_PLANNER_NUL: string = "\u0000";
 
+// Exact decimal and floating-point column types, whose value reads back as driver decimal text or a JavaScript number.
+const IAM_QUERY_PLANNER_NUMBER_TYPES: ReadonlySet<string> = new Set<string>(["dec", "decimal", "double", "double precision", "fixed", "float", "float4", "float8", "numeric", "real"]);
+
+// Text a number column reads back as: decimal text, `Number.prototype.toString` of a finite number, or the `NaN` and infinities PostgreSQL `numeric` holds.
+const IAM_QUERY_PLANNER_NUMBER_TEXT: RegExp = /^(?:-?\d+(?:\.\d+)?(?:e[+-]\d+)?|NaN|-?Infinity)$/;
+
+// Text a calendar date column reads back as: `YYYY-MM-DD`, MySQL zero parts included, and the longer years, ` BC` and infinities of PostgreSQL.
+const IAM_QUERY_PLANNER_DAY_TEXT: RegExp = /^(?:\d{4,}-(?:0\d|1[0-2])-(?:[0-2]\d|3[01])(?: BC)?|-?infinity)$/;
+
+// Text an instant column reads back as: TypeORM hydrates it as a Date, which renders as `Date.prototype.toISOString`.
+const IAM_QUERY_PLANNER_INSTANT_TEXT: RegExp = /^(?:[+-]\d{6}|\d{4})-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
 /**
  * Compiles matched IAM statements into TypeORM scopes. Each `resource.*` condition key and each row-scoped
  * resource-pattern constraint becomes a NULL-complete pair of predicates (see `ApiAuthorizationIamPredicateBuilder`):
@@ -352,6 +364,10 @@ export class ApiAuthorizationIamQueryPlanner {
 			return ApiAuthorizationIamPredicateBuilder.buildExactConstraint({ column, comparison: EApiAuthorizationIamPredicateComparison.TEXT, value: text });
 		}
 
+		if (text !== "" && this.isUnrenderedText(field, text)) {
+			return ApiAuthorizationIamPredicateBuilder.buildNoRowConstraint();
+		}
+
 		if (text !== "" && this.isIntegerField(field)) {
 			return ApiAuthorizationIamPredicateBuilder.buildIntegerConstraint({ column, value: text });
 		}
@@ -646,6 +662,38 @@ export class ApiAuthorizationIamQueryPlanner {
 		}
 
 		return propertyMetadata.format !== EApiPropertyStringType.BIGINT_STRING && propertyMetadata.format !== EApiPropertyStringType.UUID;
+	}
+
+	/**
+	 * Tells whether no row of a typed column renders a placeholder text, by what the column reads back as: a boolean
+	 * renders `true` or `false`, a number decimal text, a calendar date `YYYY-MM-DD`, and an instant ISO 8601 UTC with
+	 * milliseconds. Such a text names no row, so it never reaches the database, which would refuse it or coerce it into a
+	 * value it holds. A column with a value transformer, or of another type, renders what it declares, so nothing is told.
+	 * @param {IApiAuthorizationIamQueryField} field - Resolved placeholder field.
+	 * @param {string} text - Non-empty placeholder text.
+	 * @returns {boolean} True when the column renders no row as the text.
+	 */
+	private isUnrenderedText(field: IApiAuthorizationIamQueryField, text: string): boolean {
+		const column: IApiAuthorizationIamQueryField["column"] = field.column;
+
+		if (!column || column.hasTransformer || column.isArray || column.isJson || column.type === undefined) {
+			return false;
+		}
+
+		// TypeORM hydrates a `bool` or `boolean` column as a boolean; another type described as one reads back as it is stored.
+		if (AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT.BOOLEAN_TYPES.has(column.type)) {
+			return text !== "true" && text !== "false";
+		}
+
+		if (column.family === EApiAuthorizationIamColumnFamily.NUMERIC && IAM_QUERY_PLANNER_NUMBER_TYPES.has(column.type)) {
+			return !IAM_QUERY_PLANNER_NUMBER_TEXT.test(text);
+		}
+
+		if (column.family !== EApiAuthorizationIamColumnFamily.DATE || !AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT.DATE_TYPES.has(column.type)) {
+			return false;
+		}
+
+		return !(column.type === "date" ? IAM_QUERY_PLANNER_DAY_TEXT : IAM_QUERY_PLANNER_INSTANT_TEXT).test(text);
 	}
 
 	/**
