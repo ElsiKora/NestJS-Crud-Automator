@@ -61,6 +61,13 @@ describe("ApiControllerParametersValidate", () => {
 		expect((error as BadRequestException).getResponse()).toEqual({ error: "Bad Request", message: expect.arrayContaining([expect.any(String)]), statusCode: 400 });
 	});
 
+	it("refuses a path value that holds a NUL character, whatever the DTO allows", async () => {
+		const error: unknown = await ApiControllerParametersValidate(ParametersValidateDto, { id: ROW_ID, sequence: "1", tenant: "a\u0000b" } as never).catch((caught: unknown): unknown => caught);
+
+		expect(error).toBeInstanceOf(BadRequestException);
+		expect((error as BadRequestException).getResponse()).toEqual({ error: "Bad Request", message: ["tenant must not contain a NUL character"], statusCode: 400 });
+	});
+
 	it("names the failing path parameter without echoing its value", async () => {
 		const error: unknown = await ApiControllerParametersValidate(ParametersValidateDto, { id: "secret-value", sequence: "1" } as never).catch((caught: unknown): unknown => caught);
 

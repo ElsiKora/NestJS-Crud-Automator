@@ -99,7 +99,7 @@ function isPairedGroup(query: Record<string, unknown>, key: string, operation: E
 }
 
 /**
- * Parses the number, uuid, enum, boolean, and date values of a filter group into the values the query binds.
+ * Parses the number, uuid, enum, boolean, date, and string values of a filter group into the values the query binds; a string value that holds a NUL character is refused.
  * The QUERY DTO reads an empty number as 0 and takes the name of a numeric enum member, so the route parses the text the request carries before any SQL runs. A date-time binds as the Date it names, as on a typed route; a calendar date and a time of day stay text.
  * A boolean binds as a boolean, so each driver compares it with the column in its own stored form, such as `1` and `0` on SQLite.
  * A value outside the published schema of the column answers 400 FILTER_NOT_VALID.
@@ -109,7 +109,7 @@ function isPairedGroup(query: Record<string, unknown>, key: string, operation: E
  * @returns {unknown} The parsed value, or the value itself for an operation without one and for other column kinds
  */
 function parseFilterValue(operation: EFilterOperation, value: unknown, metadata: TApiPropertyDescribeProperties): unknown {
-	if (operation === EFilterOperation.ISNULL || operation === EFilterOperation.NOTNULL || (metadata.type !== EApiPropertyDescribeType.BOOLEAN && metadata.type !== EApiPropertyDescribeType.DATE && metadata.type !== EApiPropertyDescribeType.ENUM && metadata.type !== EApiPropertyDescribeType.NUMBER && metadata.type !== EApiPropertyDescribeType.UUID)) {
+	if (operation === EFilterOperation.ISNULL || operation === EFilterOperation.NOTNULL || (metadata.type !== EApiPropertyDescribeType.BOOLEAN && metadata.type !== EApiPropertyDescribeType.DATE && metadata.type !== EApiPropertyDescribeType.ENUM && metadata.type !== EApiPropertyDescribeType.NUMBER && metadata.type !== EApiPropertyDescribeType.STRING && metadata.type !== EApiPropertyDescribeType.UUID)) {
 		return value;
 	}
 

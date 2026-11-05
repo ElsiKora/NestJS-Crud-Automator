@@ -16,6 +16,9 @@ import { ApiControllerParametersRouteDtoValidate } from "./route-dto.utility";
 
 const CANONICAL_INTEGER_PATTERN: RegExp = /^(?:0|-?[1-9]\d*)$/;
 
+// U+0000, which PostgreSQL text cannot hold, and which SQLite, MySQL and MariaDB compare unlike IAM.
+const PATH_PARAMETER_NUL_CHARACTER: string = "\u0000";
+
 /**
  * Validates route path values against the path value rule of the route before any query runs.
  * The rule DTO carries the validators of each column's described type, so a value that the column cannot hold is rejected here instead of reaching the database.
@@ -79,20 +82,32 @@ export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(
 }
 
 /**
- * Refuses a text that a database reads as a key it does not spell canonically, because IAM compares text: `016` would pass a Deny on `16`, and an upper-case UUID a Deny on its lower-case form, and still find the row.
+ * Refuses a path value that holds a NUL character, which PostgreSQL text cannot hold, and a text that a database reads as a key it does not spell canonically, because IAM compares text: `016` would pass a Deny on `16`, and an upper-case UUID a Deny on its lower-case form, and still find the row.
  * A value described as a number is already canonical; a text form stays legal for a bigint, where a JavaScript number would lose digits. A UUID is checked as sent, so it is refused rather than lower-cased, whether the route knows its column or only its DTO validates it as a UUID.
  * @param {ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined} columns - The entity column of each path parameter.
  * @param {ReadonlySet<string> | undefined} uuidParameters - The path parameters a custom route DTO validates as a UUID.
  * @param {Record<string, unknown>} sent - Path values as sent.
  * @param {Record<string, unknown>} values - Converted path values.
  * @returns {void}
- * @throws {ApiRequestValidationException} When the text of an integer or UUID column is not canonical.
+ * @throws {ApiRequestValidationException} When a path value holds a NUL character, or the text of an integer or UUID column is not canonical.
  */
 function assertCanonicalText(columns: ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined, uuidParameters: ReadonlySet<string> | undefined, sent: Record<string, unknown>, values: Record<string, unknown>): void {
 	const failures: Array<ValidationError> = [];
 	const refusedUuids: Set<string> = new Set<string>();
+	const refusedNul: Set<string> = new Set<string>();
+
+	for (const [parameter, value] of [...Object.entries(sent), ...Object.entries(values)]) {
+		if (!refusedNul.has(parameter) && typeof value === "string" && value.includes(PATH_PARAMETER_NUL_CHARACTER)) {
+			refusedNul.add(parameter);
+			failures.push(ApiControllerParametersCreateFailure(parameter, PATH_PARAMETER_FAILURE_CONSTANT.NUL_CHARACTER_CONSTRAINT, `${parameter} must not contain a NUL character`));
+		}
+	}
 
 	for (const [parameter, column] of columns ?? []) {
+		if (refusedNul.has(parameter)) {
+			continue;
+		}
+
 		const value: unknown = values[parameter];
 		const sentValue: unknown = sent[parameter];
 

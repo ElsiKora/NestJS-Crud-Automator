@@ -9,6 +9,9 @@ import { NumberParseCanonicalDecimal, NumberParseCanonicalInteger } from "@utili
 // Lower case only: a database reads an upper-case UUID as the lower-case one, while IAM compares text.
 const UUID_VALUE_PATTERN: RegExp = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/u;
 
+// The NUL character, which no text filter value may hold.
+const GET_LIST_FILTER_NUL_CHARACTER: string = "\u0000";
+
 /**
  * Parses one GET_LIST filter value into the value the query binds, by the describe kind of its field.
  * Calendar dates and times of day stay the text the client sent; only an instant becomes a Date.
@@ -88,7 +91,8 @@ export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Re
 		}
 
 		case EApiPropertyDescribeType.STRING: {
-			if (typeof value === "string") {
+			// U+0000 is text PostgreSQL cannot hold, and which SQLite, MySQL and MariaDB compare unlike IAM.
+			if (typeof value === "string" && !value.includes(GET_LIST_FILTER_NUL_CHARACTER)) {
 				return value;
 			}
 

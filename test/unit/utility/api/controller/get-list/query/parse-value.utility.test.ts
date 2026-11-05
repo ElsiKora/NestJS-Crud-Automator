@@ -32,6 +32,13 @@ describe("ApiControllerGetListQueryParseValue", () => {
 		expect(() => ApiControllerGetListQueryParseValue(value, UUID_METADATA)).toThrow("FILTER_NOT_VALID");
 	});
 
+	it("keeps a string as sent, and refuses one that holds a NUL character", () => {
+		const metadata: TApiPropertyDescribeProperties = { description: "label", type: EApiPropertyDescribeType.STRING } as TApiPropertyDescribeProperties;
+
+		expect(ApiControllerGetListQueryParseValue(" a%_b ", metadata)).toBe(" a%_b ");
+		expect(() => ApiControllerGetListQueryParseValue("a\u0000b", metadata)).toThrow("FILTER_NOT_VALID");
+	});
+
 	it.each([EApiPropertyDescribeType.OBJECT, EApiPropertyDescribeType.RELATION])("rejects any value on a %s field", (type: EApiPropertyDescribeType) => {
 		expect(() => ApiControllerGetListQueryParseValue("x", { type } as TApiPropertyDescribeProperties)).toThrow("FILTER_NOT_VALID");
 	});
