@@ -20,6 +20,10 @@ export class E2ePathParameterPlaceholderSourceItemEntity {
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({ description: "label", exampleValue: "Label", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
 	public label!: string;
+
+	@Column({ nullable: true, type: "int" })
+	@ApiPropertyDescribe({ description: "section number", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 1_000_000, minimum: 0, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
+	public sectionNumber!: null | number;
 }
 
 @Injectable()
@@ -99,9 +103,10 @@ const NO_GENERATED_ROUTES: never = Object.fromEntries([EApiRouteType.CREATE, EAp
  * Builds a securable IAM controller with the custom route `:id/policy`, whose resource path names the path parameter.
  * @param {string} namespace - IAM namespace, resource path prefix and last segment of the controller path.
  * @param {new () => unknown} dto - PARAMETERS DTO of the route.
+ * @param {string} [queryPath] - Column the `resource.id` field maps the placeholder to, of the type the DTO describes: a path value is checked against the column its placeholder reads.
  * @returns {new () => unknown} The controller.
  */
-function buildController(namespace: string, dto: new () => unknown): new () => unknown {
+function buildController(namespace: string, dto: new () => unknown, queryPath: string = "id"): new () => unknown {
 	class PlaceholderSourceController {
 		@Inject(E2ePathParameterPlaceholderSourceItemService)
 		public readonly service!: E2ePathParameterPlaceholderSourceItemService;
@@ -128,7 +133,7 @@ function buildController(namespace: string, dto: new () => unknown): new () => u
 		authorization: {
 			defaultMode: EApiAuthorizationMode.IAM,
 			policyNamespace: namespace,
-			resourceDefinition: { entity: E2ePathParameterPlaceholderSourceItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], namespace, resourcePath: `${namespace}/{id}`, resourceType: namespace },
+			resourceDefinition: { entity: E2ePathParameterPlaceholderSourceItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath }], namespace, resourcePath: `${namespace}/{id}`, resourceType: namespace },
 		},
 		entity: E2ePathParameterPlaceholderSourceItemEntity,
 		name,
@@ -141,8 +146,8 @@ function buildController(namespace: string, dto: new () => unknown): new () => u
 }
 
 export const E2ePathParameterPlaceholderSourceUuidController: new () => unknown = buildController("pps-uuid", E2ePathParameterPlaceholderSourceUuidDto);
-export const E2ePathParameterPlaceholderSourceIntegerController: new () => unknown = buildController("pps-int", E2ePathParameterPlaceholderSourceIntegerDto);
-export const E2ePathParameterPlaceholderSourceStringController: new () => unknown = buildController("pps-string", E2ePathParameterPlaceholderSourceStringDto);
+export const E2ePathParameterPlaceholderSourceIntegerController: new () => unknown = buildController("pps-int", E2ePathParameterPlaceholderSourceIntegerDto, "sectionNumber");
+export const E2ePathParameterPlaceholderSourceStringController: new () => unknown = buildController("pps-string", E2ePathParameterPlaceholderSourceStringDto, "label");
 
 /**
  * Builds a controller whose resource path placeholder is described by `ApiPropertyDate`, which has no single text a policy could compare.
