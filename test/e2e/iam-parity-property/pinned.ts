@@ -23,6 +23,9 @@ const denyWhen = (operator: string, key: string, value: unknown): IE2eIamParityP
  *
  * MySQL compares a single-precision column as a double, so a Deny of the text memory reads did not match the row.
  *
+ * A placeholder value the column cannot hold, such as an exponent, a hexadecimal number or a calendar date on an instant
+ * column, reached the database, which coerced it or answered with an error: it names no row.
+ *
  * TypeORM rewrites the value of a condition through a column transformer in place, so a condition shared between where
  * branches was rewritten once per branch and compared with text no row holds: a Deny over two patterns kept its row.
  */
@@ -43,6 +46,15 @@ export const E2E_IAM_PARITY_PINNED_CASES: ReadonlyArray<IE2eIamParityPinnedCase>
 	denyRow("amount", "another spelling of a decimal placeholder", "/amount/1.50"),
 	denyRow("amount", "text that is no number", "/amount/abc"),
 	allowOthers("amount", "text that is no number", "/amount/abc"),
+	denyRow("amount", "a decimal with an exponent", "/amount/1e1"),
+	allowOthers("amount", "a decimal with an exponent", "/amount/1e1"),
+	denyRow("amount", "a hexadecimal decimal", "/amount/0x10"),
+	denyRow("amount", "a decimal followed by text", "/amount/10.5abc"),
+	denyRow("ratio", "text that is no double", "/ratio/abc"),
+	allowOthers("ratio", "text that is no double", "/ratio/abc"),
+	denyRow("at", "a calendar date on an instant", "/at/2024-01-01"),
+	allowOthers("at", "a calendar date on an instant", "/at/2024-01-01"),
+	denyRow("day", "an instant on a calendar date", "/day/2024-01-01T00:00:00.000Z"),
 	denyRow("day", "the first day of the first year", "/day/0001-01-01"),
 	denyRow("ratio", "a double placeholder", "/ratio/0.1"),
 	denyRow("ratio", "a number no double holds", `/ratio/1${"0".repeat(OVERFLOW_ZEROS)}`),

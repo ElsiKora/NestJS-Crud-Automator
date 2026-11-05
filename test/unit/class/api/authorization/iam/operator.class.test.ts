@@ -332,6 +332,13 @@ describe("ApiAuthorizationIamOperator", () => {
 			expect(evaluate("IpAddress", "10.0.0.0/8", 5)).toBeUndefined();
 		});
 
+		it("reads an IPv4-mapped range as IPv4 for a request value, whichever way the address is written", () => {
+			expect(evaluate("IpAddress", "::ffff:10.0.0.0/104", "10.1.2.3")).toBe(true);
+			expect(evaluate("IpAddress", "::ffff:10.0.0.0/104", "::ffff:10.1.2.3")).toBe(true);
+			expect(evaluate("NotIpAddress", "::ffff:10.0.0.0/104", "10.1.2.3")).toBe(false);
+			expect(evaluate("IpAddress", "::ffff:10.0.0.0/104", "11.1.2.3")).toBe(false);
+		});
+
 		it("compares a mapped request.sourceIp variable with the range it names", () => {
 			expect(evaluate("IpAddress", "${request.sourceIp}", "10.0.0.1")).toBe(true);
 		});

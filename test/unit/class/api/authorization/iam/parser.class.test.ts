@@ -103,6 +103,32 @@ describe("ApiAuthorizationIamParser", () => {
 		});
 	});
 
+	describe("header keys and empty defaults", () => {
+		it("lower-cases a header name in a condition key, as Node reads it", () => {
+			const statement = ApiAuthorizationIamParser.readStatement({ Action: ["*"], Condition: { StringEquals: { "request.headers.X-Foo": "bad" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] });
+
+			expect(statement.conditions[0]?.key).toBe("request.headers.x-foo");
+		});
+
+		it.each([
+			["a StringLike value", { Action: ["*"], Condition: { StringLike: { "resource.tenant": "${principal.attributes.missing, ''}*" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition["StringLike"]["resource.tenant"]', "iamPolicyConditionValueInvalid"],
+			["a StringNotLike value", { Action: ["*"], Condition: { StringNotLike: { "principal.id": "a${principal.attributes.missing,''}" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition["StringNotLike"]["principal.id"]', "iamPolicyConditionValueInvalid"],
+			["an ArnLike value", { Action: ["*"], Condition: { ArnLike: { "principal.id": "${principal.attributes.missing, ''}" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition["ArnLike"]["principal.id"]', "iamPolicyConditionValueInvalid"],
+			["a Resource pattern", { Action: ["*"], Effect: EApiPolicyEffect.ALLOW, Resource: ["ns:item/${principal.attributes.missing, ''}*"] }, "document.Statement[0].Resource[0]", "iamPolicyPatternInvalid"],
+			["a NotResource pattern", { Action: ["*"], Effect: EApiPolicyEffect.DENY, NotResource: ["ns:item/${principal.attributes.missing, ''}"] }, "document.Statement[0].NotResource[0]", "iamPolicyPatternInvalid"],
+		])("refuses an empty default in %s", (_name: string, statement: Record<string, unknown>, property: string, code: string) => {
+			const result = ApiAuthorizationIamParser.readDocument({ Statement: [statement], Version: "2012-10-17" });
+
+			expect(result.failures.map((failure) => [failure.property, failure.code])).toEqual([[property, code]]);
+		});
+
+		it("keeps an empty default where the value is no pattern", () => {
+			const result = ApiAuthorizationIamParser.readDocument({ Statement: [{ Action: ["*"], Condition: { StringEquals: { "principal.id": "${principal.attributes.missing, ''}" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }], Version: "2012-10-17" });
+
+			expect(result.failures).toEqual([]);
+		});
+	});
+
 	describe("findContextKey", () => {
 		it.each([
 			["principal.id", "principal.id"],

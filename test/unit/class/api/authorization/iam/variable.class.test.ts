@@ -42,6 +42,10 @@ describe("ApiAuthorizationIamVariable", () => {
 			["principal.attributes.missing", undefined],
 			["principal.id.length", undefined],
 			["resource.status", undefined],
+			["principal.attributes.constructor", undefined],
+			["principal.attributes.__proto__", undefined],
+			["principal.attributes.toString", undefined],
+			["principal.attributes.hasOwnProperty", undefined],
 		])("reads %s", (path: string, expected: unknown) => {
 			expect(ApiAuthorizationIamVariable.readPath(context, path)).toBe(expected);
 		});
@@ -104,6 +108,13 @@ describe("ApiAuthorizationIamVariable", () => {
 	});
 
 	describe("createContext", () => {
+		it("lower-cases the header names, as Node reads them", () => {
+			const context: Record<string, unknown> = ApiAuthorizationIamVariable.createContext({ id: "user-1" } as IApiAuthorizationPrincipal, { headers: { "X-Foo": "bad" } } as never);
+
+			expect(ApiAuthorizationIamVariable.readPath(context, "request.headers.x-foo")).toBe("bad");
+			expect(ApiAuthorizationIamVariable.readPath(context, "request.headers.X-Foo")).toBeUndefined();
+		});
+
 		it("exposes the source address and the time of the request", () => {
 			const time: Date = new Date("2024-01-01T00:00:00.000Z");
 			const context: Record<string, unknown> = ApiAuthorizationIamVariable.createContext({ id: "user-1" } as IApiAuthorizationPrincipal, { ip: "10.0.0.1", time });

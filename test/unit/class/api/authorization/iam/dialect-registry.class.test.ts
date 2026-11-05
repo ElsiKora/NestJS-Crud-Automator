@@ -30,6 +30,7 @@ describe("ApiAuthorizationIamDialectRegistry", () => {
 	it.each([
 		["postgres", EApiAuthorizationIamDialect.POSTGRES],
 		["cockroachdb", EApiAuthorizationIamDialect.POSTGRES],
+		["aurora-postgres", EApiAuthorizationIamDialect.POSTGRES],
 		["better-sqlite3", EApiAuthorizationIamDialect.SQLITE],
 		["sqljs", EApiAuthorizationIamDialect.SQLITE],
 		["oracle", EApiAuthorizationIamDialect.PORTABLE],
@@ -46,6 +47,7 @@ describe("ApiAuthorizationIamDialectRegistry", () => {
 		["MySQL at the first version with the collation", "mysql", "8.0.17", "utf8mb4", { binaryCollation: "utf8mb4_0900_bin", driverType: "mysql", type: EApiAuthorizationIamDialect.MYSQL, version: "8.0.17" }],
 		["MySQL before the collation", "mysql", "8.0.16", "utf8mb4", { driverType: "mysql", type: EApiAuthorizationIamDialect.MYSQL, version: "8.0.16" }],
 		["MariaDB behind the mysql type", "mysql", "11.4.2-MariaDB-ubu2404", "utf8mb4", { binaryCollation: "utf8mb4_nopad_bin", driverType: "mysql", type: EApiAuthorizationIamDialect.MARIADB, version: "11.4.2-MariaDB-ubu2404" }],
+		["Aurora MySQL", "aurora-mysql", "8.0.39", "utf8mb4", { binaryCollation: "utf8mb4_0900_bin", driverType: "aurora-mysql", type: EApiAuthorizationIamDialect.MYSQL, version: "8.0.39" }],
 		["MariaDB behind the mariadb type", "mariadb", "10.2.2-whatever", "utf8mb4", { binaryCollation: "utf8mb4_nopad_bin", driverType: "mariadb", type: EApiAuthorizationIamDialect.MARIADB, version: "10.2.2-whatever" }],
 		["MariaDB before the collation", "mysql", "10.1.48-MariaDB", "utf8mb4", { driverType: "mysql", type: EApiAuthorizationIamDialect.MARIADB, version: "10.1.48-MariaDB" }],
 		["a connection that is not utf8mb4", "mysql", "8.4.2", "latin1", { driverType: "mysql", type: EApiAuthorizationIamDialect.MYSQL, version: "8.4.2" }],
