@@ -176,9 +176,8 @@ describe.each<{ database: TE2eIamTargetDatabase; databaseName: string }>([
 	});
 
 	describe("a row route decides a Resource pattern on the stored row, never on the path text", () => {
-		// Spellings the database may read as the row `secret`: letter case, an accent, trailing spaces, a NUL character.
-		// PostgreSQL answers a NUL character with 500 before any row is read; that is a separate finding.
-		const ITEM_SPELLINGS: Array<string> = ["SECRET", "Secret", "s%C3%A9cret", "SECR%C3%89T", "secret%20", ...(database === "postgres" ? [] : ["secret%00"])];
+		// Spellings the database may read as the row `secret`: letter case, an accent, trailing spaces.
+		const ITEM_SPELLINGS: Array<string> = ["SECRET", "Secret", "s%C3%A9cret", "SECR%C3%89T", "secret%20"];
 		const FOLD_SPELLINGS: Array<string> = ["SECRET", "Secret", "secret%20"];
 		const CHAR_SPELLINGS: Array<string> = ["secret%20", "secret%20%20%20", "SECRET"];
 
@@ -224,6 +223,15 @@ describe.each<{ database: TE2eIamTargetDatabase; databaseName: string }>([
 
 				expect(await statusOf("GET", `${urlOf(namespaceOf())}/secret`)).toBe(HttpStatus.FORBIDDEN);
 			});
+		});
+
+		it("answers a NUL character in the path with 400 before any row is read, and writes nothing", async () => {
+			use(namespaces.item, denyResource(namespaces.item, `${namespaces.item}/secret`));
+
+			expect(await statusOf("GET", "/iam-target/items/secret%00")).toBe(HttpStatus.BAD_REQUEST);
+			expect(await statusOf("PATCH", "/iam-target/items/secret%00", { status: "changed" })).toBe(HttpStatus.BAD_REQUEST);
+			expect(await statusOf("DELETE", "/iam-target/items/secret%00")).toBe(HttpStatus.BAD_REQUEST);
+			expect(await repository(fixture.services.item).findOneBy({ status: "active", tenant: "t1" })).toMatchObject({ id: "secret" });
 		});
 
 		it("still reads and lists the rows the Deny does not name", async () => {
