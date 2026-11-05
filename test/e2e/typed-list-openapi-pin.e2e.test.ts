@@ -45,6 +45,11 @@ describe("OpenAPI of a typed GET_LIST route without a relation filter", () => {
 	});
 
 	it("stays byte-identical, generated schema names included", async () => {
-		await expect(JSON.stringify(document, undefined, "\t")).toMatchFileSnapshot("./typed-list-openapi-pin/uuid-membership.snapshot.txt");
+		// A generated UUID example is random and a generated date-time example is the time of the build.
+		const stable: string = JSON.stringify(document, undefined, "\t")
+			.replaceAll(/"example": "[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}"/gu, '"example": "<uuid>"')
+			.replaceAll(/"example": \d{13}/gu, '"example": "<now>"');
+
+		await expect(stable).toMatchFileSnapshot("./typed-list-openapi-pin/uuid-membership.snapshot.txt");
 	});
 });

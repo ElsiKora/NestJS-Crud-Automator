@@ -289,7 +289,7 @@
 						"nullable": false,
 						"minLength": 36,
 						"maxLength": 36,
-						"example": "6b18fd4a-73b2-4894-a7cf-001d255043a0",
+						"example": "<uuid>",
 						"format": "uuid",
 						"pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
 						"readOnly": true
@@ -308,7 +308,7 @@
 						"nullable": false,
 						"minLength": 36,
 						"maxLength": 36,
-						"example": "004145a1-bd59-4aef-994a-339971adf991",
+						"example": "<uuid>",
 						"format": "uuid",
 						"pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
 						"readOnly": true
@@ -330,7 +330,7 @@
 						"nullable": false,
 						"minLength": 36,
 						"maxLength": 36,
-						"example": "951c2605-34c1-414e-9c1f-a0ef7c7474f3",
+						"example": "<uuid>",
 						"format": "uuid",
 						"pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
 						"readOnly": true
@@ -613,7 +613,7 @@
 					"correlationID": {
 						"type": "string",
 						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
-						"example": "550e8400-e29b-41d4-a716-446655440000",
+						"example": "<uuid>",
 						"maxLength": 128,
 						"minLength": 1,
 						"nullable": false,
@@ -737,7 +737,7 @@
 						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"format": "int64",
 						"nullable": false,
-						"example": 1793905515991,
+						"example": "<now>",
 						"minimum": 0,
 						"maximum": 2147483647000,
 						"readOnly": true
@@ -754,7 +754,7 @@
 					"correlationID": {
 						"type": "string",
 						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
-						"example": "550e8400-e29b-41d4-a716-446655440000",
+						"example": "<uuid>",
 						"maxLength": 128,
 						"minLength": 1,
 						"nullable": false,
@@ -854,7 +854,7 @@
 						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"format": "int64",
 						"nullable": false,
-						"example": 1793905515991,
+						"example": "<now>",
 						"minimum": 0,
 						"maximum": 2147483647000,
 						"readOnly": true
@@ -871,7 +871,7 @@
 					"correlationID": {
 						"type": "string",
 						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
-						"example": "550e8400-e29b-41d4-a716-446655440000",
+						"example": "<uuid>",
 						"maxLength": 128,
 						"minLength": 1,
 						"nullable": false,
@@ -971,7 +971,7 @@
 						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"format": "int64",
 						"nullable": false,
-						"example": 1793905515991,
+						"example": "<now>",
 						"minimum": 0,
 						"maximum": 2147483647000,
 						"readOnly": true
@@ -988,7 +988,7 @@
 					"correlationID": {
 						"type": "string",
 						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
-						"example": "550e8400-e29b-41d4-a716-446655440000",
+						"example": "<uuid>",
 						"maxLength": 128,
 						"minLength": 1,
 						"nullable": false,
@@ -1088,7 +1088,7 @@
 						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"format": "int64",
 						"nullable": false,
-						"example": 1793905515990,
+						"example": "<now>",
 						"minimum": 0,
 						"maximum": 2147483647000,
 						"readOnly": true
