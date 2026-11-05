@@ -410,7 +410,7 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 			expect(await repository.findOneBy({ id: "item-denied" })).toBeNull();
 		});
 
-		it("does not apply a Deny that names a concrete resource", async () => {
+		it("refuses the row a Deny names and creates any other", async () => {
 			statements = [
 				allowCreateInTenant,
 				{
@@ -420,8 +420,10 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 				},
 			];
 
-			expect(await createItem(path, "item-row-denied", IN_SCOPE_TENANT_ID)).toBe(201);
-			expect(await repository.findOneBy({ id: "item-row-denied" })).toMatchObject({ tenantId: IN_SCOPE_TENANT_ID });
+			expect(await createItem(path, "item-row-denied", IN_SCOPE_TENANT_ID)).toBe(403);
+			expect(await repository.findOneBy({ id: "item-row-denied" })).toBeNull();
+			expect(await createItem(path, "item-row-other", IN_SCOPE_TENANT_ID)).toBe(201);
+			expect(await repository.findOneBy({ id: "item-row-other" })).toMatchObject({ tenantId: IN_SCOPE_TENANT_ID });
 		});
 	});
 });

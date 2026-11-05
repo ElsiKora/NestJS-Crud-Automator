@@ -231,10 +231,11 @@ describe.each([
 		const response = await fastify.inject({ method: "GET", url: `${URL}?${PAGE}` });
 
 		expect((response.json() as { items: Array<{ id: string }> }).items.map((item: { id: string }): string => item.id)).toEqual(["own"]);
-		// A create names no row, and that ? can stand for any part of the resource string, so it fails closed.
-		expect(await routeStatuses(ROWS[1]!)).toEqual({ ...FORBIDDEN_EVERYWHERE, LIST: HttpStatus.OK });
+		// A create reads the stored row back through the exclusion: new-secret-1 is not named and is created, secret-2 is refused.
+		expect(await routeStatuses(ROWS[1]!)).toEqual({ ...FORBIDDEN_EVERYWHERE, CREATE: HttpStatus.CREATED, LIST: HttpStatus.OK });
+		expect((await fastify.inject({ method: "POST", payload: { id: "secret-2", name: "New" }, url: URL })).statusCode).toBe(HttpStatus.FORBIDDEN);
 		expect((await fastify.inject({ method: "GET", url: `${URL}/own` })).statusCode).toBe(HttpStatus.OK);
-		expect(await storedIds()).toEqual(["own", "secret-1"]);
+		expect(await storedIds()).toEqual(["new-secret-1", "own", "secret-1"]);
 	});
 
 	it("refuses only the delete for a Deny Action with an interior wildcard", async () => {
