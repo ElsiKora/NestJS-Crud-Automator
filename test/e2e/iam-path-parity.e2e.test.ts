@@ -27,6 +27,7 @@ import {
 	E2eIamParityAliasItemController,
 	E2eIamParityAliasPlaceholderController,
 	E2eIamParityCompanyEntity,
+	E2eIamParityDeepTagController,
 	E2eIamParityDottedPlaceholderController,
 	E2eIamParityGuard,
 	E2eIamParityItemController,
@@ -355,12 +356,19 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 
 describe("IAM resource fields over to-many relations (E2E)", () => {
 	it.each([
-		["the OneToMany relation", E2eIamParityTagController, /resource field "resource\.tagName" queryPath "tags\.name" crosses the to-many relation "tags"/],
-		["the ManyToMany relation", E2eIamParityLabelController, /resource field "resource\.labelName" queryPath "labels\.name" crosses the to-many relation "labels"/],
-	])("does not start a controller whose field crosses %s", async (_name: string, controller: new () => unknown, message: RegExp) => {
-		const refused: INestApplication = await buildApplication({ database: ":memory:", dropSchema: true, entities: ENTITIES, synchronize: true, type: "better-sqlite3" }, [controller], () => ({ namespace: "paritytg:item", statements: [] }));
+		["the OneToMany relation", E2eIamParityTagController],
+		["the ManyToMany relation", E2eIamParityLabelController],
+	])("starts a controller whose field maps a column of %s of the resource", async (_name: string, controller: new () => unknown) => {
+		const started: INestApplication = await buildApplication({ database: ":memory:", dropSchema: true, entities: ENTITIES, synchronize: true, type: "better-sqlite3" }, [controller], () => ({ namespace: "paritytg:item", statements: [] }));
 
-		await expect(refused.init()).rejects.toThrow(message);
+		await started.init();
+		await started.close();
+	});
+
+	it("does not start a controller whose field goes on past the to-many relation", async () => {
+		const refused: INestApplication = await buildApplication({ database: ":memory:", dropSchema: true, entities: ENTITIES, synchronize: true, type: "better-sqlite3" }, [E2eIamParityDeepTagController], () => ({ namespace: "paritydt:item", statements: [] }));
+
+		await expect(refused.init()).rejects.toThrow(/resource field "resource\.tagItemId" queryPath "tags\.item\.id" crosses the to-many relation "tags"/);
 		await refused.close();
 	});
 });

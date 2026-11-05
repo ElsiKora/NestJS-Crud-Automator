@@ -50,10 +50,13 @@ export const E2E_IAM_PARITY_ALIAS_PLACEHOLDER_AUTHORIZATION = authorizationFor("
 
 export const E2E_IAM_PARITY_DOTTED_PLACEHOLDER_AUTHORIZATION = authorizationFor("paritydp:item", "paritydp:item/{owner.tag}", E2E_IAM_PARITY_DIRECT_FIELDS);
 
-// Query paths through a OneToMany and a ManyToMany relation: one row holds many values, so neither compiles or reads.
+// Query paths through a OneToMany and a ManyToMany relation: one row holds many values, so neither compiles or reads without a set qualifier.
 export const E2E_IAM_PARITY_TAG_AUTHORIZATION = authorizationFor("paritytg:item", "paritytg:item/{id}", [{ path: "tagName", queryPath: "tags.name" }]);
 
 export const E2E_IAM_PARITY_LABEL_AUTHORIZATION = authorizationFor("paritylb:item", "paritylb:item/{id}", [{ path: "labelName", queryPath: "labels.name" }]);
+
+// A query path that goes on past the to-many relation: no subquery reads it.
+export const E2E_IAM_PARITY_DEEP_TAG_AUTHORIZATION = authorizationFor("paritydt:item", "paritydt:item/{id}", [{ path: "tagItemId", queryPath: "tags.item.id" }]);
 
 @Injectable()
 @ApiService({ entity: E2eIamParityItemEntity })
@@ -132,6 +135,13 @@ export class E2eIamParityTagController {
 @ApiControllerSecurable()
 @ApiController<E2eIamParityItemEntity>({ authorization: E2E_IAM_PARITY_LABEL_AUTHORIZATION as never, entity: E2eIamParityItemEntity, name: "E2eIamParityLabelItems", path: "iam-parity/label-items", routes: LIST_ROUTES })
 export class E2eIamParityLabelController {
+	@Inject(E2eIamParityItemService)
+	public readonly service!: E2eIamParityItemService;
+}
+
+@ApiControllerSecurable()
+@ApiController<E2eIamParityItemEntity>({ authorization: E2E_IAM_PARITY_DEEP_TAG_AUTHORIZATION as never, entity: E2eIamParityItemEntity, name: "E2eIamParityDeepTagItems", path: "iam-parity/deep-tag-items", routes: LIST_ROUTES })
+export class E2eIamParityDeepTagController {
 	@Inject(E2eIamParityItemService)
 	public readonly service!: E2eIamParityItemService;
 }

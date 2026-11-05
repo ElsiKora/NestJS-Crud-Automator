@@ -11,6 +11,7 @@ export {
 	E2E_IAM_PARITY_USER,
 	E2eIamParityAliasItemController,
 	E2eIamParityAliasPlaceholderController,
+	E2eIamParityDeepTagController,
 	E2eIamParityDottedPlaceholderController,
 	E2eIamParityGuard,
 	E2eIamParityItemController,
