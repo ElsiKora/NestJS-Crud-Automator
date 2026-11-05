@@ -51,16 +51,17 @@ export class ApiAuthorizationIamVariable {
 	}
 
 	/**
-	 * Reads a dot-separated path out of a value, walking only plain objects.
+	 * Reads a dot-separated path out of a value, walking only plain objects and their own properties, so a segment such
+	 * as `constructor` or `__proto__` reads nothing an object inherits.
 	 * @param {unknown} source - Value to read, such as the evaluation context.
 	 * @param {string} path - Dot-separated path.
-	 * @returns {unknown} The value at the path, or undefined when a segment on the way is not an object.
+	 * @returns {unknown} The value at the path, or undefined when a segment on the way is not an object or not its own property.
 	 */
 	public static readPath(source: unknown, path: string): unknown {
 		let currentValue: unknown = source;
 
 		for (const segment of path.split(".").filter(Boolean)) {
-			if (!ApiAuthorizationIamVariable.isRecord(currentValue)) {
+			if (!ApiAuthorizationIamVariable.isRecord(currentValue) || !Object.hasOwn(currentValue, segment)) {
 				return undefined;
 			}
 
