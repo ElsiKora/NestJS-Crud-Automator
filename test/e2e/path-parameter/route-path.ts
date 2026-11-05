@@ -171,7 +171,24 @@ const NO_GENERATED_ROUTES: never = Object.fromEntries([EApiRouteType.CREATE, EAp
  * @returns {never} The authorization block.
  */
 function authorization(mode: EApiAuthorizationMode, resourcePath: string): never {
-	return (mode === EApiAuthorizationMode.IAM ? { defaultMode: mode, policyNamespace: "route-path", resourceDefinition: { entity: E2eRoutePathItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], namespace: "route-path", resourcePath, resourceType: "route-path" } } : { defaultMode: mode }) as never;
+	return (
+		mode === EApiAuthorizationMode.IAM
+			? {
+					defaultMode: mode,
+					policyNamespace: "route-path",
+					resourceDefinition: {
+						entity: E2eRoutePathItemEntity,
+						fields: [
+							{ isFilterable: true, path: "resource.id", queryPath: "id" },
+							{ isFilterable: true, path: "resource.org", queryPath: "tenant" },
+						],
+						namespace: "route-path",
+						resourcePath,
+						resourceType: "route-path",
+					},
+				}
+			: { defaultMode: mode }
+	) as never;
 }
 
 /**
