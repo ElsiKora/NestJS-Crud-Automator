@@ -82,7 +82,7 @@ An `in` or `notin` filter with one item, such as `status[operator]=in&status[val
 - `isnull` or `notnull` with a value: remove the value. `isnull` or `notnull` without a value used to be ignored and now filters, so those requests return fewer rows.
 - A filter group for a field the DTO does not publish, such as a misspelled field or `id[...]`: correct or remove it. The route used to ignore the group and return the unfiltered list, with or without a host pipe. To filter by the primary key, add a typed `filter` to the route.
 - A filter on an entity column that a manual QUERY DTO does not declare: declare the `[operator]` and `[value]` or `[values]` properties on the DTO. The route used to apply it from entity metadata.
-- A filter through a to-many relation, such as `tags.name[...]` on a `@OneToMany` or `@ManyToMany` property: use a typed plan's to-one paths, a generated controller on the child table, or a custom method. The generated QUERY DTO and OpenAPI used to publish these filters and the route applied them; the DTO now publishes and the route applies one-hop to-one paths only, as typed plans do.
+- A filter through a to-many relation, such as `tags.name[...]` on a `@OneToMany` or `@ManyToMany` property: declare the path in a typed plan (see [Declared Relation Filters](#declared-relation-filters)), use a generated controller on the child table, or a custom method. The generated QUERY DTO and OpenAPI used to publish these filters and the route applied them; without a declaration, the DTO now publishes and the route applies one-hop to-one paths only.
 - With a manual QUERY DTO, an incomplete filter group, both `[value]` and `[values]`, a value next to `isnull` or `notnull`, or a value key its operator does not take, such as `eq` with `[values]` or `in` with `[value]`: send a complete group with the key its operator takes. The route used to skip the group and return the unfiltered list. A DTO that publishes a filter the route cannot apply now fails at startup.
 - The property behind a name a manual QUERY DTO exposes, such as `orderBy` next to `@Expose({ name: "sort" })`: send the exposed name. The value used to skip the validators on the property and still reach the route.
 - Any other query key the DTO does not publish, such as a cache-buster `_=1730000000` (jQuery `cache: false` and some HTTP clients add one), `utm_source` and other tracking parameters, or a misspelled plain key: remove it, or declare it on a manual QUERY DTO. The route used to ignore these keys.
@@ -159,12 +159,12 @@ Plan rules:
 - An enabled filter requires a non-empty `allowedOperations`; route configuration can narrow metadata capabilities but cannot re-enable a metadata-disabled field.
 - `missingBehavior` is `OMIT` by default, `REJECT` returns `400 FILTER_REQUIRED`, and `USE_DEFAULT` requires a typed static `defaultCondition`.
 - A default is inserted only when that field's client group is absent. A supplied client group replaces the default for the same field; all resulting field predicates are then AND-merged with HOOKS/IAM authorization scope. Principal-dependent restrictions belong in authorization scope, not defaults.
-- Filter paths may be direct scalars or one-hop to-one scalar paths such as `author.id`. Order paths are direct scalars only.
+- Filter paths may be direct scalars, one-hop to-one scalar paths such as `author.id`, or the paths and links a plan declares under [Declared Relation Filters](#declared-relation-filters). Order paths are direct scalars only.
 - Client-sort `fields` and server-sort entries have different exposure rules: `fields` controls the generated `orderBy` enum, while `defaultOrder` and `tieBreakers` may use any described direct scalar entity field, including a UUID primary key left out of `fields`. Listing a UUID or `timestamptz` field in `fields` makes it client-sortable.
 - With no client order pair, runtime applies `defaultOrder` followed by `tieBreakers`. A client pair replaces defaults, then tie-breakers are appended. Duplicate fields are removed in first-entry order, so the client entry wins over a duplicate tie-breaker.
 - Duplicate fields within one server list, invalid directions, unknown/non-scalar fields, or conflicting directions for the same field across defaults and tie-breakers fail at bootstrap.
-- Unknown, disabled, malformed, deeper, to-many, and disallowed typed-query input returns `400` independently of the host application's `ValidationPipe`.
-- `BETWEEN` accepts exactly two repeated `[values]`; membership operators accept 1–100 repeated `[values]`.
+- Unknown, disabled, malformed, undeclared, and disallowed typed-query input returns `400` independently of the host application's `ValidationPipe`.
+- `BETWEEN` accepts exactly two repeated `[values]`; membership operators accept 1–100 repeated `[values]`. A field may lower that cap with `maxValues` (1–100): more values answer `400 FILTER_NOT_VALID`, and OpenAPI publishes the cap as `maxItems`.
 - `orderDirection` is the lowercase `asc` or `desc`, and `orderBy` and `orderDirection` are sent together or not at all.
 - Filter values follow the entity property: number `minimum`, `maximum` and `multipleOf`, and string `minLength`, `maxLength`, `format` and `pattern`. The OpenAPI value schema of each operator branch publishes the same constraints.
 - A value is checked whole, whatever the operator. On a field with a `format` or a full-value `pattern`, a partial operator (`cont`, `excl`, `starts`, `ends` and their case-insensitive forms) holds the fragment to that rule too, so `mail[operator]=cont&mail[value]=exam` on an email field returns `400`.
@@ -460,7 +460,76 @@ GET /posts?author.username[operator]=eq&author.username[value]=john_doe
 
 Top-level relation filters such as `author[operator]=eq&author[value]=...` are not generated or transformed. Use `author.id[...]` for relation id filters.
 
-Only one relation level is generated, through to-one relations (`@ManyToOne`, `@OneToOne`). To-many relations, and relation fields and object fields on the related entity, are skipped; a request for them returns `400`.
+Only one relation level is generated, through to-one relations (`@ManyToOne`, `@OneToOne`). To-many relations, and relation fields and object fields on the related entity, are skipped; a request for them returns `400`, until a typed plan declares them.
+
+### Declared Relation Filters
+
+A typed plan can reach further: through several relations, and through to-many relations. Each such filter is declared by name. `INHERIT`, a route without a typed plan and generated DTOs never add one.
+
+```typescript
+filter: {
+	fields: {
+		// A property path: relations from the route entity, then a column.
+		"gameSource.provider.id": {
+			allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN],
+			isEnabled: true,
+			maxValues: 50,
+			relationConditions: [{ field: "state", operator: EFilterOperation.EQ, value: EProviderState.ACTIVE }],
+		},
+	},
+	links: {
+		// A link entity, for an edge the route entity holds no property for.
+		category: ApiControllerGetListQueryLink(GameCategoryGameEntity, {
+			fields: {
+				id: {
+					allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN],
+					isEnabled: true,
+					maxValues: 50,
+					relationConditions: [{ field: "state", operator: EFilterOperation.EQ, value: ECategoryState.ACTIVE }],
+				},
+			},
+			source: "game",
+			target: "category",
+		}),
+	},
+	unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+},
+```
+
+```
+GET /games?limit=20&gameSource.provider.id[operator]=eq&gameSource.provider.id[value]=550e8400-e29b-41d4-a716-446655440000
+GET /games?limit=20&category.id[operator]=in&category.id[values]=6ba7b810-9dad-11d1-80b4-00c04fd430c8&category.id[values]=7c9e6679-7425-40de-944b-e07fc1f90ae7
+```
+
+A key of `fields` is the real path and its query name. A link takes a name you write, and its query names are `<link name>.<field path>`, so two links to one target table stay apart: `category.id` and `featuredCategory.id`. `source` is the owning to-one relation of the link entity that points back at the route entity, and `target` the owning to-one relation that leads on. The join columns, composite ones included, come from the entity metadata. A real column such as `categoryId` on the route entity stays a plain direct filter and is free to sit next to a relation filter.
+
+**One way per shape.** If the route entity holds a relation property for the edge, an inverse `@OneToMany` or a `@ManyToMany`, the property path is the only form: a link for that edge stops startup and names the path to use.
+
+**Where a link starts.** A link starts at the route entity and may lead on from its target, as a field such as `provider.id` on the link, up to the limit of 4 relations. Nothing comes before it: a link cannot follow a to-one property hop, so `gameSource.<link>` has no form. To go through a to-one hop and then a to-many relation, the entity at the end of the hop needs the relation property, and the whole path goes in `fields`.
+
+**What it means.** Every declared path compiles to one parameterized `EXISTS (SELECT 1 FROM ... WHERE ...)` on the main query: "a related row exists that matches". It adds no join to the list, so it duplicates no row and leaves eager and included loading alone. It ANDs with the other filters, path scope, HOOKS/IAM scope and the cursor window, and PAGE counts the same predicate. Related rows with a `@DeleteDateColumn` set do not match. A filter on a game with two matching categories returns that game once.
+
+**Operators.** Every positive operator the leaf type allows, comparisons and `between` included. Anything asking about absence (`ne`, `nel`, `notin`, `notinl`, `excl`, `excll`, `isnull`, `notnull`) stops startup, because a related row that exists and matches cannot mean the same as one that does not.
+
+**`maxValues`** is required on a declared path that allows a membership operator.
+
+**`relationConditions`** are fixed conditions the client neither sees nor changes; they stay out of OpenAPI. Each is an operator from `eq`, `in` and the other positive operators, on a direct described scalar, with a value validated at startup and bound as a parameter. It applies to the last entity of the path by default; `relation` names another row of the path by the relation that reaches it, and on a link the name of `source` means the row of the link entity. A target whose conditions fail matches nothing, so an inactive category matches no game.
+
+**One hop.** `author.id` with `relationConditions` is an `EXISTS` path too and follows these rules, with its usual visibility: the path must be one the plan offers already, so a hidden relation stays refused. Without `relationConditions` it keeps its `LEFT JOIN` and its operators.
+
+**`missingBehavior` and `defaultCondition`** mean what they mean on any typed field: `REJECT` answers `400 FILTER_REQUIRED`, and a `USE_DEFAULT` condition compiles into the same `EXISTS` unless the client sends the field.
+
+**Limits, all at startup.** Each message names the controller, the route, the field and the reason:
+
+- A path crosses at most 4 relations, and a link counts as two. Intermediate relations may be hidden.
+- The leaf is a described direct scalar of the last entity, and that entity's own response must show it. A hidden leaf, a relation, an object, an array or a column with a value transformer is refused, in a condition too.
+- Every hop must be a relation, a link's `source` must target the route entity, and a link's two relations must be owning to-one relations.
+- A link name equal to a column or relation of the route entity, or a query name a key of `fields` uses, is refused. Two links with one name are a compile error.
+- A relation to an entity of another DataSource, a table that a single-table-inheritance child shares, a route entity whose primary column has a value transformer or sits in an embedded, and a driver other than PostgreSQL, MySQL, MariaDB and SQLite are refused.
+
+The checks that need the entity metadata of a DataSource run at bootstrap. A DataSource the application starts later and a request-scoped controller learn the same on the first request that uses the filter, as with the CURSOR checks.
+
+CURSOR runs on PostgreSQL only, with or without a declared filter, and order paths stay direct scalars. Malformed values, an undeclared path and an operator a field does not allow answer `400 FILTER_NOT_VALID` before any SQL.
 
 ## Multiple Filters
 

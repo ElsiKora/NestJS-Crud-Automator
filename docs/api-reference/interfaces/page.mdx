@@ -206,7 +206,7 @@ interface IApiControllerPropertiesRouteGetListQueryOrderEntry<E> {
 }
 ```
 
-`INHERIT` overlays metadata-enabled fields; `REJECT` creates an allowlist. Filter fields support direct scalars and one-hop to-one scalar paths, while client order fields support direct scalars only. The same immutable plan drives dynamic DTO generation, strict runtime parsing, TypeORM compilation, and OpenAPI. A manual QUERY DTO cannot be combined with these sections; manual RESPONSE DTOs remain compatible.
+`INHERIT` overlays metadata-enabled fields; `REJECT` creates an allowlist. Filter fields support direct scalars, one-hop to-one scalar paths and declared relation filters (deeper and to-many property paths in `fields`, link entities in `links`), while client order fields support direct scalars only. The same immutable plan drives dynamic DTO generation, strict runtime parsing, TypeORM compilation, and OpenAPI. A manual QUERY DTO cannot be combined with these sections; manual RESPONSE DTOs remain compatible.
 
 The `M` generic defaults to `PAGE` on the query target, pagination property, base request target, and its validators. Omitted pagination or explicit `PAGE` uses required `limit`/`page` and `IApiGetListResponseResult`. Select `EApiControllerGetListQueryPaginationMode.CURSOR` for required `limit`, optional mutually exclusive `after`/`before`, and `IApiGetListCursorResponseResult`. CURSOR mode requires an explicit order, the complete primary key, single or composite, as the final explicit tie-breakers, and described non-null direct-scalar metadata for every possible order field. Its v1 runtime supports only the exact PostgreSQL storage matrix documented in [Pagination](/docs/nestjs-crud-automator/guides/pagination); PAGE is unchanged.
 

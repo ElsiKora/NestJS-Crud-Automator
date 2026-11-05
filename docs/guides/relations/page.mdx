@@ -399,11 +399,36 @@ The same syntax works for scalar fields on the related entity:
 GET /posts?author.username[operator]=eq&author.username[value]=john_doe
 ```
 
-Generated relation filters support one level through a to-one relation (`@ManyToOne`, `@OneToOne`). To-many relations, and relation fields and object fields on the related entity, are not generated as nested query filters, and a request for them returns `400`.
+Generated relation filters support one level through a to-one relation (`@ManyToOne`, `@OneToOne`). To-many relations, and relation fields and object fields on the related entity, are not generated as nested query filters, and a request for them returns `400`, until a typed plan declares them.
 
 Top-level relation filters such as `author[operator]=eq&author[value]=...` are not part of the generated query contract. Use `author.id[...]` instead.
 
-A typed GET_LIST `request[QUERY].filter` plan may narrow or allowlist these one-hop to-one scalar paths. It cannot enable to-many, deeper, object, or bare relation paths; invalid configured paths fail controller initialization, and invalid client paths return `400`.
+A typed GET_LIST `request[QUERY].filter` plan may narrow or allowlist these one-hop to-one scalar paths, and may declare paths through several relations or to-many relations, and links through a link entity the route entity holds no property for. Object and bare relation paths stay refused; invalid configured paths fail controller initialization, and invalid client paths return `400`.
+
+```typescript
+filter: {
+	fields: {
+		// Two to-one hops, the first of them on a composite key.
+		"gameSource.provider.id": {
+			allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN],
+			isEnabled: true,
+			maxValues: 50,
+			relationConditions: [{ field: "state", operator: EFilterOperation.EQ, value: EProviderState.ACTIVE }],
+		},
+	},
+	links: {
+		// A link entity, with no inverse property on the game: filters as `category.id`.
+		category: ApiControllerGetListQueryLink(GameCategoryGameEntity, {
+			fields: { id: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN], isEnabled: true, maxValues: 50 } },
+			source: "game",
+			target: "category",
+		}),
+	},
+	unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+},
+```
+
+Each compiles to one `EXISTS` on the main query, so a game in two matching categories comes back once. [Declared Relation Filters](/docs/guides/filtering-and-sorting#declared-relation-filters) has the rules.
 
 ```typescript
 // Programmatic filtering by relation

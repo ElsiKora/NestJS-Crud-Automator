@@ -118,6 +118,38 @@ export class PublicUserController {
 
 The entity metadata still supplies scalar types, constraints, relation targets, and the dynamic query DTO baseline. This route plan narrows that baseline, requires `status` with EQ only, omits `email`, permits a one-hop `team.name` filter, and limits ordering to `createdAt`. The manual response item DTO is compatible; a manual QUERY DTO would not be.
 
+A plan declares relation filters by name. The first crosses two to-one hops, and the second goes through a link entity with no inverse property on the route entity:
+
+```ts
+filter: {
+	fields: {
+		"gameSource.provider.id": {
+			allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN],
+			isEnabled: true,
+			maxValues: 50,
+			relationConditions: [{ field: "state", operator: EFilterOperation.EQ, value: EProviderState.ACTIVE }],
+		},
+	},
+	links: {
+		category: ApiControllerGetListQueryLink(GameCategoryGameEntity, {
+			fields: {
+				id: {
+					allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN],
+					isEnabled: true,
+					maxValues: 50,
+					relationConditions: [{ field: "state", operator: EFilterOperation.EQ, value: ECategoryState.ACTIVE }],
+				},
+			},
+			source: "game",
+			target: "category",
+		}),
+	},
+	unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+},
+```
+
+The client sends `gameSource.provider.id[operator]=eq&gameSource.provider.id[value]=...` and `category.id[operator]=in&category.id[values]=...`. A second link to the same table takes its own name, such as `featuredCategory`.
+
 For `missingBehavior: USE_DEFAULT`, also provide `defaultCondition`. Automator inserts that condition only when the client omits the field group; a client group for the same field replaces the default, and the resulting predicates are AND-merged with authorization scope. `BETWEEN` requires exactly two repeated `[values]`; membership accepts 1–100. Typed failures use `FILTER_REQUIRED`, `FILTER_NOT_VALID`, or `ORDER_NOT_VALID`. Route-before subscribers can rewrite the raw query before Automator performs its strict typed parse.
 
 ## Nested Generated Routes With Stable Pagination
