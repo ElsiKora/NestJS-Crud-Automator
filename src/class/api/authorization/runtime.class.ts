@@ -141,7 +141,7 @@ export class ApiAuthorizationRuntime {
 		authorizationRuntimeLogger.verbose(`Resolved ${attachments.attachments.length} IAM attachments and ${attachments.boundaries.length} boundaries for principal "${options.principal.id}".`);
 
 		const policyIds: Array<string> = [...attachments.attachments.map((attachment: IApiPolicyAttachment): string => attachment.policyId), ...attachments.boundaries.map((attachment: IApiPolicyAttachment): string => attachment.policyId)];
-		const documents: ReadonlyArray<IApiPolicyDocumentRecord> = await this.iamDocumentResolver.resolve(policyIds);
+		const documents: ReadonlyArray<IApiPolicyDocumentRecord> = await this.iamDocumentResolver.resolve(policyIds, { namespace: options.authorization.policyNamespace });
 
 		authorizationRuntimeLogger.verbose(`Resolved ${documents.length} IAM policy documents for namespace "${options.authorization.policyNamespace}" and principal "${options.principal.id}".`);
 

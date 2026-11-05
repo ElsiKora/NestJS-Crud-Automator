@@ -67,4 +67,29 @@ describe("ApiAuthorizationIamDocumentResolver", () => {
 		await expect(resolver.resolve(["policy-a"])).resolves.toBe(documents);
 		expect(source.getDocumentsByIds).not.toHaveBeenCalled();
 	});
+
+	it("checks only the requested documents of the namespace and drops documents nobody asked for", async () => {
+		const record = (id: string, namespace: string, document: unknown): unknown => ({ document, id, namespace, sourceType: EApiPolicySourceType.DATABASE, version: "1" });
+		const valid = { Statement: [{ Action: ["app:item:*"], Effect: "Allow", Resource: ["*"] }], Version: "2012-10-17" };
+		const invalid = { Statement: [{ Action: ["*"], Effect: "Allow", Principal: "*", Resource: ["*"] }], Version: "2012-10-17" };
+		const source = {
+			getDocumentsByIds: vi.fn(async () => [record("policy-a", "app:item", valid), record("policy-b", "other:thing", invalid), record("stray", "app:item", invalid), record("stray-other", "other:thing", invalid)]),
+		};
+		const resolver = new ApiAuthorizationIamDocumentResolver(new ApiAuthorizationIamDocumentCache(), new ApiAuthorizationIamDocumentValidator(), [source as never]);
+
+		const documents = await resolver.resolve(["policy-a", "policy-b"], { namespace: "app:item" });
+
+		expect(documents.map((document: { id: string }): string => document.id)).toEqual(["policy-a", "policy-b"]);
+		await expect(resolver.resolve(["policy-a", "policy-b"], { namespace: "other:thing" })).rejects.toThrow('Policy document "policy-b" is invalid');
+		await expect(resolver.resolve(["policy-a", "policy-b"])).rejects.toThrow('Policy document "policy-b" is invalid');
+	});
+
+	it("still refuses an invalid requested document of the namespace", async () => {
+		const source = {
+			getDocumentsByIds: vi.fn(async () => [{ document: { Statement: [{ Action: ["app:item:*"], Effect: "Allow", Principal: "*", Resource: ["*"] }], Version: "2012-10-17" }, id: "policy-a", namespace: "app:item", sourceType: EApiPolicySourceType.DATABASE, version: "1" }]),
+		};
+		const resolver = new ApiAuthorizationIamDocumentResolver(new ApiAuthorizationIamDocumentCache(), new ApiAuthorizationIamDocumentValidator(), [source as never]);
+
+		await expect(resolver.resolve(["policy-a"], { namespace: "app:item" })).rejects.toThrow('Policy document "policy-a" is invalid');
+	});
 });

@@ -89,9 +89,11 @@ export class ApiAuthorizationIamEngine {
 		const isListRequest: boolean = AuthorizationIsListRoute(options.routeType, options.action, options.policyNamespace);
 		const documentMap: Map<string, IApiPolicyDocumentRecord> = new Map<string, IApiPolicyDocumentRecord>(options.documents.map((document: IApiPolicyDocumentRecord): [string, IApiPolicyDocumentRecord] => [document.id, document]));
 
-		const identityDocuments: ReadonlyArray<IApiPolicyDocumentRecord> = options.attachments.attachments.map((attachment: IApiPolicyAttachment): IApiPolicyDocumentRecord => this.resolveDocumentRecord(attachment.policyId, documentMap, options.policyNamespace));
+		const identityDocuments: ReadonlyArray<IApiPolicyDocumentRecord> = this.resolveDocumentRecords(options.attachments.attachments, documentMap, options.policyNamespace);
 
-		const boundaryDocuments: ReadonlyArray<IApiPolicyDocumentRecord> = options.attachments.boundaries.map((attachment: IApiPolicyAttachment): IApiPolicyDocumentRecord => this.resolveDocumentRecord(attachment.policyId, documentMap, options.policyNamespace));
+		const boundaryDocuments: ReadonlyArray<IApiPolicyDocumentRecord> = this.resolveDocumentRecords(options.attachments.boundaries, documentMap, options.policyNamespace);
+		// A boundary of another namespace still bounds the principal: it allows nothing in this one.
+		const isBounded: boolean = options.attachments.boundaries.length > 0;
 
 		const identityEvaluation: {
 			allowRows: Map<IApiPolicyStatement, IApiAuthorizationIamResourceRows>;
@@ -205,7 +207,7 @@ export class ApiAuthorizationIamEngine {
 			);
 		}
 
-		if (identityEvaluation.allowStatements.length === 0 || (boundaryDocuments.length > 0 && boundaryEvaluation.allowStatements.length === 0) || !identityScope.isFullyCompilable || !boundaryScope.isFullyCompilable) {
+		if (identityEvaluation.allowStatements.length === 0 || (isBounded && boundaryEvaluation.allowStatements.length === 0) || !identityScope.isFullyCompilable || !boundaryScope.isFullyCompilable) {
 			iamEngineLogger.verbose(`IAM authorization resolved implicit deny for principal "${options.principal.id}" action "${options.action}".`);
 
 			return Promise.resolve(
@@ -269,6 +271,9 @@ export class ApiAuthorizationIamEngine {
 			}>;
 		},
 	): IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> {
+		// The decision reports the documents it read: those of the request's namespace.
+		const documents: Array<IApiPolicyDocumentRecord> = options.documents.filter((document: IApiPolicyDocumentRecord): boolean => document.namespace === options.policyNamespace);
+
 		return {
 			action: options.action,
 			appliedRules: [],
@@ -276,7 +281,7 @@ export class ApiAuthorizationIamEngine {
 			mode: EApiAuthorizationMode.IAM,
 			permissions: [],
 			policyId: options.policyNamespace,
-			policyIds: options.documents.map((document: IApiPolicyDocumentRecord) => document.id),
+			policyIds: documents.map((document: IApiPolicyDocumentRecord) => document.id),
 			principal: options.principal,
 			resource: options.resource,
 			resourceType: options.resourceDefinition.resourceType,
@@ -285,7 +290,7 @@ export class ApiAuthorizationIamEngine {
 				attachments: options.attachments.attachments,
 				boundaries: options.attachments.boundaries,
 				decisionType: payload.decisionType,
-				documents: options.documents,
+				documents,
 				mode: EApiAuthorizationMode.IAM,
 				permissions: [],
 				statements: payload.statementTraces,
@@ -701,22 +706,35 @@ export class ApiAuthorizationIamEngine {
 		return text === "" ? undefined : text;
 	}
 
-	private resolveDocumentRecord(policyId: string, documentMap: Map<string, IApiPolicyDocumentRecord>, policyNamespace: string): IApiPolicyDocumentRecord {
-		const document: IApiPolicyDocumentRecord | undefined = documentMap.get(policyId);
+	/**
+	 * Reads the documents of attachments. A document of another namespace holds nothing for this request, so it is skipped;
+	 * a document no source returned fails the request.
+	 * @param {ReadonlyArray<IApiPolicyAttachment>} attachments - Attachments of the principal.
+	 * @param {Map<string, IApiPolicyDocumentRecord>} documentMap - Resolved documents by id.
+	 * @param {string} policyNamespace - Policy namespace of the request.
+	 * @returns {Array<IApiPolicyDocumentRecord>} The documents of the namespace, in attachment order.
+	 * @throws {Error} When an attached document is not available.
+	 */
+	private resolveDocumentRecords(attachments: ReadonlyArray<IApiPolicyAttachment>, documentMap: Map<string, IApiPolicyDocumentRecord>, policyNamespace: string): Array<IApiPolicyDocumentRecord> {
+		const documents: Array<IApiPolicyDocumentRecord> = [];
 
-		if (!document) {
-			iamEngineLogger.error(`Policy document "${policyId}" is not available for IAM evaluation`);
+		for (const attachment of attachments) {
+			const document: IApiPolicyDocumentRecord | undefined = documentMap.get(attachment.policyId);
 
-			throw ErrorException(`Policy document "${policyId}" is not available for IAM evaluation`);
+			if (!document) {
+				iamEngineLogger.error(`Policy document "${attachment.policyId}" is not available for IAM evaluation`);
+
+				throw ErrorException(`Policy document "${attachment.policyId}" is not available for IAM evaluation`);
+			}
+
+			if (document.namespace === policyNamespace) {
+				documents.push(document);
+			} else {
+				iamEngineLogger.verbose(`Policy document "${attachment.policyId}" of namespace "${document.namespace}" is skipped for namespace "${policyNamespace}".`);
+			}
 		}
 
-		if (document.namespace !== policyNamespace) {
-			iamEngineLogger.error(`Policy document "${policyId}" namespace "${document.namespace}" does not match required namespace "${policyNamespace}"`);
-
-			throw ErrorException(`Policy document "${policyId}" namespace "${document.namespace}" does not match required namespace "${policyNamespace}"`);
-		}
-
-		return document;
+		return documents;
 	}
 
 	private resolvePathValue(source: unknown, path: string): unknown {

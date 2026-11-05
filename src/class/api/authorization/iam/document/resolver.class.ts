@@ -9,6 +9,9 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 const iamDocumentResolverLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationIamDocumentResolver");
 
+// Starts the cache key part that names the namespace of a read; a policy id never starts with a NUL character.
+const IAM_DOCUMENT_RESOLVER_NAMESPACE_KEY: string = "\u0000namespace:";
+
 @Injectable()
 export class ApiAuthorizationIamDocumentResolver {
 	public constructor(
@@ -23,14 +26,26 @@ export class ApiAuthorizationIamDocumentResolver {
 		this.cache.clear();
 	}
 
-	public async resolve(ids: ReadonlyArray<string>): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> {
+	/**
+	 * Reads the policy documents of the requested ids from every document source. Only a requested document counts: one a
+	 * source returns unasked is neither read nor checked. With a namespace, only the documents of that namespace are checked
+	 * against the grammar; a requested document of another namespace is returned unchecked, and the engine skips it.
+	 * @param {ReadonlyArray<string>} ids - Requested policy ids.
+	 * @param {object} [options] - Read options.
+	 * @param {string} [options.namespace] - Namespace of the request; without it every requested document is checked.
+	 * @returns {Promise<ReadonlyArray<IApiPolicyDocumentRecord>>} One record per requested id, in id order.
+	 * @throws {Error} When a requested id is missing or returned twice, or a checked document is invalid.
+	 */
+	public async resolve(ids: ReadonlyArray<string>, options: { namespace?: string } = {}): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> {
 		const normalizedIds: Array<string> = this.cache.normalizeIds(ids);
 
 		if (normalizedIds.length === 0) {
 			return [];
 		}
 
-		const cachedDocuments: ReadonlyArray<IApiPolicyDocumentRecord> | undefined = this.cache.get(normalizedIds);
+		// What a read checks depends on its namespace, so a read of another namespace never answers from this one's entry.
+		const cacheIds: Array<string> = options.namespace === undefined ? normalizedIds : [...normalizedIds, `${IAM_DOCUMENT_RESOLVER_NAMESPACE_KEY}${options.namespace}`];
+		const cachedDocuments: ReadonlyArray<IApiPolicyDocumentRecord> | undefined = this.cache.get(cacheIds);
 
 		if (cachedDocuments) {
 			iamDocumentResolverLogger.verbose(`Using cached IAM policy documents for ${normalizedIds.length} requested ids.`);
@@ -38,13 +53,16 @@ export class ApiAuthorizationIamDocumentResolver {
 			return cachedDocuments;
 		}
 
+		const requestedIds: ReadonlySet<string> = new Set<string>(normalizedIds);
 		const recordsById: Map<string, IApiPolicyDocumentRecord> = new Map<string, IApiPolicyDocumentRecord>();
 
 		for (const source of this.sources) {
 			const records: ReadonlyArray<IApiPolicyDocumentRecord> = await source.getDocumentsByIds(normalizedIds);
-			this.validator.validateMany(records);
+			const requestedRecords: Array<IApiPolicyDocumentRecord> = records.filter((record: IApiPolicyDocumentRecord): boolean => typeof record.id === "string" && requestedIds.has(record.id));
 
-			for (const record of records) {
+			this.validator.validateMany(requestedRecords.filter((record: IApiPolicyDocumentRecord): boolean => options.namespace === undefined || record.namespace === options.namespace));
+
+			for (const record of requestedRecords) {
 				const existingRecord: IApiPolicyDocumentRecord | undefined = recordsById.get(record.id);
 
 				if (existingRecord) {
@@ -54,14 +72,6 @@ export class ApiAuthorizationIamDocumentResolver {
 				}
 
 				recordsById.set(record.id, record);
-			}
-		}
-
-		for (const id of normalizedIds) {
-			if (!recordsById.has(id)) {
-				iamDocumentResolverLogger.error(`Policy document "${id}" was requested but no document source returned it`);
-
-				throw ErrorException(`Policy document "${id}" was requested but no document source returned it`);
 			}
 		}
 
@@ -78,7 +88,7 @@ export class ApiAuthorizationIamDocumentResolver {
 
 			result.push(record);
 		}
-		this.cache.set(normalizedIds, result);
+		this.cache.set(cacheIds, result);
 		iamDocumentResolverLogger.verbose(`Resolved ${result.length} IAM policy documents from ${this.sources.length} sources.`);
 
 		return result;
