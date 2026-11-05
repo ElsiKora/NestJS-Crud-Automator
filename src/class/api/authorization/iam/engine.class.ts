@@ -35,7 +35,7 @@ import { ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam/qu
 import { ApiAuthorizationIamResourcePattern } from "@class/api/authorization/iam/resource-pattern.class";
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { AUTHORIZATION_IAM_SCOPE_CONSTANT } from "@constant/class/authorization";
-import { EApiAuthorizationDecisionType, EApiAuthorizationIamResourceClass, EApiAuthorizationMode, EApiPolicyConditionOperatorFamily, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
+import { EApiAuthorizationDecisionType, EApiAuthorizationIamColumnFamily, EApiAuthorizationIamResourceClass, EApiAuthorizationMode, EApiPolicyConditionOperatorFamily, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
@@ -614,8 +614,9 @@ export class ApiAuthorizationIamEngine {
 	}
 
 	/**
-	 * Tells whether a placeholder reads a column the database scope compares: a filterable field that maps it to a
-	 * resolvable column of the resource or of a to-one relation.
+	 * Tells whether a placeholder reads a text column the database scope compares: a filterable field that maps it to a
+	 * resolvable text column of the resource or of a to-one relation. Only text has a collation that can find a row by
+	 * another spelling of the path value; a number, a date, a UUID or a boolean path value is canonical text already.
 	 * @template E - Entity type.
 	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
 	 * @param {string} placeholder - Placeholder name.
@@ -630,7 +631,7 @@ export class ApiAuthorizationIamEngine {
 
 		const queryField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, field.queryPath);
 
-		return queryField.isResolvable && queryField.collectionPath === undefined;
+		return queryField.isResolvable && queryField.collectionPath === undefined && queryField.column?.family === EApiAuthorizationIamColumnFamily.TEXT;
 	}
 
 	private isRecord(value: unknown): value is Record<string, unknown> {
