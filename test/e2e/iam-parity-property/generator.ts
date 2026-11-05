@@ -27,6 +27,8 @@ export interface IE2eIamParityDefinition {
 export interface IE2eIamParityConditionEntry {
 	keys: ReadonlyArray<string>;
 	operators: ReadonlyArray<string>;
+	// Prefixes the operator may take; `E2E_IAM_PARITY_QUALIFIERS` when absent.
+	qualifiers?: ReadonlyArray<string>;
 	values: ReadonlyArray<unknown>;
 	// How often the entry is picked, relative to the others; 1 when absent.
 	weight?: number;
@@ -298,6 +300,26 @@ const IP_OPERATORS: ReadonlyArray<string> = ["IpAddress", "NotIpAddress"];
 
 const TEXT_KEYS: ReadonlyArray<string> = ["resource.label", "resource.note", "resource.id", "resource.ownerLabel"];
 
+/**
+ * A set qualifier, mostly: a key through a to-many relation requires one, and a multi-valued context key reads its set
+ * with one. The few without one reach the refusal of a to-many key and the plain reading of a context list.
+ */
+const SET_QUALIFIERS: ReadonlyArray<string> = [...Array.from({ length: 12 }, (): Array<string> => ["ForAnyValue:", "ForAllValues:"]).flat(), ""];
+
+const NOTE_KEYS: ReadonlyArray<string> = ["resource.noteActive", "resource.noteAt", "resource.noteCoded", "resource.noteDay", "resource.noteScore", "resource.noteText"];
+
+// Text of the related rows, a variable that reads the to-many relation, and the text of the row itself.
+const NOTE_TEXT_VALUES: ReadonlyArray<unknown> = ["ann", "ANN", "Ann", "ann ", "ANN ", "bob", "", "a%b", "😀nn", "*", "x", NAME_VARIABLE, UNRESOLVED, EMPTY_VARIABLE, ARRAY_VARIABLE, "${principal.attributes.missing, 'bob'}", "${resource.noteText}", "${resource.label}"];
+
+const NOTE_GLOB_VALUES: ReadonlyArray<unknown> = ["a*", "A*", "?nn", "*nn", "*nn ", "ann*", "b?b", "a%b", "a_b", "a${*}b", "*", "?", "", "😀*", NAME_VARIABLE, `${NAME_VARIABLE}*`, UNRESOLVED, EMPTY_VARIABLE];
+
+const NOTE_NUMERIC_VALUES: ReadonlyArray<unknown> = [0, 1, 2, 3, 7, -1, 70, "1", "1.5", "7", "-1", "2147483647", "-2147483648", "2147483648", "${principal.attributes.rank}", "${resource.rank}", "${resource.noteScore}", UNRESOLVED];
+
+// Values of the multi-valued context keys: `principal.roles`, `principal.groups` and the list attributes.
+const ROLE_VALUES: ReadonlyArray<unknown> = ["admin", "dev", "ADMIN", "x", "", "a*", "*", "d?v", "${principal.id}", NAME_VARIABLE, UNRESOLVED, "${principal.roles}", "${resource.label}"];
+const LIST_VALUES: ReadonlyArray<unknown> = ["ann", "bob", "ANN", "x", "", "a*", "*", "?nn", NAME_VARIABLE, UNRESOLVED, "${resource.note}", "${resource.noteText}"];
+const LIST_KEYS: ReadonlyArray<string> = ["principal.attributes.list", "principal.attributes.several", "principal.attributes.emptyList", "principal.attributes.nullList", "principal.attributes.objectList", "principal.attributes.nothing", "principal.attributes.missing", "principal.attributes.name"];
+
 // Keys and values of every operator family. The grammar refuses a few on purpose: on a database without the column type, or an operator that does not fit the column, every view must refuse alike.
 export const E2E_IAM_PARITY_CONDITION_ENTRIES: ReadonlyArray<IE2eIamParityConditionEntry> = [
 	{ keys: TEXT_KEYS, operators: STRING_OPERATORS, values: TEXT_VALUES, weight: 4 },
@@ -322,22 +344,43 @@ export const E2E_IAM_PARITY_CONDITION_ENTRIES: ReadonlyArray<IE2eIamParityCondit
 	{ keys: ["principal.attributes.rank"], operators: NUMERIC_OPERATORS, values: [0, 1, 2, "1", "1.5", "${resource.rank}", UNRESOLVED] },
 	{ keys: ["principal.attributes.isEnabled"], operators: ["Bool"], values: [true, false, "${resource.isActive}", UNRESOLVED] },
 	{ keys: ["principal.attributes.since"], operators: DATE_OPERATORS, values: ["2024-01-01T00:00:00Z", "2020-01-01T00:00:00Z", "${resource.occurredAt}", "${request.time}"] },
-	{ keys: ["principal.attributes.missing", "principal.attributes.empty", "principal.attributes.list"], operators: ["Null"], values: [true, false] },
+	{ keys: ["principal.attributes.missing", "principal.attributes.empty", "principal.attributes.list", "principal.attributes.emptyList", "principal.attributes.nullList", "principal.attributes.nothing", "principal.roles", "principal.groups"], operators: ["Null"], values: [true, false] },
 	{ keys: ["principal.attributes.list"], operators: STRING_OPERATORS, values: ["ann", "bob"] },
 	{ keys: ["principal.attributes.missing", "principal.attributes.empty"], operators: [...STRING_OPERATORS, ...LIKE_OPERATORS], values: ["ann", "", "*"] },
 	{ keys: ["request.time"], operators: DATE_OPERATORS, values: ["2999-01-01T00:00:00Z", "2000-01-01T00:00:00Z", "${principal.attributes.since}", "${resource.occurredAt}"] },
 	{ keys: ["request.sourceIp", "request.ip"], operators: IP_OPERATORS, values: ["127.0.0.0/8", "127.0.0.1", "10.0.0.0/8", "2001:db8::/32", "${principal.attributes.network}", UNRESOLVED] },
 	{ keys: ["request.parameters.id"], operators: [...STRING_OPERATORS, ...LIKE_OPERATORS], values: ["z", "item-*", "*", NAME_VARIABLE, "${resource.id}"] },
+	// Keys through the to-many relation, which compile to a correlated subquery. `noteCoded` has a value transformer, which a subquery bypasses, so the grammar refuses it.
+	{ keys: ["resource.noteText"], operators: STRING_OPERATORS, qualifiers: SET_QUALIFIERS, values: NOTE_TEXT_VALUES, weight: 4 },
+	{ keys: ["resource.noteText"], operators: IGNORE_CASE_OPERATORS, qualifiers: SET_QUALIFIERS, values: NOTE_TEXT_VALUES, weight: 1.5 },
+	{ keys: ["resource.noteText"], operators: LIKE_OPERATORS, qualifiers: SET_QUALIFIERS, values: NOTE_GLOB_VALUES, weight: 2.5 },
+	{ keys: ["resource.noteText"], operators: ARN_OPERATORS, qualifiers: SET_QUALIFIERS, values: ["ann", "a*", "*", "arn:*"], weight: 0.5 },
+	{ keys: ["resource.noteScore"], operators: NUMERIC_OPERATORS, qualifiers: SET_QUALIFIERS, values: NOTE_NUMERIC_VALUES, weight: 3 },
+	{ keys: ["resource.noteActive"], operators: ["Bool"], qualifiers: SET_QUALIFIERS, values: BOOLEAN_VALUES, weight: 1.5 },
+	{ keys: ["resource.noteActive"], operators: STRING_OPERATORS, qualifiers: SET_QUALIFIERS, values: [true, false, "true", "false", "${principal.attributes.isEnabled}", UNRESOLVED] },
+	{ keys: ["resource.noteAt"], operators: DATE_OPERATORS, qualifiers: SET_QUALIFIERS, values: [...INSTANT_VALUES, "${resource.occurredAt}"], weight: 2.5 },
+	{ keys: ["resource.noteDay"], operators: DATE_OPERATORS, qualifiers: SET_QUALIFIERS, values: CALENDAR_VALUES, weight: 1.5 },
+	{ keys: ["resource.noteCoded"], operators: STRING_OPERATORS, qualifiers: SET_QUALIFIERS, values: ["ann", "x-ann", "ANN", "", NAME_VARIABLE], weight: 0.25 },
+	// `Null` takes no qualifier, and a to-many key requires one: the grammar refuses either way.
+	{ keys: NOTE_KEYS, operators: ["Null"], qualifiers: SET_QUALIFIERS, values: [true, false], weight: 0.25 },
+	{ keys: ["resource.noteScore", "resource.noteActive"], operators: LIKE_OPERATORS, qualifiers: SET_QUALIFIERS, values: ["1", "t*"], weight: 0.25 },
+	// Multi-valued context keys, read in memory on every view.
+	{ keys: ["principal.roles", "principal.groups"], operators: [...STRING_OPERATORS, ...IGNORE_CASE_OPERATORS, ...LIKE_OPERATORS], qualifiers: SET_QUALIFIERS, values: ROLE_VALUES, weight: 2 },
+	{ keys: LIST_KEYS, operators: [...STRING_OPERATORS, ...LIKE_OPERATORS], qualifiers: SET_QUALIFIERS, values: LIST_VALUES, weight: 2 },
+	{ keys: ["principal.attributes.ranks", "principal.attributes.rank", "principal.attributes.emptyList"], operators: NUMERIC_OPERATORS, qualifiers: SET_QUALIFIERS, values: [0, 1, 7, "7", "${resource.rank}", UNRESOLVED], weight: 0.75 },
 	// An operator that does not fit its column: the grammar refuses the document.
 	{ keys: ["resource.rank", "resource.amount"], operators: [...STRING_OPERATORS, ...LIKE_OPERATORS], values: ["1", "${principal.attributes.rank}"], weight: 0.25 },
 	{ keys: ["resource.label"], operators: ["NumericEquals", "Bool", "DateEquals"], values: ["1", "true", "2024-01-01"], weight: 0.25 },
 ];
 
-// Prefixes of an operator: phase P5 adds "ForAnyValue:" and "ForAllValues:".
-export const E2E_IAM_PARITY_QUALIFIERS: ReadonlyArray<string> = [""];
+/**
+ * Prefixes of an operator on an entry that names none. A qualifier on a key of one value, such as a column of the row,
+ * is refused by the grammar, so it comes rarely; on a `principal.attributes.*` key it reads a set of one.
+ */
+export const E2E_IAM_PARITY_QUALIFIERS: ReadonlyArray<string> = [...Array.from({ length: 28 }, (): string => ""), "ForAnyValue:", "ForAllValues:"];
 
-// How many values one key takes: phase P5 adds counts above 1, which the grammar refuses today.
-export const E2E_IAM_PARITY_VALUE_COUNTS: ReadonlyArray<number> = [1];
+// How many values one key takes. Several values multiply the branches of a scope, and many fail it closed.
+export const E2E_IAM_PARITY_VALUE_COUNTS: ReadonlyArray<number> = [1, 1, 1, 2, 2, 3, 4];
 
 const CONDITION_KEY_COUNTS: ReadonlyArray<number> = [0, 1, 1, 1, 2];
 const STATEMENT_COUNTS: ReadonlyArray<number> = [1, 1, 2, 2, 3];
@@ -394,7 +437,7 @@ const generateCondition = (random: IE2eIamParityRandom): Record<string, Record<s
 		const entry: IE2eIamParityConditionEntry = pickEntry(random);
 		const base: string = random.pick(entry.operators);
 		// `Null` has no IfExists form.
-		const operator: string = `${random.pick(E2E_IAM_PARITY_QUALIFIERS)}${base}${base !== "Null" && random.chance(0.25) ? "IfExists" : ""}`;
+		const operator: string = `${random.pick(entry.qualifiers ?? E2E_IAM_PARITY_QUALIFIERS)}${base}${base !== "Null" && random.chance(0.25) ? "IfExists" : ""}`;
 		const valueCount: number = random.pick(E2E_IAM_PARITY_VALUE_COUNTS);
 		const values: Array<unknown> = Array.from({ length: valueCount }, (): unknown => random.pick(entry.values));
 

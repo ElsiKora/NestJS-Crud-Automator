@@ -54,7 +54,16 @@ interface IRunStatistics {
 	readsWithheld: number;
 	rowsHidden: number;
 	rowsShown: number;
+	// Policies the grammar reads that hold a set qualifier.
+	setPolicies: number;
+	// Policies the grammar reads with a key through the to-many relation, and those whose list keeps part of the rows.
+	toManyPartialLists: number;
+	toManyPolicies: number;
 }
+
+// A key through the to-many relation of the rows.
+const TO_MANY_KEY_PATTERN: RegExp = /"resource\.note[A-Z]/u;
+const QUALIFIER_PATTERN: RegExp = /"For(?:All|Any)Values?:/u;
 
 // A policy the grammar refuses logs an error per view; the report names what matters. Set the level to read them on a replay.
 process.env.NCD_LOG_LEVEL ??= "none";
@@ -166,7 +175,7 @@ function compareViews(answers: IViewAnswers, hasRead: boolean): Array<IDisagreem
 }
 
 /**
- * Lists the policies one edit smaller: a statement less, a key less, or a pattern less.
+ * Lists the policies one edit smaller: a statement less, a key less, a value less, or a pattern less.
  * @param {ReadonlyArray<IApiPolicyStatement>} statements - Policy.
  * @returns {Array<Array<IApiPolicyStatement>>} The smaller policies.
  */
@@ -190,6 +199,16 @@ function listSmallerPolicies(statements: ReadonlyArray<IApiPolicyStatement>): Ar
 				const { Condition: _removed, ...withoutCondition }: IApiPolicyStatement = statement;
 
 				smaller.push(replaced(index, Object.keys(condition).length > 0 ? { ...statement, Condition: condition } : withoutCondition));
+
+				const values: unknown = keys[key];
+
+				// A key of several values, one value less.
+				for (const [position] of Array.isArray(values) && values.length > 1 ? values.entries() : []) {
+					const fewer: Record<string, Record<string, unknown>> = JSON.parse(JSON.stringify(statement.Condition)) as Record<string, Record<string, unknown>>;
+
+					(fewer[operator] as Record<string, unknown>)[key] = (values as Array<unknown>).filter((_value: unknown, other: number): boolean => other !== position);
+					smaller.push(replaced(index, { ...statement, Condition: fewer }));
+				}
 			}
 		}
 
@@ -409,7 +428,7 @@ describe.each<{ database: TE2eIamParityDatabase; databaseName: string }>(
 	it(
 		`never shows a row that memory denies, over ${CASE_INDICES.length} policies of seed ${SEED}`,
 		async () => {
-			const statistics: IRunStatistics = { gapRows: 0, grammarRefused: 0, listRefused: 0, partialLists: 0, policies: 0, readsAllowed: 0, readsWithheld: 0, rowsHidden: 0, rowsShown: 0 };
+			const statistics: IRunStatistics = { gapRows: 0, grammarRefused: 0, listRefused: 0, partialLists: 0, policies: 0, readsAllowed: 0, readsWithheld: 0, rowsHidden: 0, rowsShown: 0, setPolicies: 0, toManyPartialLists: 0, toManyPolicies: 0 };
 			const hard: Array<{ disagreement: IDisagreement; testCase: IE2eIamParityCase }> = [];
 			const soft: Map<string, Array<{ disagreement: IDisagreement; testCase: IE2eIamParityCase }>> = new Map<string, Array<{ disagreement: IDisagreement; testCase: IE2eIamParityCase }>>();
 
@@ -426,6 +445,14 @@ describe.each<{ database: TE2eIamParityDatabase; databaseName: string }>(
 				statistics.partialLists += answers.list.ids.length > 0 && answers.list.ids.length < ROW_IDS.length ? 1 : 0;
 				statistics.readsAllowed += [...answers.reads.values()].filter((statusCode: number): boolean => statusCode === HttpStatus.OK).length;
 				statistics.readsWithheld += [...answers.reads.values()].filter((statusCode: number): boolean => statusCode === HttpStatus.FORBIDDEN || statusCode === HttpStatus.NOT_FOUND).length;
+
+				const isRead: boolean = answers.list.statusCode !== HttpStatus.INTERNAL_SERVER_ERROR;
+				const text: string = JSON.stringify(testCase.statements);
+				const isToMany: boolean = isRead && TO_MANY_KEY_PATTERN.test(text);
+
+				statistics.setPolicies += isRead && QUALIFIER_PATTERN.test(text) ? 1 : 0;
+				statistics.toManyPolicies += isToMany ? 1 : 0;
+				statistics.toManyPartialLists += isToMany && answers.list.ids.length > 0 && answers.list.ids.length < ROW_IDS.length ? 1 : 0;
 
 				for (const disagreement of disagreements) {
 					if (disagreement.isHard) {
@@ -470,6 +497,10 @@ describe.each<{ database: TE2eIamParityDatabase; databaseName: string }>(
 				expect(statistics.listRefused).toBeGreaterThan(0);
 				expect(statistics.readsAllowed).toBeGreaterThan(0);
 				expect(statistics.readsWithheld).toBeGreaterThan(0);
+				// And the sets: a qualifier the grammar reads, and a to-many key whose subquery keeps part of the rows.
+				expect(statistics.setPolicies).toBeGreaterThan(0);
+				expect(statistics.toManyPolicies).toBeGreaterThan(0);
+				expect(statistics.toManyPartialLists).toBeGreaterThan(0);
 			}
 		},
 		BASE_TIMEOUT_MS + MS_PER_POLICY * CASE_INDICES.length,
