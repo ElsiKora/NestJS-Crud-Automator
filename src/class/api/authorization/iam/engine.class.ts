@@ -305,10 +305,11 @@ export class ApiAuthorizationIamEngine {
 
 	/**
 	 * Classifies one resolved pattern of a statement's target, read by text. A list decomposes it over the placeholders of
-	 * the path. Any other request names one resource or none, so a pattern either covers it, misses it, or says nothing
-	 * exact about it: an Allow then grants nothing by the pattern and a `NotResource` or a loaded resource fails closed. A
-	 * `Resource` of a Deny that says nothing exact about an unloaded row stays out of the request, unless it holds a
-	 * wildcard before its end on a create, which no row could be checked against later.
+	 * the path, and so does a create for a `Resource` of a Deny: its constraints then exclude the row the create stores,
+	 * which the create reads back before it commits, so the Deny refuses that row and no other. Any other request names one
+	 * resource or none, so a pattern either covers it, misses it, or says nothing exact about it: an Allow then grants
+	 * nothing by the pattern and a `NotResource` or a loaded resource fails closed. A `Resource` of a Deny that says nothing
+	 * exact about the unloaded row of a row route stays out of the request.
 	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} tokens - Resolved pattern tokens.
 	 * @param {IApiAuthorizationIamStatement} statement - Statement of the pattern.
 	 * @param {object} options - Matching options.
@@ -322,7 +323,7 @@ export class ApiAuthorizationIamEngine {
 		const segments: ReadonlyArray<IApiAuthorizationIamResourceSegment> = options.requestResource.segments;
 		const isDenyResourceOfUnloadedRow: boolean = statement.effect === EApiPolicyEffect.DENY && !statement.resource.isNegated && options.resource === undefined;
 
-		if (options.resource === undefined && options.isListRequest) {
+		if (options.resource === undefined && (options.isListRequest || (options.isCreateRequest && isDenyResourceOfUnloadedRow))) {
 			return ApiAuthorizationIamResourcePattern.classify(tokens, segments, options.requestResource.alphabets);
 		}
 
@@ -334,9 +335,7 @@ export class ApiAuthorizationIamEngine {
 			return { constraints: [], kind: EApiAuthorizationIamResourceClass.NONE };
 		}
 
-		const isStayingOut: boolean = isDenyResourceOfUnloadedRow && (!options.isCreateRequest || ApiAuthorizationIamGlob.readLiteralPrefix(tokens) !== undefined);
-
-		return { constraints: [], kind: isStayingOut ? EApiAuthorizationIamResourceClass.NONE : EApiAuthorizationIamResourceClass.AMBIGUOUS };
+		return { constraints: [], kind: isDenyResourceOfUnloadedRow ? EApiAuthorizationIamResourceClass.NONE : EApiAuthorizationIamResourceClass.AMBIGUOUS };
 	}
 
 	/**

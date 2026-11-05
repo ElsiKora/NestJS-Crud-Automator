@@ -261,7 +261,7 @@ describe.each<{ database: TE2eIamTargetDatabase; databaseName: string }>([
 		const CASES: Array<[string, () => string, () => string, () => string, Record<string, string>, Record<string, string>]> = [
 			["an exact id", () => namespaces.item, () => `${namespaces.item}/secret`, () => "/iam-target/items", { id: "secret" }, { id: "other" }],
 			["a trailing star", () => namespaces.item, () => `${namespaces.item}/sec*`, () => "/iam-target/items", { id: "secret" }, { id: "other" }],
-			["a tenant prefix", () => namespaces.tenantBody, () => `${namespaces.tenantBody}/t9/*`, () => "/iam-target/tenant-bodies", { id: "s1", tenant: "t9" }, { id: "s2", tenant: "t8" }],
+			["a tenant prefix", () => namespaces.tenantBody, () => `${namespaces.tenantBody}/t9*`, () => "/iam-target/tenant-bodies", { id: "s1", tenant: "t9" }, { id: "s2", tenant: "t8" }],
 			["two placeholders", () => namespaces.tenantBody, () => `${namespaces.tenantBody}/t9/i/secret`, () => "/iam-target/tenant-bodies", { id: "secret", tenant: "t9" }, { id: "secret", tenant: "t8" }],
 		];
 

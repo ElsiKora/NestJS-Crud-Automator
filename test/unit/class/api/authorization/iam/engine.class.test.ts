@@ -755,11 +755,11 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 		});
 
-		it("does not compile row patterns outside list routes", async () => {
+		it("compiles row patterns on a create, whose stored row the create reads back", async () => {
 			const decision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })] });
 
 			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
-			expect(decision.scope).toBeUndefined();
+			expect(decision.scope).toEqual({ where: [{ id: Not(Equal("item-1")) }, { id: IsNull() }] });
 		});
 	});
 
@@ -952,10 +952,12 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect(where[1]).toEqual({ id: IsNull() });
 		});
 
-		it("denies a create for a Resource with ? that some row could match", async () => {
+		it("excludes the rows a Resource with ? matches from a create", async () => {
 			const decision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Resource: ["gameport:admin:item/item-?"] })] });
+			const where = decision.scope?.where as [{ id: FindOperator<unknown> }, { id: FindOperator<unknown> }];
 
-			expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(Object.values(where[0].id.objectLiteralParameters ?? {})).toEqual(["item-_"]);
 		});
 
 		it("denies the whole list for an Action with an interior wildcard", async () => {
@@ -995,14 +997,16 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect(decision.scope).toBeUndefined();
 		});
 
-		it("denies a create for an Action or a Resource with an interior wildcard", async () => {
+		it("denies a create for an Action with an interior wildcard, and excludes the rows of such a Resource", async () => {
 			const actionDecision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Action: ["admin:*:create"] })] });
 			const resourceDecision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Resource: ["gameport:admin:item/*-secret"] })] });
 			const otherTypeDecision = await evaluate({ action: "admin:item:create", routeType: EApiRouteType.CREATE, statements: [allowAll, deny({ Resource: ["gameport:other/*-secret"] })] });
 
 			expect(actionDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
-			expect(resourceDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect(resourceDecision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(resourceDecision.scope?.where).toHaveLength(2);
 			expect(otherTypeDecision.effect).toBe(EApiPolicyEffect.ALLOW);
+			expect(otherTypeDecision.scope).toBeUndefined();
 		});
 
 		it("matches an Allow with an interior wildcard or ? as a glob", async () => {

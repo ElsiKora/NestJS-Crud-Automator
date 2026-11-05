@@ -484,10 +484,11 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 	});
 
 	describe("Deny with row patterns", () => {
-		it("does not apply a row pattern to a create unless a wildcard before its end cannot be mapped", async () => {
-			expect(await readType(CREATE, [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })])).toBe(ALLOWED);
-			expect(await readType(CREATE, [allowAll, deny({ Resource: ["gameport:admin:item/item-*"] })])).toBe(ALLOWED);
-			expect(await readType(CREATE, [allowAll, deny({ Resource: ["gameport:admin:item/*-secret"] })])).toBe(DENIED);
+		it("scopes a create to the rows a row pattern does not name, which the create reads back before it commits", async () => {
+			expect((await evaluate(CREATE, [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })])).scope).toEqual({ where: [{ id: Not(Equal("item-1")) }, { id: IsNull() }] });
+			expect((await evaluate({ ...CREATE, dialect: SQLITE }, [allowAll, deny({ Resource: ["gameport:admin:item/item-*"] })])).scope?.where).toHaveLength(2);
+			expect((await evaluate(CREATE, [allowAll, deny({ Resource: ["gameport:admin:item/*-secret"] })])).scope?.where).toHaveLength(2);
+			expect(await readType({ ...CREATE, resourceDefinition: tenantDefinition }, [allowAll, deny({ Resource: ["gameport:tenant/*/item/item-1"] })])).toBe(DENIED);
 		});
 
 		it("excludes the suffix a wildcard names", async () => {
