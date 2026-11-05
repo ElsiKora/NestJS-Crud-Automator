@@ -92,6 +92,27 @@ describe("ApiAuthorizationIamParser", () => {
 			expect(ApiAuthorizationIamParser.readDocument(cyclic).failures.map((failure) => [failure.property, failure.code])).toEqual([["document", "iamPolicyDocumentInvalid"]]);
 		});
 
+		it("refuses a Resource or NotResource pattern longer than the limit, and reads one at the limit", () => {
+			const MAX_PATTERN_LENGTH = 2048;
+			const pattern = (length: number): string => `admin:item/${"a".repeat(length - "admin:item/".length)}`;
+			const document = (target: Record<string, Array<string>>) => ({ Statement: [{ Action: ["admin:item:read"], Effect: EApiPolicyEffect.DENY, ...target }], Version: "2012-10-17" });
+
+			expect(ApiAuthorizationIamParser.readDocument(document({ Resource: [pattern(MAX_PATTERN_LENGTH)] })).failures).toEqual([]);
+			expect(ApiAuthorizationIamParser.readDocument(document({ Resource: [pattern(MAX_PATTERN_LENGTH + 1)] })).failures.map((failure) => [failure.property, failure.code])).toEqual([["document.Statement[0].Resource[0]", "iamPolicyPatternInvalid"]]);
+			expect(ApiAuthorizationIamParser.readDocument(document({ NotResource: ["*", pattern(MAX_PATTERN_LENGTH + 1)] })).failures.map((failure) => [failure.property, failure.code])).toEqual([["document.Statement[0].NotResource[1]", "iamPolicyPatternInvalid"]]);
+			expect(() => ApiAuthorizationIamParser.readStatement({ Action: ["admin:item:read"], Effect: EApiPolicyEffect.DENY, Resource: [pattern(120_000)] })).toThrow("iamPolicyPatternInvalid");
+		});
+
+		it("refuses a condition value longer than the limit, and reads one at the limit", () => {
+			const MAX_CONDITION_VALUE_LENGTH = 2048;
+			const document = (operator: string, value: string) => ({ Statement: [{ Action: ["admin:item:read"], Condition: { [operator]: { "principal.id": [value] } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }], Version: "2012-10-17" });
+
+			expect(ApiAuthorizationIamParser.readDocument(document("StringEquals", "a".repeat(MAX_CONDITION_VALUE_LENGTH))).failures).toEqual([]);
+			expect(ApiAuthorizationIamParser.readDocument(document("StringEquals", "a".repeat(MAX_CONDITION_VALUE_LENGTH + 1))).failures.map((failure) => failure.code)).toEqual(["iamPolicyConditionValueInvalid"]);
+			expect(ApiAuthorizationIamParser.readDocument(document("StringLike", `*${"a".repeat(MAX_CONDITION_VALUE_LENGTH)}`)).failures.map((failure) => failure.code)).toEqual(["iamPolicyConditionValueInvalid"]);
+			expect(() => ApiAuthorizationIamParser.readStatement({ Action: ["admin:item:read"], Condition: { StringLike: { "principal.id": `*${"a".repeat(120_000)}*` } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] })).toThrow("iamPolicyConditionValueInvalid");
+		});
+
 		it("reports the qualifier and operator path in bracket form", () => {
 			const result = ApiAuthorizationIamParser.readDocument({ Statement: [{ Action: ["*"], Condition: { "ForAnyValue:StringEquals": { "principal.id": "a" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }], Version: "2012-10-17" });
 
