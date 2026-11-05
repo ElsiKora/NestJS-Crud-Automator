@@ -39,7 +39,7 @@ export class ApiAuthorizationIamVariable {
 			principal,
 			request: {
 				body: requestMetadata.body,
-				headers: requestMetadata.headers,
+				headers: ApiAuthorizationIamVariable.readHeaders(requestMetadata.headers),
 				ip: requestMetadata.ip,
 				parameters: requestMetadata.parameters,
 				query: requestMetadata.query,
@@ -196,6 +196,28 @@ export class ApiAuthorizationIamVariable {
 	 */
 	private static isRecord(value: unknown): value is Record<string, unknown> {
 		return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+	}
+
+	/**
+	 * Reads request headers under lower-case names, as Node reads them, so a header a caller passes as `X-Foo` reads as
+	 * `x-foo`. Names that differ only in case hold a list, which no single-valued condition reads.
+	 * @param {Record<string, string> | undefined} headers - Request headers.
+	 * @returns {Record<string, unknown> | undefined} The headers under lower-case names, or undefined without headers.
+	 */
+	private static readHeaders(headers: Record<string, string> | undefined): Record<string, unknown> | undefined {
+		if (!ApiAuthorizationIamVariable.isRecord(headers)) {
+			return headers;
+		}
+
+		const result: Record<string, unknown> = {};
+
+		for (const [name, value] of Object.entries(headers)) {
+			const key: string = name.toLowerCase();
+
+			result[key] = Object.hasOwn(result, key) ? [result[key], value].flat() : value;
+		}
+
+		return result;
 	}
 
 	/**

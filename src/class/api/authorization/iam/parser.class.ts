@@ -41,6 +41,9 @@ const IAM_PARSER_MAX_MINUTE: number = 59;
 // The context key of the time of the request.
 const IAM_PARSER_REQUEST_TIME_KEY: string = "request.time";
 
+// Prefix of a condition key that reads a request header; Node reads header names in lower case.
+const IAM_PARSER_REQUEST_HEADERS_PREFIX: string = "request.headers.";
+
 // Epoch seconds, which the grammar refuses as a date.
 const IAM_PARSER_EPOCH_PATTERN: RegExp = /^-?\d+(?:\.\d+)?$/;
 
@@ -536,8 +539,10 @@ export class ApiAuthorizationIamParser {
 			return conditions;
 		}
 
-		for (const [key, rawValues] of Object.entries(operands)) {
-			const keyProperty: string = `${operatorProperty}[${JSON.stringify(key)}]`;
+		for (const [source, rawValues] of Object.entries(operands)) {
+			const keyProperty: string = `${operatorProperty}[${JSON.stringify(source)}]`;
+			// A header name is case-insensitive, and Node reads it in lower case, so the key is read in lower case too.
+			const key: string = source.startsWith(IAM_PARSER_REQUEST_HEADERS_PREFIX) ? `${IAM_PARSER_REQUEST_HEADERS_PREFIX}${source.slice(IAM_PARSER_REQUEST_HEADERS_PREFIX.length).toLowerCase()}` : source;
 			const failureCount: number = scope.failures.length;
 			const entry: IApiAuthorizationIamContextKey | undefined = ApiAuthorizationIamParser.findContextKey(key);
 
