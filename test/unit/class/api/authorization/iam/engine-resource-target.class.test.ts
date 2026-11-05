@@ -176,7 +176,7 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 
 			expect(decision.trace.decisionType).toBe(ALLOWED);
 			expect(decision.scope?.where).toBeDefined();
-			expect(await readType(read("item-1"), statements)).toBe(DENIED);
+			expect(await readType({ ...read("item-1"), dialect: { type: EApiAuthorizationIamDialect.PORTABLE } }, statements)).toBe(DENIED);
 		});
 
 		it("reads a value that holds a separator of the resource path as no resource", async () => {

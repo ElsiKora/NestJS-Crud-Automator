@@ -398,10 +398,10 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 			const statements = (count: number) => Array.from({ length: count }, (_: unknown, index: number) => createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.status": `s${index}` } }));
 			const maxWhereBranches: number = AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES;
 
-			expect(new ApiAuthorizationIamQueryPlanner().plan({ principal, requestMetadata: {}, resourceDefinition, statements: statements(maxWhereBranches) }).isFullyCompilable).toBe(true);
-			expect(new ApiAuthorizationIamQueryPlanner().plan({ principal, requestMetadata: {}, resourceDefinition, statements: statements(maxWhereBranches + 1) })).toEqual({ isFullyCompilable: false });
+			expect(new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal, requestMetadata: {}, resourceDefinition, statements: statements(maxWhereBranches) }).isFullyCompilable).toBe(true);
+			expect(new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal, requestMetadata: {}, resourceDefinition, statements: statements(maxWhereBranches + 1) })).toEqual({ isFullyCompilable: false });
 			// A statement that allows every row still allows every row, wherever it stands.
-			expect(new ApiAuthorizationIamQueryPlanner().plan({ principal, requestMetadata: {}, resourceDefinition, statements: [...statements(maxWhereBranches + 1), createStatement(EApiPolicyEffect.ALLOW, {})] })).toEqual({ isFullyCompilable: true, scope: undefined });
+			expect(new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal, requestMetadata: {}, resourceDefinition, statements: [...statements(maxWhereBranches + 1), createStatement(EApiPolicyEffect.ALLOW, {})] })).toEqual({ isFullyCompilable: true, scope: undefined });
 		});
 
 		it("counts one branch for a single where and one per element of a list", () => {
