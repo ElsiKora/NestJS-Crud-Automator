@@ -533,13 +533,13 @@ describe("IAM operator lowering to SQL", () => {
 				    "parameters": [
 				      "[aA][*][bB][?][[]é]",
 				    ],
-				    "where": "(((("IamLowererItemEntity"."name" NOT GLOB ?))))",
+				    "where": "((((("IamLowererItemEntity"."name" NOT GLOB ? AND instr(CAST("IamLowererItemEntity"."name" AS BLOB), X'00') = 0)))))",
 				  },
 				  "positive": {
 				    "parameters": [
 				      "[aA][nN][nN]",
 				    ],
-				    "where": "(((("IamLowererItemEntity"."name" GLOB ?))))",
+				    "where": "((((("IamLowererItemEntity"."name" GLOB ? AND instr(CAST("IamLowererItemEntity"."name" AS BLOB), X'00') = 0)))))",
 				  },
 				}
 			`);
@@ -553,7 +553,7 @@ describe("IAM operator lowering to SQL", () => {
 				    "parameters": [
 				      "a[*][[]?*",
 				    ],
-				    "where": "(((("IamLowererItemEntity"."name" GLOB ?))))",
+				    "where": "((((("IamLowererItemEntity"."name" GLOB ? AND instr(CAST("IamLowererItemEntity"."name" AS BLOB), X'00') = 0)))))",
 				  },
 				  "ip": "fails closed",
 				}

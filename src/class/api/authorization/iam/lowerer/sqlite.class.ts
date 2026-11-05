@@ -14,6 +14,9 @@ const IAM_SQLITE_LOWERER_BINARY_COLLATION: string = "binary";
 // The text TypeORM stores an instant as, which `strftime` also gives of a `datetime('now')` default.
 const IAM_SQLITE_LOWERER_INSTANT_FORMAT: string = "%Y-%m-%d %H:%M:%f";
 
+// U+0000, at which SQLite GLOB stops reading a text or a pattern.
+const IAM_SQLITE_LOWERER_NUL: string = "\u0000";
+
 // The characters a GLOB reads as more than themselves.
 const IAM_SQLITE_LOWERER_GLOB_SPECIAL: RegExp = /[*?[]/g;
 
@@ -22,6 +25,8 @@ const IAM_SQLITE_LOWERER_GLOB_SPECIAL: RegExp = /[*?[]/g;
  * 5.1.0 compared it; a column that declares another collation, such as `NOCASE`, compares under `COLLATE BINARY`.
  * SQLite `LIKE` ignores ASCII letter case, so a glob lowers to `GLOB`, which compares bytes, with `*`, `?` and `[` of a
  * literal escaped as `[*]`, `[?]` and `[[]`, and an IgnoreCase comparison to a `GLOB` with `[aA]` for each ASCII letter.
+ * `GLOB` stops at a NUL character, so a row whose text holds one is in neither form of a `GLOB`, and a pattern that
+ * holds one does not lower.
  *
  * A Numeric literal binds as a number, since the driver reads every column as one: only a literal a double holds
  * exactly compares, with any type, and SQLite compares an integer with a real exactly. An instant compares as the
@@ -60,7 +65,7 @@ export class ApiAuthorizationIamSqliteLowerer extends ApiAuthorizationIamPortabl
 	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
 	 */
 	protected override lowerIgnoreCaseIn(atom: IApiAuthorizationIamPredicateIn): IApiAuthorizationIamPredicateLowered {
-		if (atom.values.length === 0 || atom.values.some((value: TApiAuthorizationIamPredicateValue): boolean => typeof value !== "string") || atom.column.field.column?.family !== EApiAuthorizationIamColumnFamily.TEXT || atom.column.field.column.hasTransformer) {
+		if (atom.values.length === 0 || atom.values.some((value: TApiAuthorizationIamPredicateValue): boolean => typeof value !== "string" || value.includes(IAM_SQLITE_LOWERER_NUL)) || atom.column.field.column?.family !== EApiAuthorizationIamColumnFamily.TEXT || atom.column.field.column.hasTransformer) {
 			return { isExact: false };
 		}
 
@@ -80,7 +85,9 @@ export class ApiAuthorizationIamSqliteLowerer extends ApiAuthorizationIamPortabl
 				const operator: string = atom.isNegated ? "NOT GLOB" : "GLOB";
 				const comparisons: string = parameterNames.map((parameterName: string): string => `${columnAlias} ${operator} :${parameterName}`).join(atom.isNegated ? " AND " : " OR ");
 
-				return parameterNames.length === 1 ? comparisons : `(${comparisons})`;
+				const grouped: string = parameterNames.length === 1 ? comparisons : `(${comparisons})`;
+
+				return `(${grouped} AND ${this.createNoNulCondition(columnAlias)})`;
 			}, parameters),
 		};
 	}
@@ -97,9 +104,14 @@ export class ApiAuthorizationIamSqliteLowerer extends ApiAuthorizationIamPortabl
 		}
 
 		const pattern: string = atom.pattern.map((token: IApiAuthorizationIamToken): string => this.readGlobToken(token)).join("");
+
+		if (pattern.includes(IAM_SQLITE_LOWERER_NUL)) {
+			return { isExact: false };
+		}
+
 		const parameterName: string = this.createParameterName("glob", pattern);
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => `${columnAlias} ${atom.isNegated ? "NOT GLOB" : "GLOB"} :${parameterName}`, { [parameterName]: pattern }) };
+		return { isExact: true, operand: Raw((columnAlias: string): string => `(${columnAlias} ${atom.isNegated ? "NOT GLOB" : "GLOB"} :${parameterName} AND ${this.createNoNulCondition(columnAlias)})`, { [parameterName]: pattern }) };
 	}
 
 	/**
@@ -129,6 +141,15 @@ export class ApiAuthorizationIamSqliteLowerer extends ApiAuthorizationIamPortabl
 		const collation: string | undefined = atom.column.field.column?.collation;
 
 		return collation === undefined || collation.toLowerCase() === IAM_SQLITE_LOWERER_BINARY_COLLATION ? this.lowerNativeIn(atom) : this.createRawIn(atom, (columnAlias: string): string => `${columnAlias} COLLATE BINARY`);
+	}
+
+	/**
+	 * Tells SQL that holds when a text column holds no NUL character, compared as bytes, since text functions stop at one.
+	 * @param {string} columnAlias - Column alias TypeORM passes.
+	 * @returns {string} The condition.
+	 */
+	private createNoNulCondition(columnAlias: string): string {
+		return `instr(CAST(${columnAlias} AS BLOB), X'00') = 0`;
 	}
 
 	/**

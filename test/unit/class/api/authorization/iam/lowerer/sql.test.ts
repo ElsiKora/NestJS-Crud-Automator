@@ -250,7 +250,7 @@ describe("IAM predicate lowering to SQL", () => {
 				  "parameters": [
 				    "a%b_c![*][[]x][?]?*",
 				  ],
-				  "where": "(((("IamLowererItemEntity"."name" GLOB ?))))",
+				  "where": "((((("IamLowererItemEntity"."name" GLOB ? AND instr(CAST("IamLowererItemEntity"."name" AS BLOB), X'00') = 0)))))",
 				}
 			`);
 		});
@@ -352,9 +352,14 @@ describe("IAM predicate lowering to SQL", () => {
 	});
 
 	describe("several values", () => {
+		it("SQLite fails closed on a GLOB or IgnoreCase value that holds a NUL character, where GLOB stops reading", () => {
+			expect(renderIamLowererWhere(sqlite, SQLITE, like(NAME, [{ type: EApiAuthorizationIamTokenType.LITERAL, value: "a\u0000" }, { type: EApiAuthorizationIamTokenType.STAR }]))).toBeUndefined();
+			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["a\u0000b"], true))).toBeUndefined();
+		});
+
 		it("SQLite compares IgnoreCase with one GLOB per value, positive or negated", () => {
-			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"]))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `((((("IamLowererItemEntity"."name" GLOB ? OR "IamLowererItemEntity"."name" GLOB ?)))))` });
-			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"], true))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `((((("IamLowererItemEntity"."name" NOT GLOB ? AND "IamLowererItemEntity"."name" NOT GLOB ?)))))` });
+			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"]))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `(((((("IamLowererItemEntity"."name" GLOB ? OR "IamLowererItemEntity"."name" GLOB ?) AND instr(CAST("IamLowererItemEntity"."name" AS BLOB), X'00') = 0)))))` });
+			expect(renderIamLowererWhere(sqlite, SQLITE, ignoreCaseValues(NAME, ["ab", "c"], true))).toEqual({ parameters: ["[aA][bB]", "[cC]"], where: `(((((("IamLowererItemEntity"."name" NOT GLOB ? AND "IamLowererItemEntity"."name" NOT GLOB ?) AND instr(CAST("IamLowererItemEntity"."name" AS BLOB), X'00') = 0)))))` });
 		});
 
 		it("PostgreSQL folds the column and binds every value of IgnoreCase", () => {
