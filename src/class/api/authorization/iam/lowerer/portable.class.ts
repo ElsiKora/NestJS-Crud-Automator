@@ -8,14 +8,12 @@ import { ApiAuthorizationIamDateValue } from "@class/api/authorization/iam/date-
 import { ApiAuthorizationIamDecimal } from "@class/api/authorization/iam/decimal.class";
 import { ApiAuthorizationIamPredicateBuilder } from "@class/api/authorization/iam/predicate/builder.class";
 import { ApiAuthorizationIamPredicateNormalForm } from "@class/api/authorization/iam/predicate/normal-form.class";
+import { ApiSubqueryOperand, ApiSubqueryRaw } from "@class/api/subquery";
 import { AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT, AUTHORIZATION_IAM_DIALECT_CONSTANT } from "@constant/class/authorization";
 import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamDialect, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType } from "@enum/class/authorization";
-import { And, Equal, FindOperator, In, IsNull, LessThan, LessThanOrEqual, MoreThan, MoreThanOrEqual, Not, Raw } from "typeorm";
+import { And, Equal, FindOperator, In, IsNull, LessThan, LessThanOrEqual, MoreThan, MoreThanOrEqual, Not } from "typeorm";
 
 // Exact decimal types a resource placeholder compares natively: SQL compares their values, which the rendered text names.
-// The SQL builders of the `Raw` conditions the lowerers write, which a cursor list merges with its keyset predicate.
-const IAM_LOWERER_RAW_SQL: WeakSet<object> = new WeakSet<object>();
-
 const IAM_LOWERER_NATIVE_DECIMAL_TYPES: ReadonlySet<string> = new Set<string>(["dec", "decimal", "fixed", "numeric"]);
 
 // Double types a resource placeholder compares natively, for a literal such a type holds. A single-precision column stays out: MySQL widens it to another double than its text names.
@@ -32,15 +30,6 @@ const IAM_LOWERER_OPERATOR_SQL: ReadonlyMap<EApiAuthorizationIamPredicateOperato
 	[EApiAuthorizationIamPredicateOperator.LESS_THAN, "<"],
 	[EApiAuthorizationIamPredicateOperator.LESS_THAN_EQUAL, "<="],
 	[EApiAuthorizationIamPredicateOperator.NOT_EQUAL, "<>"],
-]);
-
-// SQL of each TypeORM operator that compares a related column with one bound value.
-const IAM_LOWERER_FIND_OPERATOR_SQL: ReadonlyMap<string, string> = new Map<string, string>([
-	["equal", "="],
-	["lessThan", "<"],
-	["lessThanOrEqual", "<="],
-	["moreThan", ">"],
-	["moreThanOrEqual", ">="],
 ]);
 
 // Bits of an integer column whose decorator names no type: TypeORM creates a 32-bit integer for a `number` property.
@@ -79,7 +68,7 @@ export class ApiAuthorizationIamPortableLowerer {
 	 * @returns {boolean} Whether a lowerer wrote the builder.
 	 */
 	public static isLoweredRaw(sql: unknown): boolean {
-		return typeof sql === "function" && IAM_LOWERER_RAW_SQL.has(sql);
+		return ApiSubqueryRaw.isLibraryRaw(sql);
 	}
 
 	/**
@@ -148,9 +137,7 @@ export class ApiAuthorizationIamPortableLowerer {
 	 * @returns {FindOperator<unknown>} The `Raw` operator.
 	 */
 	protected createRaw(sql: (columnAlias: string) => string, parameters: Record<string, unknown>): FindOperator<unknown> {
-		IAM_LOWERER_RAW_SQL.add(sql);
-
-		return Raw(sql, parameters);
+		return ApiSubqueryRaw.create(sql, parameters);
 	}
 
 	/**
@@ -850,54 +837,6 @@ export class ApiAuthorizationIamPortableLowerer {
 	 * @returns {string | undefined} The SQL, or undefined for a condition it cannot write.
 	 */
 	private renderElementOperand(operand: unknown, expression: string, parameters: Record<string, unknown>): string | undefined {
-		const bind = (value: unknown): string => {
-			const name: string = this.createParameterName("element", value);
-
-			parameters[name] = value;
-
-			return `:${name}`;
-		};
-
-		if (!(operand instanceof FindOperator)) {
-			return `${expression} = ${bind(operand)}`;
-		}
-
-		const findOperator: FindOperator<unknown> = operand as FindOperator<unknown>;
-		const comparison: string | undefined = IAM_LOWERER_FIND_OPERATOR_SQL.get(findOperator.type);
-
-		if (comparison !== undefined) {
-			return `${expression} ${comparison} ${bind(findOperator.value)}`;
-		}
-
-		if (findOperator.type === "in") {
-			const values: Array<unknown> = findOperator.value as Array<unknown>;
-			const name: string = this.createParameterName("element", values);
-
-			if (values.length === 0) {
-				return "1=0";
-			}
-
-			parameters[name] = values;
-
-			return `${expression} IN (:...${name})`;
-		}
-
-		if (findOperator.type === "isNull") {
-			return `${expression} IS NULL`;
-		}
-
-		if (findOperator.type === "not") {
-			const child: string | undefined = findOperator.child ? this.renderElementOperand(findOperator.child, expression, parameters) : undefined;
-
-			return child === undefined ? undefined : `NOT (${child})`;
-		}
-
-		if (findOperator.type === "raw") {
-			Object.assign(parameters, findOperator.objectLiteralParameters);
-
-			return findOperator.getSql?.(expression);
-		}
-
-		return undefined;
+		return ApiSubqueryOperand.render(operand, expression, parameters, (value: unknown): string => this.createParameterName("element", value));
 	}
 }

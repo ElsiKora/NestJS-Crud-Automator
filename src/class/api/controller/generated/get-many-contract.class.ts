@@ -6,9 +6,9 @@ import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function
 
 import { AsyncLocalStorage as NodeAsyncLocalStorage } from "node:async_hooks";
 
-import { ApiAuthorizationIamPortableLowerer } from "@class/api/authorization/iam/lowerer/portable.class";
 import { ApiControllerGeneratedScopeWhereContract } from "@class/api/controller/generated/scope-where-contract.class";
 import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
+import { ApiSubqueryRaw } from "@class/api/subquery";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ObjectFindPropertyDescriptor } from "@utility/object-find-property-descriptor.utility";
@@ -191,7 +191,7 @@ export class ApiControllerGeneratedGetManyContract {
 
 		// The raw SQL an IAM lowerer writes for an authorization scope merges with the keyset predicate; any other stays refused.
 		if (type === "raw") {
-			if (!ApiAuthorizationIamPortableLowerer.isLoweredRaw(getSql) || !this.isPlainParameters(objectLiteralParameters)) {
+			if (!ApiSubqueryRaw.isLibraryRaw(getSql) || !this.isPlainParameters(objectLiteralParameters)) {
 				throw ErrorException("CURSOR GET_LIST candidate WHERE cannot contain raw SQL operators");
 			}
 
@@ -246,7 +246,7 @@ export class ApiControllerGeneratedGetManyContract {
 			}
 
 			// The SQL builder of a lowered raw condition is the one function a candidate WHERE may hold.
-			if (isFindOperator && key === "_getSql" && ApiAuthorizationIamPortableLowerer.isLoweredRaw(descriptor.value)) {
+			if (isFindOperator && key === "_getSql" && ApiSubqueryRaw.isLibraryRaw(descriptor.value)) {
 				continue;
 			}
 

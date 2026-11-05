@@ -1,6 +1,9 @@
 import type { IApiAuthorizationIamCollection, IApiAuthorizationIamElement } from "@interface/class/api/authorization";
+import type { IApiSubqueryJoinPair, IApiSubqueryJoinTable } from "@interface/class/api/subquery";
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { DataSource, EntityMetadata, RelationMetadata } from "typeorm";
+
+import { ApiSubqueryJoin } from "@class/api/subquery";
 
 // Alias of a related row inside the subquery.
 const IAM_COLLECTION_ROW_ALIAS: string = "iam_collection_row";
@@ -45,76 +48,28 @@ export class ApiAuthorizationIamCollection {
 			return undefined;
 		}
 
+		const tables: ReadonlyArray<IApiSubqueryJoinTable> | undefined = ApiSubqueryJoin.readRelation(relation);
+		const [first, second]: ReadonlyArray<IApiSubqueryJoinTable | undefined> = tables ?? [];
+		const pair: IApiSubqueryJoinPair | undefined = first?.on[0];
+
+		// A composite key has more than one pair, which this subquery does not write.
+		if (!tables || !first || !pair || tables.some((joinTable: IApiSubqueryJoinTable): boolean => joinTable.on.length !== 1)) {
+			return undefined;
+		}
+
 		const escape = (name: string): string => dataSource.driver.escape(name);
 		const rowColumn = (column: TTypeOrmColumnMetadata): string => `${escape(IAM_COLLECTION_ROW_ALIAS)}.${escape(column.databaseName)}`;
-
-		const table = (tableMetadata: EntityMetadata): string =>
-			tableMetadata.tablePath
-				.split(".")
-				.map((part: string): string => escape(part))
-				.join(".");
+		const linkColumn = (column: TTypeOrmColumnMetadata): string => `${escape(IAM_COLLECTION_LINK_ALIAS)}.${escape(column.databaseName)}`;
 		const deleteDate: TTypeOrmColumnMetadata | undefined = target.deleteDateColumn;
-		const shape: { correlation: TTypeOrmColumnMetadata; from: string; link: string } | undefined = relation.isOneToMany ? ApiAuthorizationIamCollection.readOneToMany(relation, escape, rowColumn, table) : ApiAuthorizationIamCollection.readManyToMany(relation, escape, rowColumn, table);
-
-		if (!shape) {
-			return undefined;
-		}
+		const secondPair: IApiSubqueryJoinPair | undefined = second?.on[0];
 
 		return {
-			correlationPath: shape.correlation.propertyPath,
+			correlationPath: pair.previous.propertyPath,
 			element: rowColumn(elementColumn),
 			elementPath: element.queryPath,
-			from: shape.from,
-			link: shape.link,
+			from: second && secondPair ? `${ApiSubqueryJoin.writeTable(dataSource, first.metadata)} ${escape(IAM_COLLECTION_LINK_ALIAS)} INNER JOIN ${ApiSubqueryJoin.writeTable(dataSource, second.metadata)} ${escape(IAM_COLLECTION_ROW_ALIAS)} ON ${rowColumn(secondPair.column)} = ${linkColumn(secondPair.previous)}` : `${ApiSubqueryJoin.writeTable(dataSource, first.metadata)} ${escape(IAM_COLLECTION_ROW_ALIAS)}`,
+			link: second ? linkColumn(pair.column) : rowColumn(pair.column),
 			...(deleteDate ? { rowCondition: `${rowColumn(deleteDate)} IS NULL`, softDeletePath: deleteDate.propertyPath } : {}),
 		};
-	}
-
-	/**
-	 * Reads a ManyToMany: the junction table, joined to the related table.
-	 * @param {RelationMetadata} relation - The relation, on either side.
-	 * @param {(name: string) => string} escape - Escapes one name for the driver.
-	 * @param {(column: TTypeOrmColumnMetadata) => string} rowColumn - Writes a column of a related row.
-	 * @param {(tableMetadata: EntityMetadata) => string} table - Writes a table name.
-	 * @returns {{ correlation: TTypeOrmColumnMetadata; from: string; link: string } | undefined} The resource column, the FROM clause and the linking column, or undefined for a composite key.
-	 */
-	private static readManyToMany(relation: RelationMetadata, escape: (name: string) => string, rowColumn: (column: TTypeOrmColumnMetadata) => string, table: (tableMetadata: EntityMetadata) => string): { correlation: TTypeOrmColumnMetadata; from: string; link: string } | undefined {
-		const junction: EntityMetadata | undefined = relation.junctionEntityMetadata;
-		// The owner side holds the junction columns; the inverse side reads them swapped.
-		const ownerColumns: Array<TTypeOrmColumnMetadata> = relation.isOwning ? relation.joinColumns : (relation.inverseRelation?.inverseJoinColumns ?? []);
-		const targetColumns: Array<TTypeOrmColumnMetadata> = relation.isOwning ? relation.inverseJoinColumns : (relation.inverseRelation?.joinColumns ?? []);
-		const [ownerColumn]: Array<TTypeOrmColumnMetadata> = ownerColumns;
-		const [targetColumn]: Array<TTypeOrmColumnMetadata> = targetColumns;
-
-		if (!junction || ownerColumns.length !== 1 || targetColumns.length !== 1 || !ownerColumn?.referencedColumn || !targetColumn?.referencedColumn) {
-			return undefined;
-		}
-
-		const linkColumn = (column: TTypeOrmColumnMetadata): string => `${escape(IAM_COLLECTION_LINK_ALIAS)}.${escape(column.databaseName)}`;
-
-		return {
-			correlation: ownerColumn.referencedColumn,
-			from: `${table(junction)} ${escape(IAM_COLLECTION_LINK_ALIAS)} INNER JOIN ${table(relation.inverseEntityMetadata)} ${escape(IAM_COLLECTION_ROW_ALIAS)} ON ${rowColumn(targetColumn.referencedColumn)} = ${linkColumn(targetColumn)}`,
-			link: linkColumn(ownerColumn),
-		};
-	}
-
-	/**
-	 * Reads a OneToMany: the related table, whose join column refers to the resource.
-	 * @param {RelationMetadata} relation - The relation.
-	 * @param {(name: string) => string} escape - Escapes one name for the driver.
-	 * @param {(column: TTypeOrmColumnMetadata) => string} rowColumn - Writes a column of a related row.
-	 * @param {(tableMetadata: EntityMetadata) => string} table - Writes a table name.
-	 * @returns {{ correlation: TTypeOrmColumnMetadata; from: string; link: string } | undefined} The resource column, the FROM clause and the linking column, or undefined for a composite key.
-	 */
-	private static readOneToMany(relation: RelationMetadata, escape: (name: string) => string, rowColumn: (column: TTypeOrmColumnMetadata) => string, table: (tableMetadata: EntityMetadata) => string): { correlation: TTypeOrmColumnMetadata; from: string; link: string } | undefined {
-		const joinColumns: Array<TTypeOrmColumnMetadata> = relation.inverseRelation?.joinColumns ?? [];
-		const [joinColumn]: Array<TTypeOrmColumnMetadata> = joinColumns;
-
-		if (joinColumns.length !== 1 || !joinColumn?.referencedColumn) {
-			return undefined;
-		}
-
-		return { correlation: joinColumn.referencedColumn, from: `${table(relation.inverseEntityMetadata)} ${escape(IAM_COLLECTION_ROW_ALIAS)}`, link: rowColumn(joinColumn) };
 	}
 }
