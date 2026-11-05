@@ -583,7 +583,24 @@ export class PolicySaveSubscriber extends ApiRouteSubscriberBase<PolicyEntity> {
 }
 ```
 
-Run it after bootstrap: `resource.*` keys are checked against the `resourceDefinition` fields every IAM controller of the namespace registered. On a DTO, `@IsApiPolicyDocument({ namespace: "admin:item" })` runs the same check as one `isApiPolicyDocument` constraint.
+Run it after bootstrap: `resource.*` keys are checked against the `resourceDefinition` fields every IAM controller of the namespace registered. On a DTO, `@IsApiPolicyDocument({ namespace: "admin:item" })` runs the same check as one `isApiPolicyDocument` constraint. A document of more than `AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_STATEMENTS` (256) statements or `MAX_DOCUMENT_LENGTH` (131,072) JSON characters fails with `iamPolicyDocumentInvalid`, a pattern over `MAX_PATTERN_LENGTH` (2,048) with `iamPolicyPatternInvalid`, and a condition string over `MAX_CONDITION_VALUE_LENGTH` (2,048) with `iamPolicyConditionValueInvalid`.
+
+## IAM Deny Of One Row
+
+```ts
+// resourcePath: "admin:item/{id}", fields: [{ path: "resource.id", queryPath: "id", isFilterable: true }]
+const document = {
+	Statement: [
+		{ Action: ["admin:item:*"], Effect: EApiPolicyEffect.ALLOW, Resource: ["admin:item/*"] },
+		{ Action: ["admin:item:*"], Effect: EApiPolicyEffect.DENY, Resource: ["admin:item/secret"] },
+	],
+	Version: "2012-10-17",
+};
+
+// GET /items/secret → 403. GET /items/SECRET on a case-insensitive column → 404: the row scope compares id exactly.
+// POST /items { id: "secret" } → 403, nothing stored. POST /items { id: "public" } → 201.
+// GET /items/a%2Fb → 403: a value that holds "/" names no resource.
+```
 
 ## IAM Operator Families
 
