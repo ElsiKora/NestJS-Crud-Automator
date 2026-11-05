@@ -1,4 +1,4 @@
-import type { IApiAuthorizationIamCollection, IApiAuthorizationIamDialect, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamCollection, IApiAuthorizationIamColumn, IApiAuthorizationIamDialect, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamPredicate } from "@type/class/api/authorization/iam";
 import type { DataSource } from "typeorm";
 
@@ -384,11 +384,44 @@ describe("IAM predicate lowering to SQL", () => {
 		});
 
 		it.each(DIALECTS)("%s compares a resource placeholder natively only negated, on a numeric or date column", (_name: string, dialect: IApiAuthorizationIamDialect, dataSource: () => DataSource) => {
-			const rank: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("rank", { family: EApiAuthorizationIamColumnFamily.NUMERIC, type: "int" });
+			const rank: IApiAuthorizationIamPredicateColumn = createIamLowererColumn("rank", { family: EApiAuthorizationIamColumnFamily.NUMERIC, type: "decimal" });
 
 			expect(renderIamLowererWhere(dataSource(), dialect, ApiAuthorizationIamPredicateBuilder.buildExactConstraint({ column: rank, comparison: EApiAuthorizationIamPredicateComparison.NATIVE, value: "7" }).fails)).toBeDefined();
 			expect(renderIamLowererWhere(dataSource(), dialect, ApiAuthorizationIamPredicateBuilder.buildExactConstraint({ column: rank, comparison: EApiAuthorizationIamPredicateComparison.NATIVE, value: "7" }).holds)).toBeUndefined();
 			expect(renderIamLowererWhere(dataSource(), dialect, ApiAuthorizationIamPredicateBuilder.buildExactConstraint({ column: createIamLowererColumn("rank", { family: EApiAuthorizationIamColumnFamily.JSON }), comparison: EApiAuthorizationIamPredicateComparison.NATIVE, value: "7" }).fails)).toBeUndefined();
+		});
+
+		it.each(DIALECTS)("%s compares a resource placeholder natively only where the column holds the text as memory renders it", (_name: string, dialect: IApiAuthorizationIamDialect, dataSource: () => DataSource) => {
+			const fails = (column: Partial<IApiAuthorizationIamColumn>, value: string): unknown => renderIamLowererWhere(dataSource(), dialect, ApiAuthorizationIamPredicateBuilder.buildExactConstraint({ column: createIamLowererColumn("rank", column), comparison: EApiAuthorizationIamPredicateComparison.NATIVE, value }).fails);
+			const decimal: Partial<IApiAuthorizationIamColumn> = { family: EApiAuthorizationIamColumnFamily.NUMERIC, type: "decimal" };
+			const double: Partial<IApiAuthorizationIamColumn> = { family: EApiAuthorizationIamColumnFamily.NUMERIC, type: "double precision" };
+			const day: Partial<IApiAuthorizationIamColumn> = { family: EApiAuthorizationIamColumnFamily.DATE, type: "date" };
+
+			expect(fails(decimal, "1.5")).toBeDefined();
+			expect(fails(double, "1.5")).toBeDefined();
+			expect(fails(day, "2024-01-01")).toBeDefined();
+
+			for (const value of ["abc", "1e0"]) {
+				expect(fails(decimal, value)).toBeUndefined();
+			}
+
+			expect(fails(double, `1${"0".repeat(400)}`)).toBeUndefined();
+
+			for (const value of ["2024-02-30", "2024-13-01", "not-a-date", "2024-01-01T00:00:00.000Z"]) {
+				expect(fails(day, value)).toBeUndefined();
+			}
+
+			for (const type of ["datetime", "timestamp", "timestamptz"]) {
+				expect(fails({ family: EApiAuthorizationIamColumnFamily.DATE, type }, "2024-01-01T00:00:00.000Z")).toBeUndefined();
+			}
+
+			for (const type of ["float", "float4", "real", "money"]) {
+				expect(fails({ family: EApiAuthorizationIamColumnFamily.NUMERIC, type }, "0.5")).toBeUndefined();
+			}
+
+			expect(fails({ ...decimal, hasTransformer: true }, "1.5")).toBeUndefined();
+			expect(fails({ ...day, hasTransformer: true }, "2024-01-01")).toBeUndefined();
+			expect(fails({ family: EApiAuthorizationIamColumnFamily.NUMERIC, type: undefined }, "1.5")).toBeUndefined();
 		});
 
 		it.each(DIALECTS)("%s fails closed on SQL it would have to build around a column with a value transformer", (_name: string, dialect: IApiAuthorizationIamDialect, dataSource: () => DataSource) => {

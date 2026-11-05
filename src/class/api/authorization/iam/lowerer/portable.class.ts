@@ -12,8 +12,11 @@ import { AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT, AUTHORIZATION_IAM_DIALECT_CON
 import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamDialect, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType } from "@enum/class/authorization";
 import { And, Equal, FindOperator, In, IsNull, LessThan, LessThanOrEqual, MoreThan, MoreThanOrEqual, Not, Raw } from "typeorm";
 
-// Column families a resource placeholder compares natively: SQL compares their values, which the rendered text names.
-const IAM_LOWERER_NATIVE_FAMILIES: ReadonlySet<EApiAuthorizationIamColumnFamily> = new Set<EApiAuthorizationIamColumnFamily>([EApiAuthorizationIamColumnFamily.DATE, EApiAuthorizationIamColumnFamily.NUMERIC]);
+// Exact decimal types a resource placeholder compares natively: SQL compares their values, which the rendered text names.
+const IAM_LOWERER_NATIVE_DECIMAL_TYPES: ReadonlySet<string> = new Set<string>(["dec", "decimal", "fixed", "numeric"]);
+
+// Double types a resource placeholder compares natively, for a literal such a type holds. A single-precision column stays out: MySQL widens it to another double than its text names.
+const IAM_LOWERER_NATIVE_DOUBLE_TYPES: ReadonlySet<string> = new Set<string>(["double", "double precision", "float8"]);
 
 // Length of the hash in a parameter name: 96 bits, so two different values never share a name in practice.
 const IAM_LOWERER_PARAMETER_HASH_LENGTH: number = 24;
@@ -617,10 +620,41 @@ export class ApiAuthorizationIamPortableLowerer {
 	}
 
 	/**
+	 * Tells whether a negated native comparison can only keep fewer rows than the text comparison memory makes, and never
+	 * reaches the database with text it refuses: a column without a value transformer, which would read the text as what
+	 * the entity holds, that is an exact decimal or a double with a number the type holds, or a calendar date with a day
+	 * that exists. An instant stays out: its rendered ISO text is not what SQLite holds, nor the wall clock of MySQL and MariaDB.
+	 * @param {IApiAuthorizationIamPredicateIn} atom - `IN` atom with a `NATIVE` comparison.
+	 * @returns {boolean} Whether the atom compares natively.
+	 */
+	private isNativeComparable(atom: IApiAuthorizationIamPredicateIn): boolean {
+		const column: IApiAuthorizationIamColumn | undefined = atom.column.field.column;
+
+		if (!column || column.hasTransformer || column.type === undefined) {
+			return false;
+		}
+
+		const type: string = column.type;
+
+		if (column.family === EApiAuthorizationIamColumnFamily.DATE) {
+			return type === "date" && atom.values.every((value: TApiAuthorizationIamPredicateValue): boolean => ApiAuthorizationIamDateValue.parse(value)?.isCalendar === true);
+		}
+
+		return (
+			column.family === EApiAuthorizationIamColumnFamily.NUMERIC &&
+			atom.values.every((value: TApiAuthorizationIamPredicateValue): boolean => {
+				const decimal: IApiAuthorizationIamDecimal | undefined = ApiAuthorizationIamDecimal.parse(value);
+
+				return decimal !== undefined && (IAM_LOWERER_NATIVE_DECIMAL_TYPES.has(type) || (IAM_LOWERER_NATIVE_DOUBLE_TYPES.has(type) && this.isFloatExact(decimal, AUTHORIZATION_IAM_DIALECT_CONSTANT.DOUBLE_MAX_DIGITS, AUTHORIZATION_IAM_DIALECT_CONSTANT.DOUBLE_MIN_MAGNITUDE, AUTHORIZATION_IAM_DIALECT_CONSTANT.DOUBLE_MAX_MAGNITUDE)));
+			})
+		);
+	}
+
+	/**
 	 * Lowers one atom. A text comparison needs a text column: on a numeric or date column SQL compares by value and the
 	 * in-memory evaluator by text, so the two disagree and the atom is not exact. A native comparison, which only the
-	 * `fails` of an exact resource placeholder holds, lowers only negated and only on a numeric or date column: SQL may
-	 * then keep fewer rows than the text comparison would, never more. An unresolved dialect lowers no atom.
+	 * `fails` of an exact resource placeholder holds, lowers only negated and only where `isNativeComparable` tells: SQL
+	 * may then keep fewer rows than the text comparison would, never more. An unresolved dialect lowers no atom.
 	 * @param {TApiAuthorizationIamPredicateAtom} atom - Atom.
 	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
 	 */
@@ -744,7 +778,7 @@ export class ApiAuthorizationIamPortableLowerer {
 			}
 
 			case EApiAuthorizationIamPredicateComparison.NATIVE: {
-				return atom.isNegated && atom.column.field.column !== undefined && IAM_LOWERER_NATIVE_FAMILIES.has(atom.column.field.column.family) ? this.lowerNativeIn(atom) : { isExact: false };
+				return atom.isNegated && this.isNativeComparable(atom) ? this.lowerNativeIn(atom) : { isExact: false };
 			}
 
 			case EApiAuthorizationIamPredicateComparison.TEXT: {
