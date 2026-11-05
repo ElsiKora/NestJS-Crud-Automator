@@ -1,0 +1,1104 @@
+{
+	"openapi": "3.0.0",
+	"paths": {
+		"/uuid-membership-transactions": {
+			"get": {
+				"description": "Returns a paginated list of `E2eUuidMembershipTransactions` resources.",
+				"operationId": "E2eUuidMembershipController_getList",
+				"parameters": [
+					{
+						"name": "limit",
+						"required": true,
+						"in": "query",
+						"description": "E2eUuidTransactionEntity Items per page",
+						"schema": {
+							"minimum": 1,
+							"maximum": 100,
+							"multipleOf": 1,
+							"format": "int32",
+							"nullable": false,
+							"example": 1,
+							"type": "integer"
+						}
+					},
+					{
+						"name": "orderBy",
+						"required": false,
+						"in": "query",
+						"description": "E2eUuidTransactionEntity order by field",
+						"schema": {
+							"nullable": false,
+							"example": "label",
+							"type": "string",
+							"enum": [
+								"label"
+							]
+						}
+					},
+					{
+						"name": "orderDirection",
+						"required": false,
+						"in": "query",
+						"description": "E2eUuidTransactionEntity order direction",
+						"schema": {
+							"nullable": false,
+							"example": "asc",
+							"type": "string",
+							"enum": [
+								"asc",
+								"desc"
+							]
+						}
+					},
+					{
+						"name": "page",
+						"required": true,
+						"in": "query",
+						"description": "E2eUuidTransactionEntity Page to return",
+						"schema": {
+							"minimum": 1,
+							"maximum": 100,
+							"multipleOf": 1,
+							"format": "int32",
+							"nullable": false,
+							"example": 1,
+							"type": "integer"
+						}
+					},
+					{
+						"name": "currency.id",
+						"required": false,
+						"in": "query",
+						"explode": true,
+						"schema": {
+							"oneOf": [
+								{
+									"additionalProperties": false,
+									"properties": {
+										"operator": {
+											"enum": [
+												"in"
+											],
+											"type": "string"
+										},
+										"values": {
+											"items": {
+												"format": "uuid",
+												"type": "string"
+											},
+											"maxItems": 100,
+											"minItems": 1,
+											"type": "array"
+										}
+									},
+									"required": [
+										"operator",
+										"values"
+									],
+									"type": "object"
+								},
+								{
+									"additionalProperties": false,
+									"properties": {
+										"operator": {
+											"enum": [
+												"notin"
+											],
+											"type": "string"
+										},
+										"values": {
+											"items": {
+												"format": "uuid",
+												"type": "string"
+											},
+											"maxItems": 100,
+											"minItems": 1,
+											"type": "array"
+										}
+									},
+									"required": [
+										"operator",
+										"values"
+									],
+									"type": "object"
+								}
+							]
+						},
+						"style": "deepObject"
+					},
+					{
+						"name": "id",
+						"required": false,
+						"in": "query",
+						"explode": true,
+						"schema": {
+							"oneOf": [
+								{
+									"additionalProperties": false,
+									"properties": {
+										"operator": {
+											"enum": [
+												"in"
+											],
+											"type": "string"
+										},
+										"values": {
+											"items": {
+												"format": "uuid",
+												"type": "string"
+											},
+											"maxItems": 100,
+											"minItems": 1,
+											"type": "array"
+										}
+									},
+									"required": [
+										"operator",
+										"values"
+									],
+									"type": "object"
+								}
+							]
+						},
+						"style": "deepObject"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/E2eUuidMembershipGetListPageDTO"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload Too Large",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionPayloadTooLargeDTO"
+								}
+							}
+						}
+					},
+					"415": {
+						"description": "Unsupported Media Type",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnsupportedMediaTypeDTO"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal Server Error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
+								}
+							}
+						}
+					}
+				},
+				"summary": "List `E2eUuidMembershipTransactions`",
+				"tags": [
+					"E2eUuidMembershipTransactions"
+				]
+			}
+		}
+	},
+	"info": {
+		"title": "",
+		"description": "",
+		"version": "1.0.0",
+		"contact": {}
+	},
+	"tags": [],
+	"servers": [],
+	"components": {
+		"schemas": {
+			"E2eUuidMembershipGetListQuery0e6807a9eff32c780525cfe93c2be3b1fdbfc3df884bf302d2db504517bb373eDTO": {
+				"type": "object",
+				"properties": {
+					"limit": {
+						"type": "integer",
+						"description": "E2eUuidTransactionEntity Items per page",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"multipleOf": 1
+					},
+					"orderBy": {
+						"type": "string",
+						"description": "E2eUuidTransactionEntity order by field",
+						"nullable": false,
+						"example": "label",
+						"enum": [
+							"label"
+						]
+					},
+					"orderDirection": {
+						"type": "string",
+						"description": "E2eUuidTransactionEntity order direction",
+						"nullable": false,
+						"example": "asc",
+						"enum": [
+							"asc",
+							"desc"
+						]
+					},
+					"page": {
+						"type": "integer",
+						"description": "E2eUuidTransactionEntity Page to return",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"multipleOf": 1
+					}
+				},
+				"required": [
+					"limit",
+					"page"
+				]
+			},
+			"E2eUuidMembershipGetListResponseCurrencyDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eUuidTransactionEntity currency identifier",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "6b18fd4a-73b2-4894-a7cf-001d255043a0",
+						"format": "uuid",
+						"pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+						"readOnly": true
+					}
+				},
+				"required": [
+					"id"
+				]
+			},
+			"E2eUuidMembershipGetListResponseDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eUuidTransactionEntity id",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "004145a1-bd59-4aef-994a-339971adf991",
+						"format": "uuid",
+						"pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+						"readOnly": true
+					},
+					"label": {
+						"type": "string",
+						"description": "E2eUuidTransactionEntity label",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Deposit",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"currencyId": {
+						"type": "string",
+						"description": "E2eUuidTransactionEntity currencyId",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "951c2605-34c1-414e-9c1f-a0ef7c7474f3",
+						"format": "uuid",
+						"pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+						"readOnly": true
+					},
+					"currency": {
+						"description": "E2eUuidTransactionEntity currency",
+						"nullable": false,
+						"readOnly": true,
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eUuidMembershipGetListResponseCurrencyDTO"
+							}
+						]
+					}
+				},
+				"required": [
+					"id",
+					"label",
+					"currencyId"
+				]
+			},
+			"E2eUuidMembershipGetListPageDTO": {
+				"type": "object",
+				"properties": {
+					"count": {
+						"type": "integer",
+						"description": "E2eUuidTransactionEntity Total number of items on page",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"readOnly": true
+					},
+					"currentPage": {
+						"type": "integer",
+						"description": "E2eUuidTransactionEntity Current page number",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"readOnly": true
+					},
+					"items": {
+						"description": "Array of E2eUuidTransactionEntity ",
+						"nullable": false,
+						"minItems": 1,
+						"maxItems": 100,
+						"uniqueItems": true,
+						"readOnly": true,
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/E2eUuidMembershipGetListResponseDTO"
+						}
+					},
+					"totalCount": {
+						"type": "integer",
+						"description": "E2eUuidTransactionEntity Total number of items",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"readOnly": true
+					},
+					"totalPages": {
+						"type": "integer",
+						"description": "E2eUuidTransactionEntity Total number of pages",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"readOnly": true
+					}
+				},
+				"required": [
+					"count",
+					"currentPage",
+					"items",
+					"totalCount",
+					"totalPages"
+				]
+			},
+			"ExceptionDetailsForeignKeyViolationDTO": {
+				"type": "object",
+				"properties": {
+					"constraint": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "FK_5bc39ec0540f37ff97f5aba36e1",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"detail": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 1024,
+						"minLength": 0,
+						"example": "Key (user_id)=(123) is not present in table \"user\".",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true
+					},
+					"field": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "user_id",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"referencedField": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "id",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"referencedTable": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "user",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"table": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "user_balance",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"type": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"example": "FOREIGN_KEY_VIOLATION",
+						"enum": [
+							"FOREIGN_KEY_VIOLATION"
+						],
+						"readOnly": true
+					},
+					"value": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 1024,
+						"minLength": 0,
+						"example": "123",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"ExceptionDetailsReferenceNotValidDTO": {
+				"type": "object",
+				"properties": {
+					"expectedShape": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"example": "SCALAR",
+						"enum": [
+							"OBJECT",
+							"SCALAR"
+						],
+						"readOnly": true
+					},
+					"propertyName": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "owner",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"referenceKey": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "id",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"type": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"example": "REFERENCE_NOT_VALID",
+						"enum": [
+							"REFERENCE_NOT_VALID"
+						],
+						"readOnly": true
+					}
+				},
+				"required": [
+					"expectedShape",
+					"propertyName",
+					"referenceKey",
+					"type"
+				]
+			},
+			"ExceptionDetailsToManyUpdateKeyDTO": {
+				"type": "object",
+				"properties": {
+					"propertyName": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 1024,
+						"minLength": 0,
+						"example": "owner.tags",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true
+					},
+					"reason": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 1024,
+						"minLength": 0,
+						"example": "to-many reference is not allowed on update",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true
+					},
+					"type": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"example": "TO_MANY_UPDATE_KEY",
+						"enum": [
+							"TO_MANY_UPDATE_KEY"
+						],
+						"readOnly": true
+					}
+				},
+				"required": [
+					"propertyName",
+					"reason",
+					"type"
+				]
+			},
+			"ExceptionBadRequestDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"example": "550e8400-e29b-41d4-a716-446655440000",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"details": {
+						"description": "Error details",
+						"nullable": false,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
+							},
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsReferenceNotValidDTO"
+							},
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsToManyUpdateKeyDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
+								"REFERENCE_NOT_VALID": "#/components/schemas/ExceptionDetailsReferenceNotValidDTO",
+								"TO_MANY_UPDATE_KEY": "#/components/schemas/ExceptionDetailsToManyUpdateKeyDTO"
+							},
+							"propertyName": "type"
+						},
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
+						"example": "Bad Request",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 400,
+						"enum": [
+							100,
+							101,
+							102,
+							103,
+							200,
+							201,
+							202,
+							203,
+							204,
+							205,
+							206,
+							207,
+							208,
+							210,
+							300,
+							301,
+							302,
+							303,
+							304,
+							307,
+							308,
+							400,
+							401,
+							402,
+							403,
+							404,
+							405,
+							406,
+							407,
+							408,
+							409,
+							410,
+							411,
+							412,
+							413,
+							414,
+							415,
+							416,
+							417,
+							418,
+							421,
+							422,
+							423,
+							424,
+							428,
+							429,
+							456,
+							500,
+							501,
+							502,
+							503,
+							504,
+							505,
+							507,
+							508
+						],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"format": "int64",
+						"nullable": false,
+						"example": 1793905515991,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": [
+					"message",
+					"statusCode"
+				]
+			},
+			"ExceptionPayloadTooLargeDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"example": "550e8400-e29b-41d4-a716-446655440000",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
+						"example": "Payload Too Large",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 413,
+						"enum": [
+							100,
+							101,
+							102,
+							103,
+							200,
+							201,
+							202,
+							203,
+							204,
+							205,
+							206,
+							207,
+							208,
+							210,
+							300,
+							301,
+							302,
+							303,
+							304,
+							307,
+							308,
+							400,
+							401,
+							402,
+							403,
+							404,
+							405,
+							406,
+							407,
+							408,
+							409,
+							410,
+							411,
+							412,
+							413,
+							414,
+							415,
+							416,
+							417,
+							418,
+							421,
+							422,
+							423,
+							424,
+							428,
+							429,
+							456,
+							500,
+							501,
+							502,
+							503,
+							504,
+							505,
+							507,
+							508
+						],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"format": "int64",
+						"nullable": false,
+						"example": 1793905515991,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": [
+					"message",
+					"statusCode"
+				]
+			},
+			"ExceptionUnsupportedMediaTypeDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"example": "550e8400-e29b-41d4-a716-446655440000",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
+						"example": "Unsupported Media Type",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 415,
+						"enum": [
+							100,
+							101,
+							102,
+							103,
+							200,
+							201,
+							202,
+							203,
+							204,
+							205,
+							206,
+							207,
+							208,
+							210,
+							300,
+							301,
+							302,
+							303,
+							304,
+							307,
+							308,
+							400,
+							401,
+							402,
+							403,
+							404,
+							405,
+							406,
+							407,
+							408,
+							409,
+							410,
+							411,
+							412,
+							413,
+							414,
+							415,
+							416,
+							417,
+							418,
+							421,
+							422,
+							423,
+							424,
+							428,
+							429,
+							456,
+							500,
+							501,
+							502,
+							503,
+							504,
+							505,
+							507,
+							508
+						],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"format": "int64",
+						"nullable": false,
+						"example": 1793905515991,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": [
+					"message",
+					"statusCode"
+				]
+			},
+			"ExceptionInternalServerErrorDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"example": "550e8400-e29b-41d4-a716-446655440000",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
+						"example": "Internal Server Error",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 500,
+						"enum": [
+							100,
+							101,
+							102,
+							103,
+							200,
+							201,
+							202,
+							203,
+							204,
+							205,
+							206,
+							207,
+							208,
+							210,
+							300,
+							301,
+							302,
+							303,
+							304,
+							307,
+							308,
+							400,
+							401,
+							402,
+							403,
+							404,
+							405,
+							406,
+							407,
+							408,
+							409,
+							410,
+							411,
+							412,
+							413,
+							414,
+							415,
+							416,
+							417,
+							418,
+							421,
+							422,
+							423,
+							424,
+							428,
+							429,
+							456,
+							500,
+							501,
+							502,
+							503,
+							504,
+							505,
+							507,
+							508
+						],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"format": "int64",
+						"nullable": false,
+						"example": 1793905515990,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": [
+					"message",
+					"statusCode"
+				]
+			}
+		}
+	}
+}
