@@ -1,3 +1,10 @@
+## [5.2.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.2.0...v5.2.1) (2026-11-05)
+
+### Bug Fixes
+
+- **update:** keep the relations an update does not name ([5fbfe4a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/5fbfe4a6b6466ebf131d99f7d3d9f56bd7928902))
+- **update:** store a relation change behind a loaded eager relation ([6d76272](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/6d7627238cbd1532e9281ce86a7572d5921d36e4))
+
 # [5.2.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.1.0...v5.2.0) (2026-11-05)
 
 ### Bug Fixes
