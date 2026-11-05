@@ -12,6 +12,7 @@ export { type IApiAuthorizationIamOperand } from "./operand.interface";
 export { type IApiAuthorizationIamOperatorDefinition } from "./operator-definition.interface";
 export type * from "./predicate";
 export { type IApiAuthorizationIamQueryField } from "./query-field.interface";
+export { type IApiAuthorizationIamRequestResource } from "./request-resource.interface";
 export { type IApiAuthorizationIamResourceClassification } from "./resource-classification.interface";
 export { type IApiAuthorizationIamResourceConstraint } from "./resource-constraint.interface";
 export { type IApiAuthorizationIamResourceRows } from "./resource-rows.interface";

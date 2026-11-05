@@ -722,18 +722,20 @@ describe("ApiAuthorizationIamEngine", () => {
 
 			expect(exactDecision.scope).toEqual({ where: [{ tenantId: Not(Equal("t-1")) }, { tenantId: IsNull() }, { id: Not(Equal("item-1")) }, { id: IsNull() }] });
 			expect((tenantPrefixDecision.scope?.where as Array<{ tenantId: FindOperator<unknown> }>)[0]?.tenantId.type).toBe("raw");
-			expect(resolvedTenantDecision.scope).toEqual({ where: [{ id: Not(Equal("item-1")) }, { id: IsNull() }] });
+			// The tenant of the path is excluded by its text and by its stored column: the row reading adds four branches.
+			expect(resolvedTenantDecision.scope?.where).toContainEqual({ id: Not(Equal("item-1")), tenantId: Not(Equal("t-1")) });
+			expect(resolvedTenantDecision.scope?.where).toHaveLength(8);
 			expect(ambiguousPrefixDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 			expect(ambiguousExactDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 		});
 
-		it("keeps an exact resource Deny on a row route a whole-request deny", async () => {
+		it("keeps an exact resource Deny on a row route a whole-request deny, and excludes the row from another spelling", async () => {
 			const deniedDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-1" } }, routeType: EApiRouteType.GET, statements: [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })] });
 			const otherDecision = await evaluate({ action: "admin:item:read", requestMetadata: { parameters: { id: "item-2" } }, routeType: EApiRouteType.GET, statements: [allowAll, deny({ Resource: ["gameport:admin:item/item-1"] })] });
 
 			expect(deniedDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 			expect(otherDecision.effect).toBe(EApiPolicyEffect.ALLOW);
-			expect(otherDecision.scope).toBeUndefined();
+			expect(otherDecision.scope).toEqual({ where: [{ id: Not(Equal("item-1")) }, { id: IsNull() }] });
 		});
 
 		it("applies row patterns to a custom list action", async () => {
@@ -917,7 +919,9 @@ describe("ApiAuthorizationIamEngine", () => {
 
 			expect(namedDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 			expect(suffixDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
-			expect(otherDecision.effect).toBe(EApiPolicyEffect.ALLOW);
+			// The wildcard before the placeholders has no one mapping to the stored row, so it denies the row route as it denies the list.
+			expect(otherDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect((await evaluate({ action, requestMetadata: { parameters: { id: "item-2", tenantId: "t-1" } }, resourceDefinition: tenantResourceDefinition, routeType, statements: [allowAnyResource, deny({ Resource: ["gameport:tenant/*/item/item-1"] })] })).effect).toBe(EApiPolicyEffect.ALLOW);
 		});
 
 		it("reads ? as exactly one character", async () => {

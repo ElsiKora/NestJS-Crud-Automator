@@ -167,7 +167,23 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 			["every row", ["gameport:admin:item/*"], "item-1", ALLOWED],
 			["another resource type", ["gameport:other/*"], "item-1", DENIED],
 		])("reads a Deny with %s", async (_name: string, NotResource: Array<string>, id: string, expected: EApiAuthorizationDecisionType) => {
-			expect(await readType(read(id), [allowAll, deny({ NotResource })])).toBe(expected);
+			expect(await readType({ ...read(id), dialect: SQLITE }, [allowAll, deny({ NotResource })])).toBe(expected);
+		});
+
+		it("reads the row of a path value from its column, which a dialect that cannot keep it exactly fails closed", async () => {
+			const statements: Array<IApiPolicyStatement> = [allowAll, deny({ NotResource: ["gameport:admin:item/item-*"] })];
+			const decision = await evaluate({ ...read("item-1"), dialect: SQLITE }, statements);
+
+			expect(decision.trace.decisionType).toBe(ALLOWED);
+			expect(decision.scope?.where).toBeDefined();
+			expect(await readType(read("item-1"), statements)).toBe(DENIED);
+		});
+
+		it("reads a value that holds a separator of the resource path as no resource", async () => {
+			expect(await readType(read("a/b"), [allowAll])).toBe(IMPLICIT);
+			expect(await readType(read("a/b"), [allowAll, deny({ Resource: ["gameport:other/*"] })])).toBe(DENIED);
+			expect(await readType({ ...LIST, requestMetadata: { parameters: { tenantId: "t-1/item/x" } }, resourceDefinition: tenantDefinition }, [allowAll])).toBe(IMPLICIT);
+			expect(await readType({ ...read("x"), resource: { id: "x", status: "active", tenantId: "t-1/item/y" } as EngineTargetItemEntity, resourceDefinition: tenantDefinition }, [allowAll])).toBe(IMPLICIT);
 		});
 
 		it("reads a row loaded for an update the same way", async () => {
@@ -403,7 +419,8 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 			const decision = await evaluate({ ...LIST, requestMetadata: { parameters: { tenantId: "t-1" } }, resourceDefinition: tenantDefinition }, [allow({ Resource: ["gameport:tenant/t-1/item/item-1"] })]);
 			const otherTenant = await evaluate({ ...LIST, requestMetadata: { parameters: { tenantId: "t-2" } }, resourceDefinition: tenantDefinition }, [allow({ Resource: ["gameport:tenant/t-1/item/item-1"] })]);
 
-			expect(decision.scope).toEqual({ where: { id: "item-1" } });
+			// The tenant the path names is compared on the stored column too, exactly, not only by the text of the path.
+			expect(decision.scope).toEqual({ where: { id: "item-1", tenantId: "t-1" } });
 			expect(otherTenant.trace.decisionType).toBe(IMPLICIT);
 		});
 
@@ -433,9 +450,11 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 		it("answers a read of the row it names and refuses another", async () => {
 			const statements: Array<IApiPolicyStatement> = [allow({ Resource: ["gameport:admin:item/item-1"] })];
 
-			expect((await evaluate(read("item-1"), statements)).scope).toBeUndefined();
+			// The read loads the row the stored id names exactly, so another spelling of it that a collation matches is not found.
+			expect((await evaluate(read("item-1"), statements)).scope).toEqual({ where: { id: "item-1" } });
 			expect(await readType(read("item-1"), statements)).toBe(ALLOWED);
 			expect(await readType(read("item-2"), statements)).toBe(IMPLICIT);
+			expect((await evaluate(read("ITEM-1"), statements)).trace.decisionType).toBe(IMPLICIT);
 		});
 
 		it("grants nothing on a create, which names no row", async () => {
