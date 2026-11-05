@@ -310,22 +310,22 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 
 			for (const [key, value] of typedEntries) {
 				// A relation the read did not load, compiled without its class field, is still one the save can write.
-				if (key in existingEntity || ownedRelations.some((relation: RelationMetadata): boolean => relation.propertyName === String(key))) {
+				if (key in existingEntity || ownedRelations.some((relation: RelationMetadata): boolean => relation.propertyPath === String(key))) {
 					updatedProperties[key] = value;
 				}
 			}
 
-			const staleRelations: ReadonlyArray<RelationMetadata> = ownedRelations.filter((relation: RelationMetadata): boolean => isLoadedRelationStale(relation, existingEntity, updatedProperties));
 			const mergedEntity: DeepPartial<E> = { ...existingEntity, ...updatedProperties };
+			const leavingRelations: ReadonlyArray<RelationMetadata> = readLoadableRelations(repository).filter((relation: RelationMetadata): boolean => isLoadedRelationLeavingSave(relation, mergedEntity, existingEntity, updatedProperties));
 
-			for (const relation of staleRelations) {
-				Reflect.deleteProperty(mergedEntity, relation.propertyName);
+			for (const relation of leavingRelations) {
+				removeRelationFromSave(relation, mergedEntity);
 			}
 
 			result = await repository.save(mergedEntity);
 
-			for (const relation of staleRelations) {
-				Reflect.set(result, relation.propertyName, readRelationReference(relation, result, existingEntity));
+			for (const relation of leavingRelations) {
+				relation.setEntityValue(result, isRelationKeyMoved(relation, existingEntity, updatedProperties) ? readRelationReference(relation, result, existingEntity) : relation.getEntityValue(existingEntity));
 			}
 		}
 
@@ -394,16 +394,45 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 }
 
 /**
- * Tells whether the relation a read loaded names another row than the update gives its join columns. The save reads a join column from a loaded relation first, so such a relation would silently overrule the new value.
- * A relation the update names itself stays, because the update decides it. A join column in the primary key stays with the relation too, because the save would read it as the key of another row.
+ * Tells whether a relation the read loaded has to leave the save. The save writes only the relations the update names: one it does not name stays as the database holds it.
+ * The read leaves out a soft deleted related row, so a loaded relation can miss what the row stores: a `null` where the key holds a value, a list without a soft deleted item. The save would write that as a cleared key, a removed link, or a cascaded related row that clears its own key. Without the relation the save writes none of it, so the stored value stays, whatever it holds, and no read of the stored key is needed.
+ * A relation in the primary key of the row that loaded a row stays, because the save identifies the row through it, unless the update moves its other join columns.
  * @template E The entity type
- * @param {RelationMetadata} relation - Owning to-one relation.
+ * @param {RelationMetadata} relation - Relation of the entity.
+ * @param {E} mergedEntity - The row as the save would receive it.
  * @param {E} existingEntity - The row as the read loaded it.
  * @param {Partial<E>} updatedProperties - The update.
  * @returns {boolean} Whether the loaded relation has to leave the save.
  */
-function isLoadedRelationStale<E extends IApiBaseEntity>(relation: RelationMetadata, existingEntity: E, updatedProperties: Partial<E>): boolean {
-	if (relation.getEntityValue(existingEntity) === undefined || relation.getEntityValue(updatedProperties) !== undefined) {
+function isLoadedRelationLeavingSave<E extends IApiBaseEntity>(relation: RelationMetadata, mergedEntity: E, existingEntity: E, updatedProperties: Partial<E>): boolean {
+	const loadedRelation: unknown = relation.getEntityValue(mergedEntity);
+
+	if (loadedRelation === undefined || relation.getEntityValue(updatedProperties) !== undefined) {
+		return false;
+	}
+
+	return loadedRelation === null || !isOwnedToOneRelation(relation) || !relation.joinColumns.some((column: TTypeOrmColumnMetadata): boolean => column.isPrimary) || isRelationKeyMoved(relation, existingEntity, updatedProperties);
+}
+
+/**
+ * Tells whether the join columns of a relation live in the row of the entity: a many-to-one or the owning side of a one-to-one. The join columns of a many-to-many live in its link table.
+ * @param {RelationMetadata} relation - Relation of the entity.
+ * @returns {boolean} Whether the row owns the relation.
+ */
+function isOwnedToOneRelation(relation: RelationMetadata): boolean {
+	return relation.isManyToOne || relation.isOneToOneOwner;
+}
+
+/**
+ * Tells whether the update gives the join columns of an owned to-one relation another value than the read loaded. A join column in the primary key does not count, because the save would read it as the key of another row.
+ * @template E The entity type
+ * @param {RelationMetadata} relation - Owning to-one relation.
+ * @param {E} existingEntity - The row as the read loaded it.
+ * @param {Partial<E>} updatedProperties - The update.
+ * @returns {boolean} Whether the update moves the relation.
+ */
+function isRelationKeyMoved<E extends IApiBaseEntity>(relation: RelationMetadata, existingEntity: E, updatedProperties: Partial<E>): boolean {
+	if (!isOwnedToOneRelation(relation)) {
 		return false;
 	}
 
@@ -459,16 +488,26 @@ function normalizeUpdateProperties<E>(properties: TApiFunctionUpdateProperties<E
 }
 
 /**
- * Reads the to-one relations whose join columns live in the row of the entity, on a table inheritance root those of its children too. A relation inside an embedded or a lazy one is not a plain property the save reads from the row.
+ * Reads the relations a read of the entity can load, on a table inheritance root those of its children too, inside an embedded column as well. A lazy relation stays out, because a read of the update never loads it.
+ * @template E The entity type
+ * @param {Repository<E>} repository - Native metadata owner.
+ * @returns {ReadonlyArray<RelationMetadata>} The relations.
+ */
+function readLoadableRelations<E extends IApiBaseEntity>(repository: Repository<E>): ReadonlyArray<RelationMetadata> {
+	// A repository test double may carry no metadata; it has no relations to read then.
+	const relations: ReadonlyArray<RelationMetadata> = (repository.metadata as EntityMetadata | undefined)?.relations ?? [];
+
+	return relations.filter((relation: RelationMetadata): boolean => !relation.isLazy);
+}
+
+/**
+ * Reads the loadable to-one relations whose join columns live in the row of the entity.
  * @template E The entity type
  * @param {Repository<E>} repository - Native metadata owner.
  * @returns {ReadonlyArray<RelationMetadata>} The relations.
  */
 function readOwnedToOneRelations<E extends IApiBaseEntity>(repository: Repository<E>): ReadonlyArray<RelationMetadata> {
-	// A repository test double may carry no metadata; it has no relations to read then.
-	const relations: ReadonlyArray<RelationMetadata> = (repository.metadata as EntityMetadata | undefined)?.relations ?? [];
-
-	return relations.filter((relation: RelationMetadata): boolean => (relation.isManyToOne || relation.isOneToOneOwner) && !relation.isLazy && !relation.embeddedMetadata);
+	return readLoadableRelations(repository).filter((relation: RelationMetadata): boolean => isOwnedToOneRelation(relation));
 }
 
 /**
@@ -599,9 +638,9 @@ function readPatchValues<E extends IApiBaseEntity>(repository: Repository<E>, se
 }
 
 /**
- * Builds what the saved entity gives a relation that left the save: a reference with the join column values the row now holds, or null when a column holds none, so subscribers and direct callers never read the row the relation left.
+ * Builds what the saved entity gives a to-one relation the update moved away from the row it loaded: a reference with the join column values the row now holds, or null when a column holds none, so subscribers and direct callers never read the row the relation left.
  * @template E The entity type
- * @param {RelationMetadata} relation - The relation that left the save.
+ * @param {RelationMetadata} relation - The moved relation.
  * @param {E} savedEntity - The saved entity.
  * @param {E} existingEntity - The row as the read loaded it, which names a join column the entity does not declare.
  * @returns {ObjectLiteral | null} The reference.
@@ -621,4 +660,22 @@ function readRelationReference<E extends IApiBaseEntity>(relation: RelationMetad
 	}
 
 	return reference;
+}
+
+/**
+ * Takes a loaded relation out of the entity a save receives. An embedded column on the way to it is copied first, because the row the read loaded shares it and subscribers still read that row.
+ * @param {RelationMetadata} relation - The relation that leaves the save.
+ * @param {ObjectLiteral} mergedEntity - The entity the save receives.
+ */
+function removeRelationFromSave(relation: RelationMetadata, mergedEntity: ObjectLiteral): void {
+	let holder: ObjectLiteral = mergedEntity;
+
+	for (const propertyName of relation.embeddedMetadata?.parentPropertyNames ?? []) {
+		const embedded: ObjectLiteral = holder[propertyName] as ObjectLiteral;
+		const copy: ObjectLiteral = Object.assign(Object.create(Object.getPrototypeOf(embedded) as null | object) as ObjectLiteral, embedded);
+		holder[propertyName] = copy;
+		holder = copy;
+	}
+
+	Reflect.deleteProperty(holder, relation.propertyName);
 }

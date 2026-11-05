@@ -722,7 +722,11 @@ These bodies write nothing:
 
 `null` clears a relation that allows it, through either spelling. A key column in the primary key never moves: the route takes it from the path.
 
-`service.update()` and a function `onBeforeUpdate` subscriber write the same way: a key column moves the relation, and a relation they name decides over the key column, without the `400` above, because a hydrated relation can spell its key differently from the column. A relation the read loaded and the update moved through its key column comes back in the saved object as a reference holding only the join values, such as `{ "id": "o2" }`, or as `null`. It is not the related row, so read that row through `GET` when you need its other columns. A subscriber's `DATA.currentEntity` still holds the row before the write.
+An update that names neither a relation nor its key columns keeps the key as the database holds it. This holds when the read loads the relation as `null` although the key holds a value: the related row is soft deleted, or a key without a foreign key constraint names a row that is gone. The key stays, on a nullable or a required relation, over one join column or several, in an embedded column, and when the read does not select the key column. A key that is `NULL` stays `NULL`. A body that repeats the stored key, as a `PUT` does, keeps it as well. The response still shows such a relation as `null` next to its key, as `GET` does.
+
+The same holds for every other relation the update does not name: an eager `ManyToMany` keeps its link to a soft deleted row, and an eager cascaded relation does not save its related row, so that row keeps its own keys. A `ManyToMany` the update names replaces its links as before.
+
+`service.update()` and a function `onBeforeUpdate` subscriber write the same way: a key column moves the relation, and a relation they name decides over the key column, without the `400` above, because a hydrated relation can spell its key differently from the column. A relation the read loaded and the update moved through its key column comes back in the saved object as a reference holding only the join values, such as `{ "id": "o2" }`, or as `null`. It is not the related row, so read that row through `GET` when you need its other columns. A relation the read loaded as `null` and the update does not name stays `null` in the saved object, and its key stays as stored. A subscriber's `DATA.currentEntity` still holds the row before the write.
 
 ## Migration Notes
 
@@ -739,6 +743,19 @@ From 5.2.1, a generated `PUT` or `PATCH` writes a change of an eager to-one rela
 | A key that moves the row out of a scope       | `200`, the stored key did not change | `403`, rolled back                                |
 
 A client that sent a stale or wrong key and relied on the `200` now changes the row or gets the error above. `{ "owner": null }` on a required relation, eager or not, now answers `400` on `PUT` and `PATCH` instead of failing in the database with `500`, or `409` on SQLite. On SQLite a foreign key failure of an update now answers `400` instead of `409`, as on the other databases. `service.update()` and function subscribers that set a key column of an eager relation now move it too, and the result carries a reference to the new row, not the old related row.
+
+From 5.2.1, an update leaves every eager relation it does not name as the database holds it. Before, a relation the read loaded as `null` cleared the stored key: the read leaves out a soft deleted related row, and the save took the missing relation for a cleared one. The route answered `200`.
+
+| Row and body                                                      | Before                                                                 | From 5.2.1                   |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------- |
+| Nullable eager relation to a soft deleted row, `{ "label": "x" }` | `200`, the key was set to `NULL`                                       | `200`, the key stays         |
+| Required eager relation to a soft deleted row, `{ "label": "x" }` | `500`, or `409` on SQLite, from the `NOT NULL` column, nothing written | `200`, the key stays         |
+| The same rows, a `PUT` that repeats the stored keys               | as above                                                               | `200`, the keys stay         |
+| Eager relation whose key names a missing row without a constraint | `200`, the key was set to `NULL`                                       | `200`, the key stays         |
+| Eager `ManyToMany` with a soft deleted row, `{ "label": "x" }`    | `200`, the link to that row was deleted                                | `200`, the link stays        |
+| Eager cascaded relation whose row links a soft deleted row        | `200`, the key of the related row was set to `NULL`                    | `200`, the related row stays |
+
+A row with a required eager relation to a soft deleted row could not be updated at all before, by any body that left that relation out; it now can. A body that names the key or the relation, including `null` on a nullable one, writes as described in [Updating with Relations](#updating-with-relations). The response is unchanged: such a relation still shows as `null` next to its key.
 
 ### 5.0.0
 
