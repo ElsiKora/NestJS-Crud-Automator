@@ -321,8 +321,8 @@ export class ApiAuthorizationIamQueryPlanner {
 	/**
 	 * Builds the pair of one row-scoped resource-pattern constraint: the placeholder's column renders the constrained
 	 * text. A glob needs a described text column. An exact value compares as text on a text column, as a boolean on a
-	 * boolean column, as an integer on an integer column, and natively on another numeric or date column, which only a
-	 * Deny ever negates.
+	 * boolean column, as an integer on an integer column, and natively on another numeric or date column. A Deny and an
+	 * Allow `NotResource` negate it, and the lowerer compares it only where the column holds the rendered text alike.
 	 * @template E - Entity type.
 	 * @param {IApiAuthorizationIamResourceConstraint} constraint - Placeholder constraint.
 	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
