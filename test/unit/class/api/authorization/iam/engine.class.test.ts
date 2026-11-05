@@ -135,7 +135,7 @@ const evaluate = async (options: { action?: string; boundaryStatements?: Readonl
 			attachments: [{ policyId: "identity", principalId: principal.id, principalType: principal.type }],
 			boundaries: options.boundaryStatements ? [{ policyId: "boundary", principalId: principal.id, principalType: principal.type }] : [],
 		},
-		dialect: options.dialect,
+		dialect: options.dialect ?? { driverType: "postgres", type: EApiAuthorizationIamDialect.POSTGRES },
 		documents,
 		policyNamespace: "admin:item",
 		principal: options.principal ?? principal,
@@ -1017,8 +1017,8 @@ describe("ApiAuthorizationIamEngine", () => {
 		});
 
 		it("grants nothing on a list for an Allow glob the portable dialect cannot match exactly", async () => {
-			const questionMarkDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/?"] }] });
-			const rowDecision = await evaluate({ statements: [{ ...allowAll, Resource: ["gameport:admin:item/item-*"] }] });
+			const questionMarkDecision = await evaluate({ dialect: { type: EApiAuthorizationIamDialect.PORTABLE }, statements: [{ ...allowAll, Resource: ["gameport:admin:item/?"] }] });
+			const rowDecision = await evaluate({ dialect: { type: EApiAuthorizationIamDialect.PORTABLE }, statements: [{ ...allowAll, Resource: ["gameport:admin:item/item-*"] }] });
 
 			expect(questionMarkDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 			expect(rowDecision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);

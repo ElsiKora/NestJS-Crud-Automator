@@ -87,7 +87,7 @@ const evaluate = async (request: IRequest, statements: ReadonlyArray<IApiPolicyS
 	await new ApiAuthorizationIamEngine(new ApiAuthorizationIamQueryPlanner()).evaluate<EngineTargetItemEntity>({
 		action: request.action,
 		attachments: { attachments: [{ policyId: "identity", principalId: principal.id, principalType: principal.type }], boundaries: [] },
-		dialect: request.dialect,
+		dialect: request.dialect ?? POSTGRES,
 		documents: [{ document: { Statement: statements, Version: "2012-10-17" }, id: "identity", namespace: "admin:item", sourceType: EApiPolicySourceType.MANAGED, version: "1" }],
 		policyNamespace: "admin:item",
 		principal,
@@ -269,7 +269,7 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 		it("fails a Deny closed on a dialect that cannot keep the rows exactly, and compiles it on one that can", async () => {
 			const statements: Array<IApiPolicyStatement> = [allowAll, deny({ NotResource: ["gameport:admin:item/item-*"] })];
 
-			expect(await readType(LIST, statements)).toBe(DENIED);
+			expect(await readType({ ...LIST, dialect: { type: EApiAuthorizationIamDialect.PORTABLE } }, statements)).toBe(DENIED);
 			expect(await readType({ ...LIST, dialect: POSTGRES }, statements)).toBe(ALLOWED);
 			expect(await readType({ ...LIST, dialect: SQLITE }, statements)).toBe(ALLOWED);
 			expect(await readType({ ...LIST, dialect: { type: EApiAuthorizationIamDialect.UNRESOLVED } }, statements)).toBe(DENIED);
@@ -412,7 +412,7 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 
 			expect(await readType({ ...LIST, dialect: POSTGRES }, statements)).toBe(ALLOWED);
 			expect(await readType({ ...LIST, dialect: SQLITE }, statements)).toBe(ALLOWED);
-			expect(await readType(LIST, statements)).toBe(IMPLICIT);
+			expect(await readType({ ...LIST, dialect: { type: EApiAuthorizationIamDialect.PORTABLE } }, statements)).toBe(IMPLICIT);
 			expect(await readType({ ...LIST, dialect: { type: EApiAuthorizationIamDialect.UNRESOLVED } }, statements)).toBe(IMPLICIT);
 		});
 
@@ -448,6 +448,7 @@ describe("ApiAuthorizationIamEngine resource targets", () => {
 			const decision = await new ApiAuthorizationIamEngine(new ApiAuthorizationIamQueryPlanner()).evaluate<EngineTargetItemEntity>({
 				action: "admin:item:list",
 				attachments: { attachments: [{ policyId: "identity", principalId: principal.id, principalType: principal.type }], boundaries: [{ policyId: "boundary", principalId: principal.id, principalType: principal.type }] },
+				dialect: POSTGRES,
 				documents: [
 					{ document: { Statement: [allowAll], Version: "2012-10-17" }, id: "identity", namespace: "admin:item", sourceType: EApiPolicySourceType.MANAGED, version: "1" },
 					{ document: { Statement: [allow({ NotResource: ["gameport:admin:item/item-1"] })], Version: "2012-10-17" }, id: "boundary", namespace: "admin:item", sourceType: EApiPolicySourceType.MANAGED, version: "1" },

@@ -204,13 +204,18 @@ describe("IAM predicate lowering to SQL", () => {
 			["MySQL", MYSQL],
 			["MariaDB", MARIADB],
 			["SQLite", SQLITE],
-			["portable", PORTABLE],
 		])("binds every value on %s, which compares it as text without refusing it", (_name: string, dialect: IApiAuthorizationIamDialect) => {
 			for (const column of [UUID_CODE, ENUM_NAME]) {
 				const lowered = createIamLowerer(dialect).lower(textIn(column, [CANONICAL_UUID.toUpperCase(), "gamma", ""]), 128);
 
 				expect(lowered.isCompilable).toBe(true);
 				expect(lowered.branches).toHaveLength(1);
+			}
+		});
+
+		it("fails closed on portable, which compares text with a collation nothing checks", () => {
+			for (const column of [UUID_CODE, ENUM_NAME]) {
+				expect(createIamLowerer(PORTABLE).lower(textIn(column, [CANONICAL_UUID.toUpperCase(), "gamma", ""]), 128).isCompilable).toBe(false);
 			}
 		});
 	});
@@ -252,15 +257,12 @@ describe("IAM predicate lowering to SQL", () => {
 	});
 
 	describe("portable", () => {
-		it("emits the 5.1.0 forms: native equality and a negated LIKE", () => {
-			expect(renderIamLowererWhere(sqlite, PORTABLE, textIn(NAME, ["ann"]))).toMatchInlineSnapshot(`
-				{
-				  "parameters": [
-				    "ann",
-				  ],
-				  "where": "(((("IamLowererItemEntity"."name" = ?))))",
-				}
-			`);
+		it("fails closed on text equality, which a case-insensitive collation could widen", () => {
+			expect(renderIamLowererWhere(sqlite, PORTABLE, textIn(NAME, ["ann"]))).toBeUndefined();
+			expect(renderIamLowererWhere(sqlite, PORTABLE, textIn(NAME, ["ann", "bob"], true))).toBeUndefined();
+		});
+
+		it("emits a negated LIKE, which a case-insensitive collation can only narrow", () => {
 			expect(renderIamLowererWhere(sqlite, PORTABLE, like(NAME, ESCAPED_PATTERN, true))).toMatchInlineSnapshot(`
 				{
 				  "parameters": [

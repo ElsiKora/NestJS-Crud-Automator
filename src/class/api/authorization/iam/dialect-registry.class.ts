@@ -9,8 +9,8 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 const iamDialectRegistryLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationIamDialectRegistry");
 
-// Driver types of PostgreSQL and CockroachDB, as the TypeORM DataSource options name them.
-const IAM_DIALECT_REGISTRY_POSTGRES_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["cockroachdb", "postgres"]);
+// Driver types of PostgreSQL, Aurora PostgreSQL and CockroachDB, as the TypeORM DataSource options name them.
+const IAM_DIALECT_REGISTRY_POSTGRES_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["aurora-postgres", "cockroachdb", "postgres"]);
 
 /**
  * The SQL dialect of each IAM resource entity in one application. Bootstrap registers the DataSource each IAM

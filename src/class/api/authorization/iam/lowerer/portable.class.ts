@@ -430,13 +430,14 @@ export class ApiAuthorizationIamPortableLowerer {
 	}
 
 	/**
-	 * Lowers a text comparison. Portable SQL compares with the column collation; the dialect-free lowering keeps the
-	 * equality 5.1.0 used.
-	 * @param {IApiAuthorizationIamPredicateIn} atom - `IN` atom with a `TEXT` comparison on a text column.
+	 * Lowers a text comparison. Portable SQL compares with the column collation, which may ignore case or trailing
+	 * spaces, so an equality would name rows memory does not: the dialect-free lowering has no exact text comparison and
+	 * fails closed. A dialect lowerer compares code points.
+	 * @param {IApiAuthorizationIamPredicateIn} _atom - `IN` atom with a `TEXT` comparison on a text column.
 	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
 	 */
-	protected lowerTextIn(atom: IApiAuthorizationIamPredicateIn): IApiAuthorizationIamPredicateLowered {
-		return this.lowerNativeIn(atom);
+	protected lowerTextIn(_atom: IApiAuthorizationIamPredicateIn): IApiAuthorizationIamPredicateLowered {
+		return { isExact: false };
 	}
 
 	/**

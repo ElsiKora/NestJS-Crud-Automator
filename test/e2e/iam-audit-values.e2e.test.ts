@@ -380,6 +380,7 @@ describe.each<{ database: TE2eIamAuditDatabase; databaseName: string }>([
 			["an Allow of a text placeholder", "tenant", (ns: string) => [allow(ns, { Resource: [`${ns}/t1`] })]],
 			["a Deny StringNotEquals", "items", (ns: string) => [allow(ns), deny(ns, { Condition: { StringNotEquals: { "resource.tenant": "t1" } } })]],
 			["a Deny of a text placeholder", "tenant", (ns: string) => [allow(ns), deny(ns, { NotResource: [`${ns}/t1`] })]],
+			["a Deny DateGreaterThan on an instant", "items", (ns: string) => [allow(ns), deny(ns, { Condition: { DateGreaterThan: { "resource.at": "2020-01-01T00:00:00Z" } } })]],
 		])("%s fails closed", async (_name: string, name: TE2eIamAuditRouteName, policy: (ns: string) => Array<IApiPolicyStatement>) => {
 			vi.spyOn(ApiAuthorizationIamDialectRegistry.prototype, "resolve").mockResolvedValue({ type: EApiAuthorizationIamDialect.PORTABLE });
 

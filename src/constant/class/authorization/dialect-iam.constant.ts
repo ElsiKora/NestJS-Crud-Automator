@@ -65,8 +65,8 @@ export const AUTHORIZATION_IAM_DIALECT_CONSTANT: {
 	MYSQL_DECIMAL_TYPES: new Set<string>(["dec", "decimal", "fixed", "numeric"]),
 	// Double types of the MySQL family.
 	MYSQL_DOUBLE_TYPES: new Set<string>(["double", "double precision", "real"]),
-	// Driver types of the MySQL family; TypeORM reports a MariaDB server behind `mysql` as `mysql`.
-	MYSQL_DRIVER_TYPES: new Set<string>(["mariadb", "mysql"]),
+	// Driver types of the MySQL family; TypeORM reports a MariaDB server behind `mysql` as `mysql`, and Aurora MySQL through the RDS Data API as `aurora-mysql`.
+	MYSQL_DRIVER_TYPES: new Set<string>(["aurora-mysql", "mariadb", "mysql"]),
 	// Digits of the largest DECIMAL of the MySQL family.
 	MYSQL_MAX_DECIMAL_DIGITS,
 	// Fraction digits of the largest DECIMAL of the MySQL family.

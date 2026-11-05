@@ -213,6 +213,9 @@ const inheritedResourceDefinition: IApiAuthorizationResourceDefinition<PlannerIn
 	resourceType: "gameport:admin:item",
 };
 
+// Text equality has no exact portable form, so the planner is read through PostgreSQL, which compares code points.
+const POSTGRES_DIALECT: IApiAuthorizationIamDialect = { driverType: "postgres", type: EApiAuthorizationIamDialect.POSTGRES };
+
 const principal: IApiAuthorizationPrincipal = {
 	attributes: { emptyValue: "", nullValue: null, operatorId: "operator-1" },
 	id: "user-1",
@@ -227,13 +230,7 @@ const createStatement = (effect: EApiPolicyEffect, condition: Record<string, Rec
 	Resource: ["gameport:admin:item/*"],
 });
 
-const planAllow = (condition: Record<string, Record<string, unknown>>) =>
-	new ApiAuthorizationIamQueryPlanner().plan({
-		principal,
-		requestMetadata: {},
-		resourceDefinition,
-		statements: [createStatement(EApiPolicyEffect.ALLOW, condition)],
-	});
+const planAllow = (condition: Record<string, Record<string, unknown>>) => new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal, requestMetadata: {}, resourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, condition)] });
 
 const exact = (placeholder: string, value: string): IApiAuthorizationIamResourceConstraint => ({ pattern: value === "" ? [] : [{ type: EApiAuthorizationIamTokenType.LITERAL, value }], placeholder });
 const prefix = (placeholder: string, value: string): IApiAuthorizationIamResourceConstraint => ({ pattern: [{ type: EApiAuthorizationIamTokenType.LITERAL, value }, { type: EApiAuthorizationIamTokenType.STAR }], placeholder });
@@ -241,6 +238,7 @@ const rows = (constraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>
 
 const planDeny = (exclusions: ReadonlyArray<{ condition?: Record<string, Record<string, unknown>>; resourceRows?: IApiAuthorizationIamResourceRows }>) =>
 	new ApiAuthorizationIamQueryPlanner().planExclusion({
+		dialect: POSTGRES_DIALECT,
 		exclusions: exclusions.map((exclusion) => ({
 			...(exclusion.resourceRows ? { resourceRows: exclusion.resourceRows } : {}),
 			statement: createStatement(EApiPolicyEffect.DENY, exclusion.condition ?? {}),
@@ -393,25 +391,11 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		});
 
 		it("allows every row when one statement has no resource key, whatever the other statements allow", () => {
-			expect(
-				new ApiAuthorizationIamQueryPlanner().plan({
-					principal,
-					requestMetadata: {},
-					resourceDefinition,
-					statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.status": "archived" } }), createStatement(EApiPolicyEffect.ALLOW, {})],
-				}),
-			).toEqual({ isFullyCompilable: true, scope: undefined });
+			expect(new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal, requestMetadata: {}, resourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.status": "archived" } }), createStatement(EApiPolicyEffect.ALLOW, {})] })).toEqual({ isFullyCompilable: true, scope: undefined });
 		});
 
 		it("binds the canonical text of a value", () => {
-			expect(
-				new ApiAuthorizationIamQueryPlanner().plan({
-					principal: { ...principal, attributes: { level: 7 } },
-					requestMetadata: {},
-					resourceDefinition,
-					statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.status": "${principal.attributes.level}" } })],
-				}).scope,
-			).toEqual({ where: { status: "7" } });
+			expect(new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal: { ...principal, attributes: { level: 7 } }, requestMetadata: {}, resourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.status": "${principal.attributes.level}" } })] }).scope).toEqual({ where: { status: "7" } });
 		});
 
 		it("lowers the scope to the dialect it is given and fails closed for an unresolved one", () => {
@@ -540,12 +524,7 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		});
 
 		it("compiles a prefix constraint on a text field inherited from an abstract base", () => {
-			const result = new ApiAuthorizationIamQueryPlanner().planExclusion({
-				exclusions: [{ resourceRows: rows([prefix("code", "abc")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }],
-				principal,
-				requestMetadata: {},
-				resourceDefinition: inheritedResourceDefinition,
-			});
+			const result = new ApiAuthorizationIamQueryPlanner().planExclusion({ dialect: POSTGRES_DIALECT, exclusions: [{ resourceRows: rows([prefix("code", "abc")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }], principal, requestMetadata: {}, resourceDefinition: inheritedResourceDefinition });
 			const where = result.scope?.where as [{ code: FindOperator<unknown> }, { code: FindOperator<unknown> }];
 
 			expect(result.isFullyCompilable).toBe(true);
@@ -554,14 +533,7 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 		});
 
 		it("does not compile a prefix constraint on a non-text field inherited from an abstract base", () => {
-			expect(
-				new ApiAuthorizationIamQueryPlanner().planExclusion({
-					exclusions: [{ resourceRows: rows([prefix("inheritedExternalId", "1")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }],
-					principal,
-					requestMetadata: {},
-					resourceDefinition: inheritedResourceDefinition,
-				}),
-			).toEqual({ isFullyCompilable: false });
+			expect(new ApiAuthorizationIamQueryPlanner().planExclusion({ dialect: POSTGRES_DIALECT, exclusions: [{ resourceRows: rows([prefix("inheritedExternalId", "1")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }], principal, requestMetadata: {}, resourceDefinition: inheritedResourceDefinition })).toEqual({ isFullyCompilable: false });
 		});
 
 		it.each(["secret", "unknown"])("is not compilable when the placeholder maps to %s", (placeholder: string) => {
@@ -570,6 +542,7 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 
 		it("reads the entity's own text column when an unrelated class shares the entity's name", () => {
 			const plan = new ApiAuthorizationIamQueryPlanner().planExclusion({
+				dialect: POSTGRES_DIALECT,
 				exclusions: [{ resourceRows: rows([prefix("code", "abc")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }],
 				principal,
 				requestMetadata: {},
@@ -625,21 +598,9 @@ const booleanPrincipal: IApiAuthorizationPrincipal = {
 	type: EApiAuthorizationPrincipalType.USER,
 };
 
-const planBooleanAllow = (condition: Record<string, Record<string, unknown>>) =>
-	new ApiAuthorizationIamQueryPlanner().plan({
-		principal: booleanPrincipal,
-		requestMetadata: {},
-		resourceDefinition: booleanResourceDefinition,
-		statements: [createStatement(EApiPolicyEffect.ALLOW, condition)],
-	});
+const planBooleanAllow = (condition: Record<string, Record<string, unknown>>) => new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: booleanResourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, condition)] });
 
-const planBooleanDeny = (condition: Record<string, Record<string, unknown>>) =>
-	new ApiAuthorizationIamQueryPlanner().planExclusion({
-		exclusions: [{ statement: createStatement(EApiPolicyEffect.DENY, condition) }],
-		principal: booleanPrincipal,
-		requestMetadata: {},
-		resourceDefinition: booleanResourceDefinition,
-	});
+const planBooleanDeny = (condition: Record<string, Record<string, unknown>>) => new ApiAuthorizationIamQueryPlanner().planExclusion({ dialect: POSTGRES_DIALECT, exclusions: [{ statement: createStatement(EApiPolicyEffect.DENY, condition) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: booleanResourceDefinition });
 
 // A boolean bound as text compares 'true' with the stored 1 on SQLite and matches no row.
 const CANONICAL_BOOLEAN_VALUES: Array<[unknown, boolean]> = [
@@ -781,9 +742,10 @@ const partResourceDefinition: IApiAuthorizationResourceDefinition<PlannerBoolean
 	resourceType: "bool:part",
 };
 
-const planPartAllow = (condition: Record<string, Record<string, unknown>>) => new ApiAuthorizationIamQueryPlanner().plan({ principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, condition)] });
+const planPartAllow = (condition: Record<string, Record<string, unknown>>) => new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, condition)] });
 
-const planPartDeny = (condition: Record<string, Record<string, unknown>>, resourceConstraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint> = []) => new ApiAuthorizationIamQueryPlanner().planExclusion({ exclusions: [{ ...(resourceConstraints.length === 0 ? {} : { resourceRows: rows(resourceConstraints) }), statement: createStatement(EApiPolicyEffect.DENY, condition) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition });
+const planPartDeny = (condition: Record<string, Record<string, unknown>>, resourceConstraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint> = []) =>
+	new ApiAuthorizationIamQueryPlanner().planExclusion({ dialect: POSTGRES_DIALECT, exclusions: [{ ...(resourceConstraints.length === 0 ? {} : { resourceRows: rows(resourceConstraints) }), statement: createStatement(EApiPolicyEffect.DENY, condition) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: partResourceDefinition });
 
 // Builds the nested where a query path compiles to.
 const nestWhere = (queryPath: string, value: unknown): Record<string, unknown> => queryPath.split(".").reduceRight<unknown>((inner: unknown, segment: string): Record<string, unknown> => ({ [segment]: inner }), value) as Record<string, unknown>;
@@ -841,9 +803,9 @@ describe("ApiAuthorizationIamQueryPlanner on boolean columns TypeORM maps", () =
 		};
 		const planner = new ApiAuthorizationIamQueryPlanner();
 
-		expect(planner.plan({ principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { [path]: value } })] })).toEqual({ isFullyCompilable: false });
-		expect(planner.planExclusion({ exclusions: [{ statement: createStatement(EApiPolicyEffect.DENY, { StringEquals: { [path]: value } }) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
-		expect(planner.planExclusion({ exclusions: [{ resourceRows: rows([exact("status", "active")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
+		expect(planner.plan({ dialect: POSTGRES_DIALECT, principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { [path]: value } })] })).toEqual({ isFullyCompilable: false });
+		expect(planner.planExclusion({ dialect: POSTGRES_DIALECT, exclusions: [{ statement: createStatement(EApiPolicyEffect.DENY, { StringEquals: { [path]: value } }) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
+		expect(planner.planExclusion({ dialect: POSTGRES_DIALECT, exclusions: [{ resourceRows: rows([exact("status", "active")]), statement: createStatement(EApiPolicyEffect.DENY, {}) }], principal: booleanPrincipal, requestMetadata: {}, resourceDefinition: unmappedDefinition })).toEqual({ isFullyCompilable: false });
 	});
 
 	it("reads the TypeORM metadata of one entity and path once", () => {
@@ -852,7 +814,7 @@ describe("ApiAuthorizationIamQueryPlanner on boolean columns TypeORM maps", () =
 
 		try {
 			for (const value of ["true", "false", true]) {
-				expect(new ApiAuthorizationIamQueryPlanner().plan({ principal: booleanPrincipal, requestMetadata: {}, resourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.cached": value } })] }).isFullyCompilable).toBe(true);
+				expect(new ApiAuthorizationIamQueryPlanner().plan({ dialect: POSTGRES_DIALECT, principal: booleanPrincipal, requestMetadata: {}, resourceDefinition, statements: [createStatement(EApiPolicyEffect.ALLOW, { StringEquals: { "resource.cached": value } })] }).isFullyCompilable).toBe(true);
 			}
 
 			expect(readField).toHaveBeenCalledTimes(1);
