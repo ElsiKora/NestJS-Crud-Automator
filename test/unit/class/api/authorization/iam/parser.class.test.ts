@@ -101,6 +101,7 @@ describe("ApiAuthorizationIamParser", () => {
 			expect(ApiAuthorizationIamParser.readDocument(document({ Resource: [pattern(MAX_PATTERN_LENGTH + 1)] })).failures.map((failure) => [failure.property, failure.code])).toEqual([["document.Statement[0].Resource[0]", "iamPolicyPatternInvalid"]]);
 			expect(ApiAuthorizationIamParser.readDocument(document({ NotResource: ["*", pattern(MAX_PATTERN_LENGTH + 1)] })).failures.map((failure) => [failure.property, failure.code])).toEqual([["document.Statement[0].NotResource[1]", "iamPolicyPatternInvalid"]]);
 			expect(() => ApiAuthorizationIamParser.readStatement({ Action: ["admin:item:read"], Effect: EApiPolicyEffect.DENY, Resource: [pattern(120_000)] })).toThrow("iamPolicyPatternInvalid");
+			expect(() => ApiAuthorizationIamParser.readStatement({ Action: [`admin:item:${"a".repeat(MAX_PATTERN_LENGTH)}`], Effect: EApiPolicyEffect.DENY, Resource: ["*"] })).toThrow("iamPolicyPatternInvalid");
 		});
 
 		it("refuses a condition value longer than the limit, and reads one at the limit", () => {

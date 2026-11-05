@@ -678,7 +678,7 @@ export class ApiAuthorizationIamParser {
 	}
 
 	/**
-	 * Reads one `Action`, `NotAction`, `Resource` or `NotResource` pattern.
+	 * Reads one `Action`, `NotAction`, `Resource` or `NotResource` pattern, of at most the pattern length limit.
 	 * @param {unknown} input - Pattern as written.
 	 * @param {"action" | "resource"} kind - Whether the pattern names actions or resources.
 	 * @param {string} property - Path of the pattern.
@@ -688,6 +688,12 @@ export class ApiAuthorizationIamParser {
 	private static readPattern(input: unknown, kind: "action" | "resource", property: string, scope: IApiAuthorizationIamParserScope): IApiAuthorizationIamPattern | undefined {
 		if (typeof input !== "string" || input.length === 0) {
 			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.PATTERN_INVALID, "Pattern must be a non-empty string");
+
+			return undefined;
+		}
+
+		if (input.length > AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_PATTERN_LENGTH) {
+			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.PATTERN_INVALID, `Pattern must be at most ${AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_PATTERN_LENGTH} characters`);
 
 			return undefined;
 		}
@@ -834,6 +840,12 @@ export class ApiAuthorizationIamParser {
 
 		if (typeof input !== "string") {
 			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_VALUE_INVALID, "Condition value must be a string, a finite number or a boolean");
+
+			return undefined;
+		}
+
+		if (input.length > AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_CONDITION_VALUE_LENGTH) {
+			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_VALUE_INVALID, `Condition value must be at most ${AUTHORIZATION_POLICY_DOCUMENT_LIMIT_CONSTANT.MAX_CONDITION_VALUE_LENGTH} characters`);
 
 			return undefined;
 		}
