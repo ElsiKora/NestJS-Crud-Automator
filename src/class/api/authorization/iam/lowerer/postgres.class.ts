@@ -6,7 +6,7 @@ import { ApiAuthorizationIamDecimal } from "@class/api/authorization/iam/decimal
 import { ApiAuthorizationIamPortableLowerer } from "@class/api/authorization/iam/lowerer/portable.class";
 import { AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT, AUTHORIZATION_IAM_DIALECT_CONSTANT } from "@constant/class/authorization";
 import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamTokenType } from "@enum/class/authorization";
-import { In, IsNull, Not, Raw } from "typeorm";
+import { In, IsNull, Not } from "typeorm";
 
 // TypeORM driver type of CockroachDB, which shares the PostgreSQL lowering but has no `"C"` collation or `citext` cast to rely on.
 const IAM_POSTGRES_LOWERER_COCKROACH_DRIVER_TYPE: string = "cockroachdb";
@@ -50,7 +50,7 @@ export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPorta
 		const pattern: string = `^${atom.pattern.map((token: IApiAuthorizationIamToken): string => readIamPostgresRegexToken(token)).join("")}$`;
 		const parameterName: string = this.createParameterName("arn", pattern);
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "!~" : "~"} :${parameterName}`, { [parameterName]: pattern }) };
+		return { isExact: true, operand: this.createRaw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "!~" : "~"} :${parameterName}`, { [parameterName]: pattern }) };
 	}
 
 	/**
@@ -119,7 +119,7 @@ export class ApiAuthorizationIamPostgresLowerer extends ApiAuthorizationIamPorta
 
 		const parameterName: string = this.createParameterName("ip", atom.range);
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => (atom.isNegated ? `NOT (${columnAlias} <<= CAST(:${parameterName} AS inet))` : `${columnAlias} <<= CAST(:${parameterName} AS inet)`), { [parameterName]: atom.range }) };
+		return { isExact: true, operand: this.createRaw((columnAlias: string): string => (atom.isNegated ? `NOT (${columnAlias} <<= CAST(:${parameterName} AS inet))` : `${columnAlias} <<= CAST(:${parameterName} AS inet)`), { [parameterName]: atom.range }) };
 	}
 
 	/**

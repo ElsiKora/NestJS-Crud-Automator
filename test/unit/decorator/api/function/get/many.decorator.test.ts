@@ -1,9 +1,11 @@
 import type { FindManyOptions, Repository } from "typeorm";
 
+import { ApiAuthorizationIamPortableLowerer } from "@class/api/authorization/iam/lowerer";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
 import { ApiControllerGeneratedGetManyContract } from "@class/api/controller/generated/get-many-contract.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGetMany } from "@decorator/api/function/get/many.decorator";
+import { EApiAuthorizationIamDialect } from "@enum/class/authorization";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Equal, MoreThan, Raw } from "typeorm";
@@ -268,6 +270,13 @@ describe("ApiFunctionGetMany", () => {
 		const staticRawBaseRequest = { order: { id: "ASC" as const }, take: 3, where: { id: Raw("abs(random()) % 2 = 0") } };
 
 		expect(() => ApiControllerGeneratedGetManyContract.run(staticRawBaseRequest, async () => [])).toThrow("candidate WHERE cannot contain raw SQL operators");
+
+		// The raw SQL an IAM lowerer writes for an authorization scope is merged, and only that raw SQL.
+		const lowerer = new ApiAuthorizationIamPortableLowerer({ type: EApiAuthorizationIamDialect.PORTABLE }) as unknown as { createRaw: (sql: (columnAlias: string) => string, parameters: Record<string, unknown>) => ReturnType<typeof Raw> };
+		const loweredRequest = { order: { id: "ASC" as const }, take: 3, where: { id: lowerer.createRaw((columnAlias: string): string => `${columnAlias} LIKE :pattern`, { pattern: "t1%" }) } };
+
+		expect(() => ApiControllerGeneratedGetManyContract.run(loweredRequest, async () => [])).not.toThrow();
+		expect(() => ApiControllerGeneratedGetManyContract.run({ ...loweredRequest, where: { id: Raw(sqlGenerator, { pattern: "t1%" }) } }, async () => [])).toThrow("candidate WHERE cannot contain raw SQL operators");
 
 		const spoofedRaw = {
 			"@instanceof": Symbol.for("FindOperator"),

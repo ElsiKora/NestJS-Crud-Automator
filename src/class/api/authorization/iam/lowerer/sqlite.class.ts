@@ -6,7 +6,6 @@ import { ApiAuthorizationIamDecimal } from "@class/api/authorization/iam/decimal
 import { ApiAuthorizationIamPortableLowerer } from "@class/api/authorization/iam/lowerer/portable.class";
 import { AUTHORIZATION_IAM_DIALECT_CONSTANT } from "@constant/class/authorization";
 import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamTokenType } from "@enum/class/authorization";
-import { Raw } from "typeorm";
 
 // SQLite's default collation, which compares bytes.
 const IAM_SQLITE_LOWERER_BINARY_COLLATION: string = "binary";
@@ -81,7 +80,7 @@ export class ApiAuthorizationIamSqliteLowerer extends ApiAuthorizationIamPortabl
 
 		return {
 			isExact: true,
-			operand: Raw((columnAlias: string): string => {
+			operand: this.createRaw((columnAlias: string): string => {
 				const operator: string = atom.isNegated ? "NOT GLOB" : "GLOB";
 				const comparisons: string = parameterNames.map((parameterName: string): string => `${columnAlias} ${operator} :${parameterName}`).join(atom.isNegated ? " AND " : " OR ");
 
@@ -111,7 +110,7 @@ export class ApiAuthorizationIamSqliteLowerer extends ApiAuthorizationIamPortabl
 
 		const parameterName: string = this.createParameterName("glob", pattern);
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => `(${columnAlias} ${atom.isNegated ? "NOT GLOB" : "GLOB"} :${parameterName} AND ${this.createNoNulCondition(columnAlias)})`, { [parameterName]: pattern }) };
+		return { isExact: true, operand: this.createRaw((columnAlias: string): string => `(${columnAlias} ${atom.isNegated ? "NOT GLOB" : "GLOB"} :${parameterName} AND ${this.createNoNulCondition(columnAlias)})`, { [parameterName]: pattern }) };
 	}
 
 	/**

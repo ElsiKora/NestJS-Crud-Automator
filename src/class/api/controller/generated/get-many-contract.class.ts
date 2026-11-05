@@ -6,6 +6,7 @@ import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function
 
 import { AsyncLocalStorage as NodeAsyncLocalStorage } from "node:async_hooks";
 
+import { ApiAuthorizationIamPortableLowerer } from "@class/api/authorization/iam/lowerer/portable.class";
 import { ApiControllerGeneratedScopeWhereContract } from "@class/api/controller/generated/scope-where-contract.class";
 import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
@@ -188,8 +189,13 @@ export class ApiControllerGeneratedGetManyContract {
 			throw ErrorException("CURSOR GET_LIST candidate WHERE contains a non-canonical TypeORM operator");
 		}
 
+		// The raw SQL an IAM lowerer writes for an authorization scope merges with the keyset predicate; any other stays refused.
 		if (type === "raw") {
-			throw ErrorException("CURSOR GET_LIST candidate WHERE cannot contain raw SQL operators");
+			if (!ApiAuthorizationIamPortableLowerer.isLoweredRaw(getSql) || !this.isPlainParameters(objectLiteralParameters)) {
+				throw ErrorException("CURSOR GET_LIST candidate WHERE cannot contain raw SQL operators");
+			}
+
+			return;
 		}
 
 		if (getSql !== undefined || objectLiteralParameters !== undefined) {
@@ -237,6 +243,11 @@ export class ApiControllerGeneratedGetManyContract {
 
 			if (!descriptor || !("value" in descriptor)) {
 				throw ErrorException("CURSOR GET_LIST candidate WHERE must contain data properties only");
+			}
+
+			// The SQL builder of a lowered raw condition is the one function a candidate WHERE may hold.
+			if (isFindOperator && key === "_getSql" && ApiAuthorizationIamPortableLowerer.isLoweredRaw(descriptor.value)) {
+				continue;
 			}
 
 			this.assertStableCandidateWhere(descriptor.value, visited);
@@ -299,6 +310,16 @@ export class ApiControllerGeneratedGetManyContract {
 
 	private static isDataProperty(descriptor: PropertyDescriptor): descriptor is { value: unknown } & PropertyDescriptor {
 		return "value" in descriptor;
+	}
+
+	private static isPlainParameters(value: unknown): boolean {
+		if (!value || typeof value !== "object" || Array.isArray(value)) {
+			return false;
+		}
+
+		const prototype: null | object = Object.getPrototypeOf(value) as null | object;
+
+		return prototype === null || prototype === Object.prototype;
 	}
 
 	private static readWhere(properties: TApiFunctionGetManyProperties<IApiBaseEntity>): TApiFunctionGetManyProperties<IApiBaseEntity>["where"] {

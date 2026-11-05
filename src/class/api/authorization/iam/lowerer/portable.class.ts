@@ -13,6 +13,9 @@ import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamDialect, EApiAuth
 import { And, Equal, FindOperator, In, IsNull, LessThan, LessThanOrEqual, MoreThan, MoreThanOrEqual, Not, Raw } from "typeorm";
 
 // Exact decimal types a resource placeholder compares natively: SQL compares their values, which the rendered text names.
+// The SQL builders of the `Raw` conditions the lowerers write, which a cursor list merges with its keyset predicate.
+const IAM_LOWERER_RAW_SQL: WeakSet<object> = new WeakSet<object>();
+
 const IAM_LOWERER_NATIVE_DECIMAL_TYPES: ReadonlySet<string> = new Set<string>(["dec", "decimal", "fixed", "numeric"]);
 
 // Double types a resource placeholder compares natively, for a literal such a type holds. A single-precision column stays out: MySQL widens it to another double than its text names.
@@ -68,6 +71,16 @@ export class ApiAuthorizationIamPortableLowerer {
 	private parameterScope: string | undefined;
 
 	public constructor(protected readonly dialect: IApiAuthorizationIamDialect) {}
+
+	/**
+	 * Tells whether a `Raw` SQL builder is one a lowerer wrote, so a cursor list can merge its condition with the keyset
+	 * predicate while it still refuses any other raw SQL.
+	 * @param {unknown} sql - The `_getSql` builder of a TypeORM `Raw` operator.
+	 * @returns {boolean} Whether a lowerer wrote the builder.
+	 */
+	public static isLoweredRaw(sql: unknown): boolean {
+		return typeof sql === "function" && IAM_LOWERER_RAW_SQL.has(sql);
+	}
 
 	/**
 	 * Lowers a predicate to `where` branches.
@@ -129,6 +142,18 @@ export class ApiAuthorizationIamPortableLowerer {
 	}
 
 	/**
+	 * Writes a `Raw` condition and records its SQL builder as one a lowerer wrote.
+	 * @param {(columnAlias: string) => string} sql - Builds the condition from the column alias TypeORM passes.
+	 * @param {Record<string, unknown>} parameters - Values the condition binds.
+	 * @returns {FindOperator<unknown>} The `Raw` operator.
+	 */
+	protected createRaw(sql: (columnAlias: string) => string, parameters: Record<string, unknown>): FindOperator<unknown> {
+		IAM_LOWERER_RAW_SQL.add(sql);
+
+		return Raw(sql, parameters);
+	}
+
+	/**
 	 * Lowers an order comparison with SQL: the column expression, the operator, and the bound value. `Raw` bypasses a
 	 * TypeORM value transformer, so a column that declares one is not exact here. The parameter is named after the column
 	 * too, because PostgreSQL deduces one type per parameter, and one value may compare with columns of several types.
@@ -149,7 +174,7 @@ export class ApiAuthorizationIamPortableLowerer {
 		const expression: (columnAlias: string) => string = sql.expression ?? ((columnAlias: string): string => columnAlias);
 		const parameter: string = sql.parameter ? sql.parameter(`:${parameterName}`) : `:${parameterName}`;
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => `${expression(columnAlias)} ${IAM_LOWERER_OPERATOR_SQL.get(operator) ?? "="} ${parameter}`, { [parameterName]: value }) };
+		return { isExact: true, operand: this.createRaw((columnAlias: string): string => `${expression(columnAlias)} ${IAM_LOWERER_OPERATOR_SQL.get(operator) ?? "="} ${parameter}`, { [parameterName]: value }) };
 	}
 
 	/**
@@ -168,10 +193,10 @@ export class ApiAuthorizationIamPortableLowerer {
 		const parameterName: string = this.createParameterName("in", atom.values);
 
 		if (atom.values.length === 1) {
-			return { isExact: true, operand: Raw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "<>" : "="} :${parameterName}`, { [parameterName]: atom.values[0] }) };
+			return { isExact: true, operand: this.createRaw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "<>" : "="} :${parameterName}`, { [parameterName]: atom.values[0] }) };
 		}
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "NOT IN" : "IN"} (:...${parameterName})`, { [parameterName]: [...atom.values] }) };
+		return { isExact: true, operand: this.createRaw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "NOT IN" : "IN"} (:...${parameterName})`, { [parameterName]: [...atom.values] }) };
 	}
 
 	/**
@@ -190,7 +215,7 @@ export class ApiAuthorizationIamPortableLowerer {
 		const pattern: string = atom.pattern.map((token: IApiAuthorizationIamToken): string => this.readLikeToken(token)).join("");
 		const parameterName: string = this.createParameterName("like", pattern);
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "NOT LIKE" : "LIKE"} :${parameterName} ESCAPE '!'`, { [parameterName]: pattern }) };
+		return { isExact: true, operand: this.createRaw((columnAlias: string): string => `${expression(columnAlias)} ${atom.isNegated ? "NOT LIKE" : "LIKE"} :${parameterName} ESCAPE '!'`, { [parameterName]: pattern }) };
 	}
 
 	/**
@@ -607,7 +632,7 @@ export class ApiAuthorizationIamPortableLowerer {
 
 		return {
 			isExact: true,
-			operand: Raw((columnAlias: string): string => (isOutside ? `(${columnAlias} < :${startName} OR ${columnAlias} >= :${endName})` : `(${columnAlias} >= :${startName} AND ${columnAlias} < :${endName})`), { [endName]: end, [startName]: start }),
+			operand: this.createRaw((columnAlias: string): string => (isOutside ? `(${columnAlias} < :${startName} OR ${columnAlias} >= :${endName})` : `(${columnAlias} >= :${startName} AND ${columnAlias} < :${endName})`), { [endName]: end, [startName]: start }),
 		};
 	}
 
@@ -758,7 +783,7 @@ export class ApiAuthorizationIamPortableLowerer {
 
 		const rowCondition: string = atom.collection.rowCondition === undefined ? "" : ` AND ${atom.collection.rowCondition}`;
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => `${atom.isNegated ? "NOT " : ""}EXISTS (SELECT 1 FROM ${atom.collection.from} WHERE ${atom.collection.link} = ${columnAlias}${rowCondition} AND (${condition}))`, parameters) };
+		return { isExact: true, operand: this.createRaw((columnAlias: string): string => `${atom.isNegated ? "NOT " : ""}EXISTS (SELECT 1 FROM ${atom.collection.from} WHERE ${atom.collection.link} = ${columnAlias}${rowCondition} AND (${condition}))`, parameters) };
 	}
 
 	/**
