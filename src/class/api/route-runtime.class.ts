@@ -91,6 +91,7 @@ const BODY_RELATION_COMPONENT_REJECTION_REASON: string = "a relation must name e
 const BODY_RELATION_CONFLICT_REJECTION_REASON: string = "relation must name the same value as the entity's own column";
 const BODY_RELATION_KEY_CLEAR_REJECTION_REASON: string = "it cannot be cleared, because its columns are in the primary key";
 const BODY_RELATION_LOCKED_CLEAR_REJECTION_REASON: string = "it cannot be cleared, because its columns are in the primary key or bound by the path";
+const BODY_RELATION_NOT_NULL_REJECTION_REASON: string = "it cannot be cleared, because its column does not allow null";
 const BODY_RELATION_OBJECT_REJECTION_REASON: string = "a relation over several columns must be sent as an object naming its join columns";
 const BODY_RELATION_SPLIT_REJECTION_REASON: string = "relation must name each of its own columns, which the entity must declare";
 const BODY_RELATION_UNNAMED_REJECTION_REASON: string = "a relation object must name its join columns";
@@ -307,6 +308,32 @@ export class ApiRouteRuntime {
 					if (!isAddressed || !this.isSamePathValue(relationKey, pathValues[field])) {
 						throw this.createBodyParameterException(relation.propertyName, isAddressed ? BODY_PATH_MISMATCH_REJECTION_REASON : BODY_UNADDRESSED_KEY_REJECTION_REASON);
 					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Refuses an update that clears a to-one relation whose column does not allow null, through the relation or through its own column, because the write could only fail on it.
+	 * @param {Record<string, unknown>} writeBody - The body the route writes.
+	 * @param {ReadonlyArray<RelationMetadata>} relations - Relations of the entity.
+	 * @throws {BadRequestException} When the body clears such a relation.
+	 */
+	private static assertRequiredRelationsKept(writeBody: Record<string, unknown>, relations: ReadonlyArray<RelationMetadata>): void {
+		for (const relation of relations) {
+			if (!relation.isManyToOne && !relation.isOneToOneOwner) {
+				continue;
+			}
+
+			const requiredColumns: Array<TTypeOrmColumnMetadata> = relation.joinColumns.filter((column: TTypeOrmColumnMetadata): boolean => !column.isNullable);
+
+			if (writeBody[relation.propertyName] === null && requiredColumns.length > 0) {
+				throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_NOT_NULL_REJECTION_REASON);
+			}
+
+			for (const column of requiredColumns) {
+				if (!column.isVirtual && writeBody[column.propertyName] === null) {
+					throw this.createBodyParameterException(column.propertyName, BODY_RELATION_NOT_NULL_REJECTION_REASON);
 				}
 			}
 		}
@@ -1313,7 +1340,13 @@ export class ApiRouteRuntime {
 			relations,
 		);
 
-		return this.splitWriteBody(targets.body, rawBody, pathValues, options.method === EApiRouteType.CREATE ? [] : pathPlan.primaryFields, relations);
+		const writeBody: Record<string, unknown> = this.splitWriteBody(targets.body, rawBody, pathValues, options.method === EApiRouteType.CREATE ? [] : pathPlan.primaryFields, relations);
+
+		if (options.method !== EApiRouteType.CREATE) {
+			this.assertRequiredRelationsKept(writeBody, relations);
+		}
+
+		return writeBody;
 	}
 
 	/**

@@ -697,7 +697,48 @@ Change existing rows through their own UPDATE route. The rule holds for the buil
 
 The create decides from the changes TypeORM computes for the body. A TypeORM subscriber or entity listener of your application (`beforeInsert`, `@BeforeInsert`) that changes an existing related object during that save, such as `event.entity.owner.name = "x"` on a body that names the owner only by key, is outside the rule: TypeORM computes the change again after those hooks and writes it as an UPDATE that broadcasts no before event, so the create answers `201` and the related row changes. In such hooks change only the row being inserted, and change existing rows through their own UPDATE. A save that such a hook starts is its own save and is not refused either.
 
+## Updating with Relations
+
+A generated `PUT` or `PATCH` changes a to-one relation that the row owns, a `ManyToOne` or an owning `OneToOne`, through the foreign key column or through the relation property. This holds whether the relation is eager or not and nullable or not, over one join column or several:
+
+```text
+PATCH /items/i1   { "ownerId": "o2" }
+PATCH /items/i1   { "owner": "o2" }
+PATCH /items/i1   { "owner": "o2", "ownerId": "o2" }
+PATCH /items/i1   { "regionCode": "r2", "siteCode": "s2" }
+PATCH /items/i1   { "site": { "regionCode": "r2", "siteCode": "s2" } }
+```
+
+The route answers with the row it stored, read as `GET` reads it (see [Response Schema](#response-schema)). A relation the read leaves out, such as an eager one whose new target is soft deleted, comes back as `null` next to the stored key.
+
+These bodies write nothing:
+
+| Body                                                                | Answer                                                                                                   |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| The key column and the relation name different rows                 | `400` `PARAMETERS_NOT_VALID`, with the relation in `details.propertyName`                                |
+| `null` for a relation or a key column that does not allow null      | `400` `PARAMETERS_NOT_VALID`, with the property in `details.propertyName`                                |
+| A key of a related row that does not exist                          | `400` with `details.type` `FOREIGN_KEY_VIOLATION`                                                        |
+| A new row that a scope excludes, such as a Deny on the related name | `403`, rolled back (see [Scoped UPDATE](/docs/nestjs-crud-automator/guides/authorization#scoped-update)) |
+
+`null` clears a relation that allows it, through either spelling. A key column in the primary key never moves: the route takes it from the path.
+
+`service.update()` and a function `onBeforeUpdate` subscriber write the same way: a key column moves the relation, and a relation they name decides over the key column, without the `400` above, because a hydrated relation can spell its key differently from the column. A relation the read loaded and the update moved through its key column comes back in the saved object as a reference holding only the join values, such as `{ "id": "o2" }`, or as `null`. It is not the related row, so read that row through `GET` when you need its other columns. A subscriber's `DATA.currentEntity` still holds the row before the write.
+
 ## Migration Notes
+
+### 5.2.1
+
+From 5.2.1, a generated `PUT` or `PATCH` writes a change of an eager to-one relation (see [Updating with Relations](#updating-with-relations)). Before, the loaded relation overruled the new key, so the route answered `200` and the stored value stayed.
+
+| Body on an eager relation                     | Before                               | From 5.2.1                                        |
+| --------------------------------------------- | ------------------------------------ | ------------------------------------------------- |
+| `{ "ownerId": "o2" }` or `{ "owner": "o2" }`  | `200`, the stored key did not change | `200`, the new key is stored                      |
+| `{ "reviewerId": null }` on a nullable column | `200`, the stored key did not change | `200`, the key is cleared                         |
+| `{ "ownerId": null }` on a required column    | `200`, the stored key did not change | `400` `PARAMETERS_NOT_VALID`                      |
+| A key of a row that does not exist            | `200`, the stored key did not change | `400` with `details.type` `FOREIGN_KEY_VIOLATION` |
+| A key that moves the row out of a scope       | `200`, the stored key did not change | `403`, rolled back                                |
+
+A client that sent a stale or wrong key and relied on the `200` now changes the row or gets the error above. `{ "owner": null }` on a required relation, eager or not, now answers `400` on `PUT` and `PATCH` instead of failing in the database with `500`, or `409` on SQLite. On SQLite a foreign key failure of an update now answers `400` instead of `409`, as on the other databases. `service.update()` and function subscribers that set a key column of an eager relation now move it too, and the result carries a reference to the new row, not the old related row.
 
 ### 5.0.0
 

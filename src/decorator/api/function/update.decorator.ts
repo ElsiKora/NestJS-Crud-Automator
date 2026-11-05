@@ -7,7 +7,7 @@ import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/
 import type { TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/subscriber/function/before/update-context.type";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
-import type { DeepPartial, EntityManager, EntityMetadata, QueryDeepPartialEntity, RelationMetadata, Repository, UpdateResult } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, ObjectLiteral, QueryDeepPartialEntity, RelationMetadata, Repository, UpdateResult } from "typeorm";
 
 import { isDeepStrictEqual, types as utilityTypes } from "node:util";
 
@@ -304,18 +304,29 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			DatabaseTypeOrmAssertRequiredWhere(reloadProperties.where);
 			result = await repository.findOneOrFail(reloadProperties);
 		} else {
+			const ownedRelations: ReadonlyArray<RelationMetadata> = readOwnedToOneRelations(repository);
 			const updatedProperties: Partial<E> = {};
 			const typedEntries: Array<[keyof E, E[keyof E]]> = Object.entries(properties) as Array<[keyof E, E[keyof E]]>;
 
 			for (const [key, value] of typedEntries) {
-				if (key in existingEntity) {
+				// A relation the read did not load, compiled without its class field, is still one the save can write.
+				if (key in existingEntity || ownedRelations.some((relation: RelationMetadata): boolean => relation.propertyName === String(key))) {
 					updatedProperties[key] = value;
 				}
 			}
 
+			const staleRelations: ReadonlyArray<RelationMetadata> = ownedRelations.filter((relation: RelationMetadata): boolean => isLoadedRelationStale(relation, existingEntity, updatedProperties));
 			const mergedEntity: DeepPartial<E> = { ...existingEntity, ...updatedProperties };
 
+			for (const relation of staleRelations) {
+				Reflect.deleteProperty(mergedEntity, relation.propertyName);
+			}
+
 			result = await repository.save(mergedEntity);
+
+			for (const relation of staleRelations) {
+				Reflect.set(result, relation.propertyName, readRelationReference(relation, result, existingEntity));
+			}
 		}
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, E> = {
@@ -358,7 +369,8 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			error = new BadRequestException({ details, error: "Bad Request", message, statusCode: HttpStatus.BAD_REQUEST }, { cause: caughtError });
 		}
 
-		if (DatabaseTypeOrmIsUniqueViolation(caughtError)) {
+		// SQLite reports a foreign key failure under the constraint code the unique check also reads, so the foreign key answer has to come first.
+		if (DatabaseTypeOrmIsUniqueViolation(caughtError) && !DatabaseTypeOrmIsForeignKeyViolation(caughtError)) {
 			error = ErrorDuplicateKeyException(entity, caughtError);
 		}
 
@@ -379,6 +391,29 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			{ cause: caughtError },
 		);
 	}
+}
+
+/**
+ * Tells whether the relation a read loaded names another row than the update gives its join columns. The save reads a join column from a loaded relation first, so such a relation would silently overrule the new value.
+ * A relation the update names itself stays, because the update decides it. A join column in the primary key stays with the relation too, because the save would read it as the key of another row.
+ * @template E The entity type
+ * @param {RelationMetadata} relation - Owning to-one relation.
+ * @param {E} existingEntity - The row as the read loaded it.
+ * @param {Partial<E>} updatedProperties - The update.
+ * @returns {boolean} Whether the loaded relation has to leave the save.
+ */
+function isLoadedRelationStale<E extends IApiBaseEntity>(relation: RelationMetadata, existingEntity: E, updatedProperties: Partial<E>): boolean {
+	if (relation.getEntityValue(existingEntity) === undefined || relation.getEntityValue(updatedProperties) !== undefined) {
+		return false;
+	}
+
+	const movedColumns: Array<TTypeOrmColumnMetadata> = relation.joinColumns.filter((column: TTypeOrmColumnMetadata): boolean => {
+		const value: unknown = column.getEntityValue(updatedProperties);
+
+		return value !== undefined && !isDeepStrictEqual(value, column.getEntityValue(existingEntity));
+	});
+
+	return movedColumns.length > 0 && movedColumns.every((column: TTypeOrmColumnMetadata): boolean => !column.isPrimary && column.isUpdate);
 }
 
 /**
@@ -421,6 +456,19 @@ function normalizeUpdateProperties<E>(properties: TApiFunctionUpdateProperties<E
 	}
 
 	return normalizedProperties as TApiFunctionUpdateProperties<E>;
+}
+
+/**
+ * Reads the to-one relations whose join columns live in the row of the entity, on a table inheritance root those of its children too. A relation inside an embedded or a lazy one is not a plain property the save reads from the row.
+ * @template E The entity type
+ * @param {Repository<E>} repository - Native metadata owner.
+ * @returns {ReadonlyArray<RelationMetadata>} The relations.
+ */
+function readOwnedToOneRelations<E extends IApiBaseEntity>(repository: Repository<E>): ReadonlyArray<RelationMetadata> {
+	// A repository test double may carry no metadata; it has no relations to read then.
+	const relations: ReadonlyArray<RelationMetadata> = (repository.metadata as EntityMetadata | undefined)?.relations ?? [];
+
+	return relations.filter((relation: RelationMetadata): boolean => (relation.isManyToOne || relation.isOneToOneOwner) && !relation.isLazy && !relation.embeddedMetadata);
 }
 
 /**
@@ -548,4 +596,29 @@ function readPatchValues<E extends IApiBaseEntity>(repository: Repository<E>, se
 	}
 
 	return ApiControllerGeneratedSecuritySnapshot.detach(Object.fromEntries(values)) as TApiFunctionUpdateProperties<E>;
+}
+
+/**
+ * Builds what the saved entity gives a relation that left the save: a reference with the join column values the row now holds, or null when a column holds none, so subscribers and direct callers never read the row the relation left.
+ * @template E The entity type
+ * @param {RelationMetadata} relation - The relation that left the save.
+ * @param {E} savedEntity - The saved entity.
+ * @param {E} existingEntity - The row as the read loaded it, which names a join column the entity does not declare.
+ * @returns {ObjectLiteral | null} The reference.
+ */
+function readRelationReference<E extends IApiBaseEntity>(relation: RelationMetadata, savedEntity: E, existingEntity: E): null | ObjectLiteral {
+	const reference: ObjectLiteral = {};
+
+	for (const column of relation.joinColumns) {
+		const savedValue: unknown = column.getEntityValue(savedEntity);
+		const value: unknown = savedValue === undefined ? column.getEntityValue(existingEntity) : savedValue;
+
+		if (value === null || value === undefined) {
+			return null;
+		}
+
+		column.referencedColumn?.setEntityValue(reference, value);
+	}
+
+	return reference;
 }

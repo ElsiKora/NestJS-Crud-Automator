@@ -1024,6 +1024,8 @@ A generated `CREATE` is scoped when its decision carries a non-empty `scope.wher
 - **Row inside the scope** — the transaction commits and the route answers `201`.
 - **Row outside the scope** — the transaction rolls back and the route answers `403`. The row is never committed, except when an outer owner catches the refusal (see below). The response carries no value from the body or the scope.
 
+A relation counts like any other field. With a Deny on `resource.ownerName = "Blocked"`, a `PATCH` that names a blocked owner through `ownerId` or `owner` answers `403` and rolls back, because the stored row would be denied, whether the relation is eager or not. A move to an owner inside the scope answers `200`. See [Updating with Relations](/docs/nestjs-crud-automator/guides/relations#updating-with-relations).
+
 Only the reload's own miss becomes `403`. A `404` from request relation hydration, `service.create`, or a subscriber stays as it is, and so does every other error. An `onBeforeGet` subscriber that narrows the reload causes such a miss, so an in-scope row is refused with `403` as well. The route identifies the created row before it applies the scope:
 
 - **The key comes from the stored row.** The protected `create` reports the primary key TypeORM saved for the row its `save` inserted, generated columns included, before function subscribers run, so an `onAfterCreate` subscriber that returns another row does not change which row the scope checks. A non-scoped `CREATE` does the same. This is the key the response is read by as well (see [the relations guide](/docs/nestjs-crud-automator/guides/relations)).
@@ -1334,6 +1336,8 @@ In 5.0.0, generated `CREATE` refuses a row outside the decision scope instead of
 - A `CREATE` that loses a race with a deadlock or a snapshot error now answers `409` and leaves no row. Clients can send the request again.
 - A `CREATE` whose body names the key of an existing row, or would change one through a cascade or a `OneToMany` item, now answers `409` with `{ENTITY}_DUPLICATE_KEY` and changes nothing, scoped or not. It used to answer `201`, or `403` after the write under a scope, and the row of another tenant could move into the caller's scope. Send UPDATE or PARTIAL_UPDATE to change a row.
 - On the SQLite family, every transaction the Automator opens now waits for the previous one per `DataSource`, because all queries share one connection and a rollback would otherwise remove the rows of concurrent requests. Reads and writes outside those transactions can still land inside an open one.
+
+In 5.2.1, a scope also sees a change of an eager relation. A `PATCH` or `PUT` that moves a row into a Deny through the key of an eager relation used to answer `200` and store nothing, because the write ignored the new key, so the reload found the old row inside the scope. It now answers `403` and rolls back. A move inside the scope is now stored.
 
 In 5.0.2, generated `UPDATE` and `PARTIAL_UPDATE` check the row after the write against the decision scope (see [Scoped UPDATE](#scoped-update)):
 
