@@ -11,7 +11,7 @@ const INTEGER_BITS_64: number = 64;
 /**
  * Column families of TypeORM column types, keyed by the lower-case type a decorator names or by the property type
  * TypeORM takes when it names none. A type not listed is `OTHER`.
- * Internal: the IAM query field reader is its only user.
+ * Internal: the IAM query field reader and the path value key check read it.
  */
 export const AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT: {
 	readonly BOOLEAN_TYPES: ReadonlySet<string>;

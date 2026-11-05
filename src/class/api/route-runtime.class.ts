@@ -74,7 +74,9 @@ import { ApiRouteResponseIsListEnvelope } from "@utility/api/route/response/is-l
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
+import { DatabaseTypeOrmAssertBackslashEscapes } from "@utility/database/typeorm/assert/backslash-escapes.utility";
 import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeorm/assert/service-repository.utility";
+import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
@@ -214,6 +216,8 @@ export class ApiRouteRuntime {
 	public static async executeGenerated<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>): Promise<unknown> {
 		// A REQUEST-scoped or lazy-loaded controller has no bootstrap hook, so its first request is where the repository can be checked.
 		ApiControllerAssertRepositoryEntity(options.properties.entity, (options.controller.service as { repository?: unknown } | undefined)?.repository, options.controller.constructor.name);
+		// The same holds for a DataSource the application started after bootstrap; each DataSource is read once.
+		await DatabaseTypeOrmAssertBackslashEscapes((options.controller.service as { repository?: unknown } | undefined)?.repository, options.controller.constructor.name);
 
 		const entityInstance: E = new (options.properties.entity as new () => E)();
 		const authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = ApiControllerGeneratedSecuritySnapshot.create(AuthorizationDecisionResolveFromRequest(options.targets.authenticationRequest));
@@ -598,7 +602,10 @@ export class ApiRouteRuntime {
 				}
 
 				// Built before the transaction, so a value outside the published schema, or a column the list response hides, answers 400 before any SQL.
-				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard, listPublishedFields);
+				// The client text of a LIKE family filter matches itself, which takes an ESCAPE clause on a database without a default escape character.
+				const listRepository: unknown = options.controller.service.repository;
+				const driverType: string | undefined = DatabaseTypeOrmIsRepository<E>(listRepository) && listRepository.manager.dataSource.isInitialized ? listRepository.manager.dataSource.options.type : undefined;
+				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast, driverType) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard, listPublishedFields, driverType);
 				const service: ApiServiceBase<E> = options.controller.service;
 				const getManyFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>) | undefined = cursorRuntimeQuery ? ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, options.properties.entity) : undefined;
 				const getListFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetListProperties<E>) => Promise<unknown>) | undefined = cursorRuntimeQuery ? undefined : ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, options.properties.entity);

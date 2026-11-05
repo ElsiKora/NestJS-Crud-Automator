@@ -27,9 +27,9 @@ describe("ApiControllerGetListTransformOperation", () => {
 	});
 
 	it("handles string comparison helpers", () => {
-		const starts = ApiControllerGetListTransformOperation(EFilterOperation.STARTS, "prefix") as { value?: string };
-		const ends = ApiControllerGetListTransformOperation(EFilterOperation.ENDS, "suffix") as { value?: string };
-		const contains = ApiControllerGetListTransformOperation(EFilterOperation.CONT, "part") as { value?: string };
+		const starts = ApiControllerGetListTransformOperation(EFilterOperation.STARTS, "prefix", "postgres") as { value?: string };
+		const ends = ApiControllerGetListTransformOperation(EFilterOperation.ENDS, "suffix", "postgres") as { value?: string };
+		const contains = ApiControllerGetListTransformOperation(EFilterOperation.CONT, "part", "postgres") as { value?: string };
 
 		expect(starts.value).toContain("prefix");
 		expect(ends.value).toContain("suffix");
@@ -37,22 +37,22 @@ describe("ApiControllerGetListTransformOperation", () => {
 	});
 
 	it("covers remaining filter operations", () => {
-		const contl = ApiControllerGetListTransformOperation(EFilterOperation.CONTL, "case") as { type?: string; value?: string };
-		const endsl = ApiControllerGetListTransformOperation(EFilterOperation.ENDSL, "case") as { type?: string; value?: string };
-		const eql = ApiControllerGetListTransformOperation(EFilterOperation.EQL, "value") as { type?: string; value?: string };
-		const excl = ApiControllerGetListTransformOperation(EFilterOperation.EXCL, "value") as { type?: string; value?: unknown };
-		const excll = ApiControllerGetListTransformOperation(EFilterOperation.EXCLL, "value") as { type?: string; value?: unknown };
+		const contl = ApiControllerGetListTransformOperation(EFilterOperation.CONTL, "case", "postgres") as { type?: string; value?: string };
+		const endsl = ApiControllerGetListTransformOperation(EFilterOperation.ENDSL, "case", "postgres") as { type?: string; value?: string };
+		const eql = ApiControllerGetListTransformOperation(EFilterOperation.EQL, "value", "postgres") as { type?: string; value?: string };
+		const excl = ApiControllerGetListTransformOperation(EFilterOperation.EXCL, "value", "postgres") as { type?: string; value?: unknown };
+		const excll = ApiControllerGetListTransformOperation(EFilterOperation.EXCLL, "value", "postgres") as { type?: string; value?: unknown };
 		const gt = ApiControllerGetListTransformOperation(EFilterOperation.GT, 5) as { type?: string; value?: unknown };
 		const gte = ApiControllerGetListTransformOperation(EFilterOperation.GTE, 5) as { type?: string; value?: unknown };
-		const inl = ApiControllerGetListTransformOperation(EFilterOperation.INL, ["a", "b"]) as { type?: string; value?: unknown };
+		const inl = ApiControllerGetListTransformOperation(EFilterOperation.INL, ["a", "b"], "postgres") as { type?: string; value?: unknown };
 		const lt = ApiControllerGetListTransformOperation(EFilterOperation.LT, 5) as { type?: string; value?: unknown };
 		const lte = ApiControllerGetListTransformOperation(EFilterOperation.LTE, 5) as { type?: string; value?: unknown };
 		const ne = ApiControllerGetListTransformOperation(EFilterOperation.NE, "value") as { type?: string; value?: unknown };
-		const nel = ApiControllerGetListTransformOperation(EFilterOperation.NEL, "value") as { type?: string; value?: unknown };
+		const nel = ApiControllerGetListTransformOperation(EFilterOperation.NEL, "value", "postgres") as { type?: string; value?: unknown };
 		const notIn = ApiControllerGetListTransformOperation(EFilterOperation.NOTIN, ["a"]) as { type?: string; value?: unknown };
-		const notInl = ApiControllerGetListTransformOperation(EFilterOperation.NOTINL, ["a"]) as { type?: string; value?: unknown };
+		const notInl = ApiControllerGetListTransformOperation(EFilterOperation.NOTINL, ["a"], "postgres") as { type?: string; value?: unknown };
 		const notNull = ApiControllerGetListTransformOperation(EFilterOperation.NOTNULL, null) as { type?: string; value?: unknown };
-		const startsl = ApiControllerGetListTransformOperation(EFilterOperation.STARTSL, "case") as { type?: string; value?: string };
+		const startsl = ApiControllerGetListTransformOperation(EFilterOperation.STARTSL, "case", "postgres") as { type?: string; value?: string };
 
 		expect(contl.type).toBe("ilike");
 		expect(endsl.type).toBe("ilike");

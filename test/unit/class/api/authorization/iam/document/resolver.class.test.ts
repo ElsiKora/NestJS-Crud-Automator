@@ -84,6 +84,21 @@ describe("ApiAuthorizationIamDocumentResolver", () => {
 		await expect(resolver.resolve(["policy-a", "policy-b"])).rejects.toThrow('Policy document "policy-b" is invalid');
 	});
 
+	it.each([
+		["missing", undefined],
+		["null", null],
+		["empty", ""],
+		["a number", 5],
+	])("refuses a requested document whose namespace is %s, which names no namespace to skip it for", async (_name: string, namespace: unknown) => {
+		const deny = { Statement: [{ Action: ["app:item:*"], Effect: "Deny", Resource: ["*"] }], Version: "2012-10-17" };
+		const source = {
+			getDocumentsByIds: vi.fn(async () => [{ document: deny, id: "policy-a", ...(namespace === undefined ? {} : { namespace }), sourceType: EApiPolicySourceType.DATABASE, version: "1" }]),
+		};
+		const resolver = new ApiAuthorizationIamDocumentResolver(new ApiAuthorizationIamDocumentCache(), new ApiAuthorizationIamDocumentValidator(), [source as never]);
+
+		await expect(resolver.resolve(["policy-a"], { namespace: "app:item" })).rejects.toThrow('Policy document "policy-a" namespace must be a non-empty string');
+	});
+
 	it("still refuses an invalid requested document of the namespace", async () => {
 		const source = {
 			getDocumentsByIds: vi.fn(async () => [{ document: { Statement: [{ Action: ["app:item:*"], Effect: "Allow", Principal: "*", Resource: ["*"] }], Version: "2012-10-17" }, id: "policy-a", namespace: "app:item", sourceType: EApiPolicySourceType.DATABASE, version: "1" }]),

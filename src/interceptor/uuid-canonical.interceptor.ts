@@ -19,7 +19,8 @@ const PLAIN_PARAMETER_TYPES: ReadonlySet<unknown> = new Set<unknown>([Array, Boo
 
 /**
  * Refuses, on every route of `ApiMethod`, a body or query UUID that is not in lower case, where the route's `@Body()` or `@Query()` DTO validates the property as a UUID.
- * A database reads an upper-case UUID as the lower-case one while IAM compares text, so the value is refused with a `uuidNotCanonical` failure instead of being lower-cased. An interceptor runs after every guard and before any pipe, so the refusal is an `ApiRequestValidationException` with or without a host `ValidationPipe`, and no query has run.
+ * A database reads an upper-case UUID as the lower-case one while IAM compares text, so the value is refused with a `uuidNotCanonical` failure instead of being lower-cased.
+ * A written value of a signed 64-bit integer column that is not its canonical decimal text in that range is refused the same way, with an `isSignedBigIntText` failure. An interceptor runs after every guard and before any pipe, so the refusal is an `ApiRequestValidationException` with or without a host `ValidationPipe`, and no query has run.
  * The query of a generated GET_LIST is left to its filter parser, which refuses such a filter value with `FILTER_NOT_VALID`.
  */
 @Injectable()

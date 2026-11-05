@@ -42,6 +42,7 @@ import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { ApiControllerPathPlanGet, ApiControllerPathPlanSet } from "@utility/api/controller/path";
 import { ApiControllerWriteDtoSwaggerWithPathPlan } from "@utility/api/controller/write/dto-swagger.utility";
 import { ApiRouteRebindInheritedCustom } from "@utility/api/route/rebind-inherited-custom.utility";
+import { DatabaseTypeOrmAssertBackslashEscapes } from "@utility/database/typeorm/assert/backslash-escapes.utility";
 import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeorm/assert/service-repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
@@ -224,13 +225,14 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	 * @returns {void}
 	 */
 	installBootstrapChecks(): void {
-		const assertBootstrap = (controller: object): void => {
+		const assertBootstrap = async (controller: object): Promise<void> => {
 			this.assertBootstrap(controller);
+			await this.assertDataSourceBootstrap(controller);
 		};
 		const controllerHook: unknown = Reflect.get(this.targetPrototype, "onApplicationBootstrap");
 
 		Reflect.set(this.targetPrototype, "onApplicationBootstrap", async function (this: object): Promise<void> {
-			assertBootstrap(this);
+			await assertBootstrap(this);
 
 			if (typeof controllerHook === "function") {
 				await Reflect.apply(controllerHook, this, []);
@@ -362,6 +364,23 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		this.assertCreateRoute(repository, isSecurable);
 		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
 		ApiControllerAssertRouteFunctions(this.properties, service as object, this.target.name);
+	}
+
+	/**
+	 * Validates what a generated route needs of the database itself, which only a query can read: a MySQL or MariaDB DataSource must keep backslash escapes, with or without authorization. A controller with every generated route disabled, and a DataSource the application starts later, are checked on the first request instead.
+	 * @param {object} controller - The controller instance Nest bootstraps
+	 * @returns {Promise<void>} Resolves when the DataSource can serve the routes
+	 * @throws {Error} When the sql_mode of the DataSource holds NO_BACKSLASH_ESCAPES
+	 */
+	private async assertDataSourceBootstrap(controller: object): Promise<void> {
+		if (!Object.values(EApiRouteType).some((routeType: EApiRouteType): boolean => this.properties.routes[routeType]?.generation?.isEnabled !== false)) {
+			return;
+		}
+
+		const service: unknown = Reflect.get(controller, "service");
+		const repository: unknown = service && (typeof service === "object" || typeof service === "function") ? Reflect.get(service, "repository") : undefined;
+
+		await DatabaseTypeOrmAssertBackslashEscapes(repository, this.target.name);
 	}
 
 	/**

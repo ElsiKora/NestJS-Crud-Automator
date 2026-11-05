@@ -1,21 +1,25 @@
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 
+import { SIGNED_BIGINT_TEXT_FAILURE_CONSTANT } from "@constant/signed-bigint-text-failure.constant";
 import { UUID_CANONICAL_FAILURE_CONSTANT } from "@constant/uuid-canonical-failure.constant";
 import { ApiControllerParametersCreateFailure } from "@utility/api/controller/parameters/create-failure.utility";
 import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
 import { ClassTransformerResolveItemDto } from "@utility/class-transformer/resolve-item-dto.utility";
+import { IsSignedBigIntText } from "@utility/is/signed-bigint-text.utility";
 import { getMetadataStorage, IS_UUID, isUUID } from "class-validator";
 
 /**
- * Lists each UUID a request value sends in another letter case than lower case, where its DTO validates the property as a UUID.
+ * Lists each UUID a request value sends in another letter case than lower case, where its DTO validates the property as a UUID, and each value of a
+ * written signed 64-bit integer column that is not its canonical decimal text in that range.
  * A database compares an upper-case UUID as the lower-case one, while IAM compares text, so such a value is refused rather than lower-cased.
+ * PostgreSQL fails the query on a 64-bit value out of range, and the other databases clamp it, so such a value is refused on every database with or without a host pipe.
  * The value is read as sent, under the name `@Expose({ name })` gives a property on the wire, and nested DTOs follow their `@Type`, a discriminator subtype included.
  * A value that is not a UUID at all is left to `IsUUID`.
  * @param {ClassConstructor<unknown>} dto - DTO class the route validates the value with.
  * @param {unknown} value - Request body or query as sent, or a part of it.
  * @param {string} path - Path of the value in the request, empty for the body or query itself.
- * @returns {Array<ValidationError>} One `uuidNotCanonical` failure per refused UUID, under its path such as `parentId` or `items.0.id`, with no `value` or `target`.
+ * @returns {Array<ValidationError>} One `uuidNotCanonical` failure per refused UUID and one `isSignedBigIntText` failure per refused 64-bit value, under its path such as `parentId` or `items.0.id`, with no `value` or `target`.
  */
 export function ApiRouteGetNonCanonicalUuidFailures(dto: ClassConstructor<unknown>, value: unknown, path: string): Array<ValidationError> {
 	const failures: Array<ValidationError> = [];
@@ -23,6 +27,29 @@ export function ApiRouteGetNonCanonicalUuidFailures(dto: ClassConstructor<unknow
 	collectFailures(dto, value, path, failures, new WeakSet<object>());
 
 	return failures;
+}
+
+/**
+ * Collects the failure of a sent 64-bit integer value, or of each item of a sent list, that is not its canonical decimal text in the signed 64-bit range.
+ * A missing or null value is left to the presence validators of the property.
+ * @param {unknown} sent - Property value as sent.
+ * @param {string} path - Path of the property.
+ * @param {Array<ValidationError>} failures - Failures found so far.
+ * @returns {void}
+ * @private
+ */
+function collectBigIntFailures(sent: unknown, path: string, failures: Array<ValidationError>): void {
+	if (Array.isArray(sent)) {
+		for (const [index, item] of (sent as Array<unknown>).entries()) {
+			collectBigIntFailures(item, joinPath(path, String(index)), failures);
+		}
+
+		return;
+	}
+
+	if (sent !== undefined && sent !== null && !IsSignedBigIntText(sent)) {
+		failures.push(ApiControllerParametersCreateFailure(path, SIGNED_BIGINT_TEXT_FAILURE_CONSTANT.NOT_SIGNED_BIGINT_TEXT_CONSTRAINT, `${path} must be a signed 64-bit integer in canonical decimal text`));
+	}
 }
 
 /**
@@ -52,6 +79,7 @@ function collectFailures(dto: ClassConstructor<unknown>, value: unknown, path: s
 
 	const storage: ReturnType<typeof ClassTransformerGetStorage> = ClassTransformerGetStorage(dto.prototype as object, "*");
 	const uuidProperties: Set<string> = new Set<string>();
+	const bigIntProperties: Set<string> = new Set<string>();
 	const propertyNames: Set<string> = new Set<string>();
 
 	for (const metadata of getMetadataStorage().getTargetValidationMetadatas(dto, "", true, false)) {
@@ -59,6 +87,10 @@ function collectFailures(dto: ClassConstructor<unknown>, value: unknown, path: s
 
 		if (metadata.name === IS_UUID) {
 			uuidProperties.add(metadata.propertyName);
+		}
+
+		if (metadata.name === SIGNED_BIGINT_TEXT_FAILURE_CONSTANT.NOT_SIGNED_BIGINT_TEXT_CONSTRAINT) {
+			bigIntProperties.add(metadata.propertyName);
 		}
 	}
 
@@ -74,6 +106,10 @@ function collectFailures(dto: ClassConstructor<unknown>, value: unknown, path: s
 
 		if (uuidProperties.has(propertyName)) {
 			collectUuidFailures(sent, propertyPath, failures);
+		}
+
+		if (bigIntProperties.has(propertyName)) {
+			collectBigIntFailures(sent, propertyPath, failures);
 		}
 
 		const typeMetadata: ReturnType<typeof storage.findTypeMetadata> = storage.findTypeMetadata(dto, propertyName);

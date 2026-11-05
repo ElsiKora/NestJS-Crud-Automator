@@ -261,6 +261,8 @@ GET /users?middleName[operator]=isnull
 GET /users?middleName[operator]=notnull
 ```
 
+The client text of `cont`, `contl`, `starts`, `startsl`, `ends`, `endsl`, `eql`, `nel`, `inl` and `notinl` is literal on every database, on page and cursor lists: `%`, `_` and `\` match themselves, so `label[operator]=cont&label[value]=%25` finds only labels that hold `%`. The text is bound as a parameter with its wildcards escaped: by `\` on PostgreSQL, MySQL and MariaDB, and by `!` in an `ESCAPE '!'` clause on SQLite and other drivers. Before 5.2.0 `%` and `_` matched any text, so `eql` with `%` returned every row, and on PostgreSQL `ends`, `endsl`, `eql` and `nel` with the value `\` answered `500`.
+
 ### Number Operations
 
 Operations for numeric properties:

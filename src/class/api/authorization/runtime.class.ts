@@ -3,6 +3,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationAuditSink, IApiAuthorizationDecision, IApiAuthorizationPolicy, IApiAuthorizationPolicyRegistry, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiAuthorizationRequestMetadata, IApiPolicyAttachment, IApiPolicyDocumentRecord, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
 import type { IApiControllerAuthorizationProperties } from "@interface/decorator/api/controller/properties";
+import type { IApiControllerPropertiesPathScope } from "@interface/decorator/api/controller/properties/path-scope";
 import type { IApiRouteAuthorizationProperties } from "@interface/decorator/api/route";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
@@ -48,6 +49,8 @@ export class ApiAuthorizationRuntime {
 		authenticationRequest?: IApiAuthenticationRequest;
 		authorization: IApiControllerAuthorizationProperties<E>;
 		entity: new () => E;
+		/** Path scope of the controller, which binds a path parameter to the column an IAM placeholder of its name reads. */
+		pathScope?: IApiControllerPropertiesPathScope<E>;
 		principal?: IApiAuthorizationPrincipal;
 		requestMetadata: IApiAuthorizationRequestMetadata<E, M>;
 		resource?: E;
@@ -72,6 +75,7 @@ export class ApiAuthorizationRuntime {
 			: await this.evaluateIam({
 					action: options.action,
 					authorization: options.authorization,
+					pathScope: options.pathScope,
 					principal,
 					requestMetadata: options.requestMetadata,
 					resource: options.resource,
@@ -124,7 +128,7 @@ export class ApiAuthorizationRuntime {
 		});
 	}
 
-	private async evaluateIam<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { action: string; authorization: IApiControllerAuthorizationProperties<E>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+	private async evaluateIam<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { action: string; authorization: IApiControllerAuthorizationProperties<E>; pathScope?: IApiControllerPropertiesPathScope<E>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		if (!options.authorization.policyNamespace) {
 			authorizationRuntimeLogger.error("IAM authorization requires policyNamespace");
 
@@ -150,6 +154,7 @@ export class ApiAuthorizationRuntime {
 			attachments,
 			dialect: await this.iamDialectRegistry?.resolve(options.authorization.resourceDefinition.entity),
 			documents,
+			pathScope: options.pathScope,
 			policyNamespace: options.authorization.policyNamespace,
 			principal: options.principal,
 			requestMetadata: options.requestMetadata,

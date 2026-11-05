@@ -47,7 +47,7 @@ export const E2E_PATH_PARAMETER_KEY_SPELLING_CASES: Array<IE2ePathParameterKeySp
 	{ allowed: ["17"], column: { type: "bigint" }, denied: ["0"], describe: BIGINT_PROPERTY, invalid: ["-0", "00", "016"], name: "bigint-default", rows: ["0", "17"], value: "0" },
 	{ allowed: ["17", "-5"], column: { type: "bigint" }, denied: ["16"], describe: { ...TEXT_PROPERTY, pattern: String.raw`/^-?\d+$/` }, invalid: ["016", "0016", "-016", "-0", "00"], name: "bigint-loose", rows: ["16", "17", "-5"], value: "16" },
 	{ allowed: ["17"], column: { type: "int" }, denied: ["16"], describe: { ...TEXT_PROPERTY, pattern: String.raw`/^\d+$/` }, invalid: ["016", "0016"], name: "int-text", rows: [16, 17], value: "16" },
-	{ allowed: ["16"], column: { type: "int" }, denied: ["0", "-0"], describe: INTEGER_PROPERTY, invalid: ["00", "016"], name: "int-number", rows: [0, 16], value: "0" },
+	{ allowed: ["16"], column: { type: "int" }, denied: ["0"], describe: INTEGER_PROPERTY, invalid: ["-0", "00", "016"], name: "int-number", rows: [0, 16], value: "0" },
 	{ allowed: ["016"], column: { type: "varchar" }, denied: ["16"], describe: { ...TEXT_PROPERTY, pattern: String.raw`/^\d+$/` }, invalid: ["abc"], name: "text-digits", rows: ["16", "016"], value: "16" },
 ];
 

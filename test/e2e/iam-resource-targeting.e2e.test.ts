@@ -322,44 +322,43 @@ describe.each<{ database: TE2eIamTargetDatabase; databaseName: string }>([
 			});
 		});
 
-		describe("on a placeholder that resolves to no column", () => {
+		describe("on a placeholder its path scope binds to a column", () => {
 			const namespaceOf = (): string => namespaces.region;
 			const rows = (region: string): string => `/iam-target/regions/${region}/items`;
 
-			it("denies every row route and every list under a Deny whose pattern constrains it", async () => {
+			it("denies the tenant a Deny names, by the stored row, and no other", async () => {
 				use(namespaceOf(), denyResource(namespaceOf(), `${namespaceOf()}/t1/*`));
 
 				expect(await statusOf("GET", `${rows("t1")}/x`)).toBe(HttpStatus.FORBIDDEN);
-				expect(await statusOf("GET", `${rows("T1")}/x`)).toBe(HttpStatus.FORBIDDEN);
-				expect(await statusOf("PATCH", `${rows("T1")}/x`, { status: "changed" })).toBe(HttpStatus.FORBIDDEN);
-				expect(await statusOf("DELETE", `${rows("T1")}/x`)).toBe(HttpStatus.FORBIDDEN);
+				expect(REFUSED).toContain(await statusOf("GET", `${rows("T1")}/x`));
+				expect(REFUSED).toContain(await statusOf("PATCH", `${rows("T1")}/x`, { status: "changed" }));
+				expect(REFUSED).toContain(await statusOf("DELETE", `${rows("T1")}/x`));
 				expect(await repository(fixture.services.tenant).findOneBy({ id: "x" })).toMatchObject({ status: "active", tenant: "t1" });
-				expect(await statusOf("GET", `${rows("t2")}/y`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await statusOf("GET", `${rows("t2")}/y`)).toBe(HttpStatus.OK);
 				expect(await listIds(rows("t1"))).toBe(HttpStatus.FORBIDDEN);
-				expect(await listIds(rows("t2"))).toBe(HttpStatus.FORBIDDEN);
+				expect(await listIds(rows("t2"))).toEqual(["y"]);
 			});
 
-			it("denies under a Deny NotResource whose pattern constrains it", async () => {
+			it("denies every tenant but the one a Deny NotResource names", async () => {
 				use(namespaceOf(), [allowAll(namespaceOf()), { Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.DENY, NotResource: [`${namespaceOf()}/t1/*`] }]);
 
-				expect(await statusOf("GET", `${rows("t1")}/x`)).toBe(HttpStatus.FORBIDDEN);
+				expect(await statusOf("GET", `${rows("t1")}/x`)).toBe(HttpStatus.OK);
 				expect(await statusOf("GET", `${rows("t2")}/y`)).toBe(HttpStatus.FORBIDDEN);
 			});
 
-			it("grants nothing by an Allow whose pattern constrains it", async () => {
+			it("grants only the tenant an Allow names, by the stored row", async () => {
 				use(namespaceOf(), [{ Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.ALLOW, Resource: [`${namespaceOf()}/t1/*`] }]);
 
-				expect(REFUSED).toContain(await statusOf("GET", `${rows("t1")}/x`));
+				expect(await statusOf("GET", `${rows("t1")}/x`)).toBe(HttpStatus.OK);
 				expect(REFUSED).toContain(await statusOf("GET", `${rows("T1")}/x`));
-				expect(REFUSED).toContain(await statusOf("PATCH", `${rows("t1")}/x`, { status: "changed" }));
 				expect(REFUSED).toContain(await statusOf("GET", `${rows("t2")}/y`));
-				expect(await listIds(rows("t1"))).toBe(HttpStatus.FORBIDDEN);
+				expect(await listIds(rows("t1"))).toEqual(["x"]);
 			});
 
-			it("grants nothing by an Allow NotResource whose pattern constrains it", async () => {
+			it("grants every tenant but the one an Allow NotResource names", async () => {
 				use(namespaceOf(), [{ Action: [`${namespaceOf()}:*`], Effect: EApiPolicyEffect.ALLOW, NotResource: [`${namespaceOf()}/t1/*`] }]);
 
-				expect(REFUSED).toContain(await statusOf("GET", `${rows("t2")}/y`));
+				expect(await statusOf("GET", `${rows("t2")}/y`)).toBe(HttpStatus.OK);
 				expect(REFUSED).toContain(await statusOf("GET", `${rows("t1")}/x`));
 			});
 

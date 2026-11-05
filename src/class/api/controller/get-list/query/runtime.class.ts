@@ -45,7 +45,14 @@ export class ApiControllerGetListQueryRuntime {
 		}
 	}
 
-	public static compileWhere<E>(ast: IApiControllerGetListQueryAst): TApiFunctionGetListPropertiesWhere<E> {
+	/**
+	 * Compiles the filter nodes of a list request to the WHERE its service reads.
+	 * @template E - Entity type.
+	 * @param {IApiControllerGetListQueryAst} ast - Parsed list request.
+	 * @param {string} [driverType] - Driver type of the DataSource the list reads, so the client text of a LIKE family filter matches itself there.
+	 * @returns {TApiFunctionGetListPropertiesWhere<E>} The WHERE.
+	 */
+	public static compileWhere<E>(ast: IApiControllerGetListQueryAst, driverType?: string): TApiFunctionGetListPropertiesWhere<E> {
 		const where: TApiFunctionGetListPropertiesWhere<E> = {};
 		const whereRecord: Record<string, unknown> = where;
 
@@ -59,7 +66,7 @@ export class ApiControllerGetListQueryRuntime {
 				operand = node.values;
 			}
 
-			const compiled: FindOperator<unknown> = descriptor.compile(operand);
+			const compiled: FindOperator<unknown> = descriptor.compile(operand, driverType);
 			const path: Array<string> = node.path.split(".");
 
 			if (path.length !== GET_LIST_QUERY_DTO_FACTORY_CONSTANT.NESTED_FILTER_PATH_SEGMENT_COUNT) {
@@ -344,6 +351,6 @@ export class ApiControllerGetListQueryRuntime {
 	}
 
 	private static parseValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField): unknown {
-		return ApiControllerGetListQueryParseValue(value, field.metadata);
+		return ApiControllerGetListQueryParseValue(value, field.metadata, field.columnType);
 	}
 }

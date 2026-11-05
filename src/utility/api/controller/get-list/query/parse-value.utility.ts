@@ -3,7 +3,9 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
 import { EnumValues } from "@utility/enum/values.utility";
+import { IsBigIntColumnType } from "@utility/is/bigint-column-type.utility";
 import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
+import { IsSignedBigIntText } from "@utility/is/signed-bigint-text.utility";
 import { NumberParseCanonicalDecimal, NumberParseCanonicalInteger } from "@utility/number";
 
 // Lower case only: a database reads an upper-case UUID as the lower-case one, while IAM compares text.
@@ -17,10 +19,11 @@ const GET_LIST_FILTER_NUL_CHARACTER: string = "\u0000";
  * Calendar dates and times of day stay the text the client sent; only an instant becomes a Date.
  * @param {unknown} value - One filter value as the request carries it
  * @param {Readonly<TApiPropertyDescribeProperties>} metadata - Describe metadata of the filtered field
+ * @param {unknown} [columnType] - TypeORM type of the filtered column: a text value of a signed 64-bit integer column must be canonical decimal text in that range
  * @returns {unknown} The value to bind
- * @throws {BadRequestException} FILTER_NOT_VALID when the value is outside the published schema of the field
+ * @throws {BadRequestException} FILTER_NOT_VALID when the value is outside the published schema of the field, or outside the range of a signed 64-bit integer column
  */
-export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Readonly<TApiPropertyDescribeProperties>): unknown {
+export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Readonly<TApiPropertyDescribeProperties>, columnType?: unknown): unknown {
 	switch (metadata.type) {
 		case EApiPropertyDescribeType.BOOLEAN: {
 			if (value === true || value === "true") {
@@ -92,7 +95,7 @@ export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Re
 
 		case EApiPropertyDescribeType.STRING: {
 			// U+0000 is text PostgreSQL cannot hold, and which SQLite, MySQL and MariaDB compare unlike IAM.
-			if (typeof value === "string" && !value.includes(GET_LIST_FILTER_NUL_CHARACTER)) {
+			if (typeof value === "string" && !value.includes(GET_LIST_FILTER_NUL_CHARACTER) && (!IsBigIntColumnType(columnType) || IsSignedBigIntText(value))) {
 				return value;
 			}
 

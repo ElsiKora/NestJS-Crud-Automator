@@ -81,6 +81,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 			authenticationRequest,
 			authorization: properties.authorization,
 			entity: entityConstructor,
+			pathScope: properties.pathScope,
 			requestMetadata,
 			resource: undefined,
 			routeAuthorization: routeMetadata.security?.authorization,

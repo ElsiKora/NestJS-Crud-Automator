@@ -1,4 +1,5 @@
-import type { IApiEntity } from "@interface/entity";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm";
@@ -9,8 +10,10 @@ import { EFilterOperand, EFilterOperation } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
 import { ApiControllerGetListTransformGetFilterMetadata } from "@utility/api/controller/get-list/transform/get-filter-metadata.utility";
+import { ApiControllerGetListTransformGetRelationTarget } from "@utility/api/controller/get-list/transform/get-relation-target.utility";
 import { ApiControllerGetListTransformOperation } from "@utility/api/controller/get-list/transform/operation.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
+import { GenerateRelationEntityInformation } from "@utility/generate-relation-entity-information.utility";
 
 /**
  * Transforms query parameters into TypeORM FindOptionsWhere filter objects.
@@ -21,11 +24,12 @@ import { EnumIsValue } from "@utility/enum/is-value.utility";
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {Type<CanActivate>} currentGuard - Optional guard used to mirror generated query DTO visibility.
  * @param {ReadonlySet<string>} [publishedFields] - Item properties a manual list response DTO publishes; omitted for a generated response.
+ * @param {string} [driverType] - Driver type of the DataSource the list reads, which decides how a LIKE family filter escapes its text.
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
- * @throws {Error} A bad request with `FILTER_NOT_VALID` when a number, uuid or boolean filter value is outside the published schema, or when a filter group is incomplete, carries a value key its operator does not take, names a field the route cannot apply, or names a column the list response hides
+ * @throws {Error} A bad request with `FILTER_NOT_VALID` when a number, uuid or boolean filter value is outside the published schema, a signed 64-bit value is outside its range, or when a filter group is incomplete, carries a value key its operator does not take, names a field the route cannot apply, or names a column the list response hides
  * @template E - The entity type
  */
-export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>, publishedFields?: ReadonlySet<string>): FindOptionsWhere<E> {
+export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>, publishedFields?: ReadonlySet<string>, driverType?: string): FindOptionsWhere<E> {
 	const filter: FindOptionsWhere<E> = {};
 	const filterRecord: Record<string, unknown> = filter;
 
@@ -53,7 +57,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 		// A single `[values]` entry is a list of one, as the generated QUERY DTO reads it.
 		const value: unknown = cleanField === "values" && !Array.isArray(query[fullKey]) ? [query[fullKey]] : query[fullKey];
-		const condition: unknown = ApiControllerGetListTransformOperation(operation, parseFilterValue(operation, value, metadata));
+		const condition: unknown = ApiControllerGetListTransformOperation(operation, parseFilterValue(operation, value, metadata, readFilterColumnType(entityMetadata, key, currentGuard)), driverType);
 		const [relationName, nestedPropertyName]: Array<string | undefined> = key.split(".");
 
 		if (relationName && nestedPropertyName) {
@@ -106,12 +110,34 @@ function isPairedGroup(query: Record<string, unknown>, key: string, operation: E
  * @param {EFilterOperation} operation - Filter operation of the group
  * @param {unknown} value - The `[value]` or `[values]` of the group as the request carries it
  * @param {TApiPropertyDescribeProperties} metadata - Describe metadata of the filtered column
+ * @param {unknown} columnType - TypeORM type of the filtered column, whose signed 64-bit range a bigint value must keep
  * @returns {unknown} The parsed value, or the value itself for an operation without one and for other column kinds
  */
-function parseFilterValue(operation: EFilterOperation, value: unknown, metadata: TApiPropertyDescribeProperties): unknown {
+function parseFilterValue(operation: EFilterOperation, value: unknown, metadata: TApiPropertyDescribeProperties, columnType: unknown): unknown {
 	if (operation === EFilterOperation.ISNULL || operation === EFilterOperation.NOTNULL || (metadata.type !== EApiPropertyDescribeType.BOOLEAN && metadata.type !== EApiPropertyDescribeType.DATE && metadata.type !== EApiPropertyDescribeType.ENUM && metadata.type !== EApiPropertyDescribeType.NUMBER && metadata.type !== EApiPropertyDescribeType.STRING && metadata.type !== EApiPropertyDescribeType.UUID)) {
 		return value;
 	}
 
-	return Array.isArray(value) ? value.map((item: unknown): unknown => ApiControllerGetListQueryParseValue(item, metadata)) : ApiControllerGetListQueryParseValue(value, metadata);
+	return Array.isArray(value) ? value.map((item: unknown): unknown => ApiControllerGetListQueryParseValue(item, metadata, columnType)) : ApiControllerGetListQueryParseValue(value, metadata, columnType);
+}
+
+/**
+ * Reads the TypeORM type of the column a filter field applies to: a column of the entity, or a column of a one-hop to-one relation such as `owner.name`.
+ * @template E - The entity type
+ * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @param {string} field - Filter field.
+ * @param {Type<CanActivate>} [currentGuard] - Optional guard used to mirror generated query DTO visibility.
+ * @returns {unknown} The column type, or undefined when the field names no column.
+ */
+function readFilterColumnType<E>(entityMetadata: IApiEntity<E>, field: string, currentGuard?: Type<CanActivate>): unknown {
+	const [relationName, nestedPropertyName]: Array<string | undefined> = field.split(".");
+
+	if (nestedPropertyName === undefined) {
+		return entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => String(column.name) === field)?.type;
+	}
+
+	const relationTarget: IApiBaseEntity | undefined = relationName ? ApiControllerGetListTransformGetRelationTarget(entityMetadata, relationName, currentGuard) : undefined;
+	const relationEntityMetadata: IApiEntity<unknown> | undefined = relationTarget ? GenerateRelationEntityInformation(relationTarget) : undefined;
+
+	return relationEntityMetadata?.columns.find((column: IApiEntityColumn<unknown>): boolean => String(column.name) === nestedPropertyName)?.type;
 }

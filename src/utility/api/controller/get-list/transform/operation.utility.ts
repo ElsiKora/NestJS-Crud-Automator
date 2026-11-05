@@ -1,16 +1,18 @@
 import type { FindOperator } from "typeorm";
 
 import { EFilterOperation } from "@enum/filter";
-import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not } from "typeorm";
+import { ApiControllerGetListQueryLike } from "@utility/api/controller/get-list/query/like.utility";
+import { Between, Equal, In, IsNull, LessThan, LessThanOrEqual, MoreThan, MoreThanOrEqual, Not } from "typeorm";
 
 /**
  * Converts filter operation enum values to TypeORM query operators.
- * Supports various operations like BETWEEN, CONTAINS, EQUALS, GREATER_THAN, etc.
+ * Supports various operations like BETWEEN, CONTAINS, EQUALS, GREATER_THAN, etc. The client text of a LIKE family operation matches itself, see {@link ApiControllerGetListQueryLike}.
  * @param {EFilterOperation} operation - The filter operation type from the enum
  * @param {unknown} value - The value to filter by
+ * @param {string} [driverType] - Driver type of the DataSource the list reads.
  * @returns {FindOperator<unknown>} The TypeORM FindOperator for the specified operation and value
  */
-export function ApiControllerGetListTransformOperation(operation: EFilterOperation, value: unknown): FindOperator<unknown> {
+export function ApiControllerGetListTransformOperation(operation: EFilterOperation, value: unknown, driverType?: string): FindOperator<unknown> {
 	switch (operation) {
 		case EFilterOperation.BETWEEN: {
 			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
@@ -20,19 +22,19 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.CONT: {
-			return Like(`%${String(value)}%`);
+			return ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: true, hasTrailingWildcard: true, isCaseInsensitive: false }, driverType);
 		}
 
 		case EFilterOperation.CONTL: {
-			return ILike(`%${String(value)}%`);
+			return ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: true, hasTrailingWildcard: true, isCaseInsensitive: true }, driverType);
 		}
 
 		case EFilterOperation.ENDS: {
-			return Like(`%${String(value)}`);
+			return ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: true, hasTrailingWildcard: false, isCaseInsensitive: false }, driverType);
 		}
 
 		case EFilterOperation.ENDSL: {
-			return ILike(`%${String(value)}`);
+			return ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: true, hasTrailingWildcard: false, isCaseInsensitive: true }, driverType);
 		}
 
 		case EFilterOperation.EQ: {
@@ -40,15 +42,15 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.EQL: {
-			return ILike(String(value));
+			return ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: false, hasTrailingWildcard: false, isCaseInsensitive: true }, driverType);
 		}
 
 		case EFilterOperation.EXCL: {
-			return Not(Like(`%${String(value)}%`));
+			return Not(ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: true, hasTrailingWildcard: true, isCaseInsensitive: false }, driverType));
 		}
 
 		case EFilterOperation.EXCLL: {
-			return Not(ILike(`%${String(value)}%`));
+			return Not(ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: true, hasTrailingWildcard: true, isCaseInsensitive: true }, driverType));
 		}
 
 		case EFilterOperation.GT: {
@@ -64,7 +66,7 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.INL: {
-			return In(Array.isArray(value) ? value.map((v: unknown) => ILike(v)) : [ILike(value)]);
+			return In((Array.isArray(value) ? value : [value]).map((item: unknown) => ApiControllerGetListQueryLike(String(item), { hasLeadingWildcard: false, hasTrailingWildcard: false, isCaseInsensitive: true }, driverType)));
 		}
 
 		case EFilterOperation.ISNULL: {
@@ -84,7 +86,7 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.NEL: {
-			return Not(ILike(String(value)));
+			return Not(ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: false, hasTrailingWildcard: false, isCaseInsensitive: true }, driverType));
 		}
 
 		case EFilterOperation.NOTIN: {
@@ -92,7 +94,7 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.NOTINL: {
-			return Not(In(Array.isArray(value) ? value.map((v: unknown) => ILike(v)) : [ILike(value)]));
+			return Not(In((Array.isArray(value) ? value : [value]).map((item: unknown) => ApiControllerGetListQueryLike(String(item), { hasLeadingWildcard: false, hasTrailingWildcard: false, isCaseInsensitive: true }, driverType))));
 		}
 
 		case EFilterOperation.NOTNULL: {
@@ -100,11 +102,11 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.STARTS: {
-			return Like(`${String(value)}%`);
+			return ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: false, hasTrailingWildcard: true, isCaseInsensitive: false }, driverType);
 		}
 
 		case EFilterOperation.STARTSL: {
-			return ILike(`${String(value)}%`);
+			return ApiControllerGetListQueryLike(String(value), { hasLeadingWildcard: false, hasTrailingWildcard: true, isCaseInsensitive: true }, driverType);
 		}
 	}
 }

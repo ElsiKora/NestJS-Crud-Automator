@@ -6,6 +6,8 @@ import type { ValidationError } from "class-validator";
 
 import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { PATH_PARAMETER_FAILURE_CONSTANT } from "@constant/path-parameter-failure.constant";
+import { IsBigIntColumnType } from "@utility/is/bigint-column-type.utility";
+import { IsSignedBigIntText } from "@utility/is/signed-bigint-text.utility";
 import { validate } from "class-validator";
 
 import { ApiControllerParametersIsIntegerColumn } from "./column/numeric-type.utility";
@@ -15,6 +17,9 @@ import { ApiControllerParametersCreateFailure } from "./create-failure.utility";
 import { ApiControllerParametersRouteDtoValidate } from "./route-dto.utility";
 
 const CANONICAL_INTEGER_PATTERN: RegExp = /^(?:0|-?[1-9]\d*)$/;
+
+// The one spelling of a UUID: lower-case hexadecimal digits in five hyphenated groups, with no braces, prefix or padding.
+const CANONICAL_UUID_PATTERN: RegExp = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
 // U+0000, which PostgreSQL text cannot hold, and which SQLite, MySQL and MariaDB compare unlike IAM.
 const PATH_PARAMETER_NUL_CHARACTER: string = "\u0000";
@@ -83,13 +88,13 @@ export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(
 
 /**
  * Refuses a path value that holds a NUL character, which PostgreSQL text cannot hold, and a text that a database reads as a key it does not spell canonically, because IAM compares text: `016` would pass a Deny on `16`, and an upper-case UUID a Deny on its lower-case form, and still find the row.
- * A value described as a number is already canonical; a text form stays legal for a bigint, where a JavaScript number would lose digits. A UUID is checked as sent, so it is refused rather than lower-cased, whether the route knows its column or only its DTO validates it as a UUID.
+ * A value described as a number is already canonical, except a negative zero, which names the row of `0`; a text form stays legal for a bigint, where a JavaScript number would lose digits. A UUID is checked as sent against its one spelling, lower-case and hyphenated, so another spelling is refused rather than rewritten, whether the route knows its column or only its DTO validates it as a UUID.
  * @param {ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined} columns - The entity column of each path parameter.
  * @param {ReadonlySet<string> | undefined} uuidParameters - The path parameters a custom route DTO validates as a UUID.
  * @param {Record<string, unknown>} sent - Path values as sent.
  * @param {Record<string, unknown>} values - Converted path values.
  * @returns {void}
- * @throws {ApiRequestValidationException} When a path value holds a NUL character, or the text of an integer or UUID column is not canonical.
+ * @throws {ApiRequestValidationException} When a path value holds a NUL character, an integer column gets a negative zero or text that is not canonical, a signed 64-bit integer column gets text outside that range, or a UUID is not sent lower-case and hyphenated.
  */
 function assertCanonicalText(columns: ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined, uuidParameters: ReadonlySet<string> | undefined, sent: Record<string, unknown>, values: Record<string, unknown>): void {
 	const failures: Array<ValidationError> = [];
@@ -111,9 +116,11 @@ function assertCanonicalText(columns: ReadonlyMap<string, IApiEntityColumn<unkno
 		const value: unknown = values[parameter];
 		const sentValue: unknown = sent[parameter];
 
-		if (typeof value === "string" && ApiControllerParametersIsIntegerColumn(column.type) && !CANONICAL_INTEGER_PATTERN.test(value)) {
+		if (ApiControllerParametersIsIntegerColumn(column.type) && ((typeof value === "string" && !CANONICAL_INTEGER_PATTERN.test(value)) || Object.is(value, -0))) {
 			failures.push(ApiControllerParametersCreateFailure(parameter, PATH_PARAMETER_FAILURE_CONSTANT.NOT_CANONICAL_CONSTRAINT, `${parameter} must be a decimal integer without leading zeros`));
-		} else if (typeof sentValue === "string" && ApiControllerParametersIsUuidColumn(column) && sentValue !== sentValue.toLowerCase()) {
+		} else if (typeof value === "string" && IsBigIntColumnType(column.type) && !IsSignedBigIntText(value)) {
+			failures.push(ApiControllerParametersCreateFailure(parameter, PATH_PARAMETER_FAILURE_CONSTANT.OUT_OF_RANGE_CONSTRAINT, `${parameter} must be a signed 64-bit integer`));
+		} else if (typeof sentValue === "string" && ApiControllerParametersIsUuidColumn(column) && !CANONICAL_UUID_PATTERN.test(sentValue)) {
 			refusedUuids.add(parameter);
 			failures.push(ApiControllerParametersCreateFailure(parameter, PATH_PARAMETER_FAILURE_CONSTANT.NOT_CANONICAL_CONSTRAINT, `${parameter} must be a lower-case UUID`));
 		}
@@ -122,7 +129,7 @@ function assertCanonicalText(columns: ReadonlyMap<string, IApiEntityColumn<unkno
 	for (const parameter of uuidParameters ?? []) {
 		const sentValue: unknown = sent[parameter];
 
-		if (!refusedUuids.has(parameter) && typeof sentValue === "string" && sentValue !== sentValue.toLowerCase()) {
+		if (!refusedUuids.has(parameter) && typeof sentValue === "string" && !CANONICAL_UUID_PATTERN.test(sentValue)) {
 			failures.push(ApiControllerParametersCreateFailure(parameter, PATH_PARAMETER_FAILURE_CONSTANT.NOT_CANONICAL_CONSTRAINT, `${parameter} must be a lower-case UUID`));
 		}
 	}

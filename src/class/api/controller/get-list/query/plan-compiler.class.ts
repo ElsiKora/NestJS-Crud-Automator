@@ -286,7 +286,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 					continue;
 				}
 
-				fields[path] = this.createFilterField(path, metadata, this.isColumnNullable(entity, path, metadata));
+				fields[path] = this.createFilterField(path, metadata, this.isColumnNullable(entity, path, metadata), column.type);
 
 				continue;
 			}
@@ -315,7 +315,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 				const nestedPath: string = `${path}.${nestedName}`;
 
-				fields[nestedPath] = this.createFilterField(nestedPath, nestedMetadata, this.isColumnNullable(relationTarget, nestedName, nestedMetadata));
+				fields[nestedPath] = this.createFilterField(nestedPath, nestedMetadata, this.isColumnNullable(relationTarget, nestedName, nestedMetadata), relationColumn.type);
 			}
 		}
 
@@ -680,7 +680,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return fingerprint;
 	}
 
-	private static createFilterField(path: string, metadata: TApiPropertyDescribeProperties, isNullable: boolean): IApiControllerGetListQueryPlanFilterField {
+	private static createFilterField(path: string, metadata: TApiPropertyDescribeProperties, isNullable: boolean, columnType: unknown): IApiControllerGetListQueryPlanFilterField {
 		const allowedOperations: ReadonlyArray<EFilterOperation> = Object.freeze(
 			Object.values(EFilterOperation).filter((operation: EFilterOperation): boolean => {
 				const descriptor: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation];
@@ -692,6 +692,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 		return Object.freeze({
 			allowedOperations,
+			columnType,
 			isEnabled: true,
 			isNullable,
 			metadata: planMetadata,

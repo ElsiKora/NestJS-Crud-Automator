@@ -40,6 +40,8 @@ export function ApiControllerParametersBuildRouteRule(options: IApiControllerPar
 		isColumnTypeRequired: mode === EApiAuthorizationMode.HOOKS,
 		methodName,
 		pathParameters,
+		pathScope: properties?.pathScope,
+		resourceDefinition: mode === EApiAuthorizationMode.IAM ? properties?.authorization?.resourceDefinition : undefined,
 		resourcePath: mode === EApiAuthorizationMode.IAM ? properties?.authorization?.resourceDefinition?.resourcePath : undefined,
 	});
 }

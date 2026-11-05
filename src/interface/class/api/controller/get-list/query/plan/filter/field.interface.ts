@@ -5,6 +5,8 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 
 export interface IApiControllerGetListQueryPlanFilterField {
 	allowedOperations: ReadonlyArray<EFilterOperation>;
+	/** TypeORM type of the filtered column, as `IApiEntityColumn.type` holds it; a value of a signed 64-bit integer column is checked for that range. */
+	columnType?: unknown;
 	defaultCondition?: IApiControllerGetListQueryPlanCondition;
 	isEnabled: boolean;
 	isNullable: boolean;

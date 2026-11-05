@@ -463,6 +463,47 @@ class CustomRuleDefaultSiblingParametersDto {
 	public label?: string;
 }
 
+enum ECustomRuleKind {
+	PUBLIC = "public",
+	SECRET = "secret",
+}
+
+@Entity("custom_rule_placeholder_rows")
+class CustomRulePlaceholderRowEntity {
+	@PrimaryColumn({ type: "int" })
+	@ApiPropertyDescribe({ description: "rank", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 1000, minimum: 0, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
+	public rank!: number;
+
+	@Column({ enum: ECustomRuleKind, type: "simple-enum" })
+	@ApiPropertyDescribe({ description: "kind", enum: ECustomRuleKind, enumName: "ECustomRuleKind", type: EApiPropertyDescribeType.ENUM })
+	public kind!: ECustomRuleKind;
+
+	@Column({ type: "uuid" })
+	@ApiPropertyDescribe({ description: "owner", type: EApiPropertyDescribeType.UUID })
+	public owner!: string;
+
+	@Column({ type: "time" })
+	@ApiPropertyDescribe({ description: "slot", exampleValue: "10:00:00", format: EApiPropertyStringType.STRING, maxLength: 8, minLength: 8, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
+	public slot!: string;
+}
+
+class CustomRulePlaceholderTextParametersDto {
+	@ApiPropertyString({ description: "key", entity: CustomRulePlaceholderRowEntity, exampleValue: "secret", format: EApiPropertyStringType.STRING, isRequired: true, maxLength: 36, minLength: 1, pattern: "/^.+$/" })
+	public key!: string;
+}
+
+class CustomRulePlaceholderEnumParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: () => CustomRulePlaceholderRowEntity, method: EApiRouteType.GET, propertyName: "kind" })
+	public key!: ECustomRuleKind;
+}
+
+class CustomRulePlaceholderUuidParametersDto {
+	@ApiPropertyUUID({ description: "key", entity: CustomRulePlaceholderRowEntity, isRequired: true })
+	public key!: string;
+}
+
+const placeholderDefinition = (queryPath: string | undefined): never => ({ entity: CustomRulePlaceholderRowEntity, fields: queryPath === undefined ? [] : [{ isFilterable: false, path: "resource.key", queryPath }], namespace: "custom-rule:row", resourcePath: "custom-rule:row/{key}", resourceType: "custom-rule:row" }) as never;
+
 class CustomRuleController {}
 
 describe("ApiControllerParametersBuildCustomRule", () => {
@@ -737,5 +778,46 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 	it("fails at startup on a response property in a PARAMETERS DTO, even with no path parameter", () => {
 		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleResponseParametersDto, methodName: "response", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow('Controller "CustomRuleController" method "response" property "id"');
 		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleResponseParametersDto, methodName: "response", pathParameters: [], resourcePath: "custom-rule/item" })).toThrow("isResponse");
+	});
+
+	it.each([
+		["an enum column", "kind", /holds the path parameter "key" in the simple-enum column "kind" and describes it as string, .* describe the value as enum$/],
+		["a uuid column", "owner", /holds the path parameter "key" in the uuid column "owner" and describes it as string, .* describe the value as uuid$/],
+		["a time column", "slot", /holds the path parameter "key" in the time column "slot", and a database reads many spellings/],
+	])("fails at startup on an ApiPropertyString placeholder over %s, whose other spellings would pass a Deny", (_name: string, queryPath: string, message: RegExp) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRulePlaceholderTextParametersDto, methodName: "placeholder", pathParameters: ["key"], resourceDefinition: placeholderDefinition(queryPath), resourcePath: "custom-rule:row/{key}" })).toThrow(message);
+	});
+
+	it("reads the placeholder column through the path scope binding when no field maps it", () => {
+		const build = (pathScope?: never): IApiControllerParametersRule | undefined => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRulePlaceholderTextParametersDto, methodName: "placeholder", pathParameters: ["key"], pathScope, resourceDefinition: placeholderDefinition(undefined), resourcePath: "custom-rule:row/{key}" });
+
+		expect(() => build({ parameters: [{ field: "kind", parameter: "key" }] } as never)).toThrow(/in the simple-enum column "kind"/);
+		expect(build()).toBeDefined();
+	});
+
+	it("starts a placeholder over an enum column copied from it or a uuid column described as UUID", () => {
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRulePlaceholderEnumParametersDto, methodName: "placeholder", pathParameters: ["key"], resourceDefinition: placeholderDefinition("kind"), resourcePath: "custom-rule:row/{key}" })).toBeDefined();
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRulePlaceholderUuidParametersDto, methodName: "placeholder", pathParameters: ["key"], resourceDefinition: placeholderDefinition("owner"), resourcePath: "custom-rule:row/{key}" })).toBeDefined();
+	});
+
+	it("checks the canonical text of an ApiPropertyString placeholder over an integer column", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRulePlaceholderTextParametersDto, methodName: "placeholder", pathParameters: ["key"], resourceDefinition: placeholderDefinition("rank"), resourcePath: "custom-rule:row/{key}" });
+
+		await expect(ApiControllerParametersValidate(rule!, { key: "16" } as never)).resolves.toEqual({ key: "16" });
+
+		for (const spelling of ["016", "-0", "+16", "16.0"]) {
+			await expect(ApiControllerParametersValidate(rule!, { key: spelling } as never)).rejects.toThrow(ApiRequestValidationException);
+		}
+	});
+
+	it("refuses every spelling of a uuid placeholder but the lower-case hyphenated one", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRulePlaceholderUuidParametersDto, methodName: "placeholder", pathParameters: ["key"], resourceDefinition: placeholderDefinition("owner"), resourcePath: "custom-rule:row/{key}" });
+		const canonical: string = "11111111-1111-4111-8111-11111111aaaa";
+
+		await expect(ApiControllerParametersValidate(rule!, { key: canonical } as never)).resolves.toEqual({ key: canonical });
+
+		for (const spelling of [canonical.toUpperCase(), canonical.replaceAll("-", ""), `{${canonical}}`, `urn:uuid:${canonical}`, `${canonical} `]) {
+			await expect(ApiControllerParametersValidate(rule!, { key: spelling } as never)).rejects.toThrow(ApiRequestValidationException);
+		}
 	});
 });

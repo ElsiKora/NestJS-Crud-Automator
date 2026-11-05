@@ -29,7 +29,8 @@ export class ApiAuthorizationIamDocumentResolver {
 	/**
 	 * Reads the policy documents of the requested ids from every document source. Only a requested document counts: one a
 	 * source returns unasked is neither read nor checked. With a namespace, only the documents of that namespace are checked
-	 * against the grammar; a requested document of another namespace is returned unchecked, and the engine skips it.
+	 * against the grammar; a requested document of another namespace is returned unchecked, and the engine skips it. A
+	 * requested document whose namespace is not a non-empty string names no namespace, so it is checked and refused.
 	 * @param {ReadonlyArray<string>} ids - Requested policy ids.
 	 * @param {object} [options] - Read options.
 	 * @param {string} [options.namespace] - Namespace of the request; without it every requested document is checked.
@@ -60,7 +61,7 @@ export class ApiAuthorizationIamDocumentResolver {
 			const records: ReadonlyArray<IApiPolicyDocumentRecord> = await source.getDocumentsByIds(normalizedIds);
 			const requestedRecords: Array<IApiPolicyDocumentRecord> = records.filter((record: IApiPolicyDocumentRecord): boolean => typeof record.id === "string" && requestedIds.has(record.id));
 
-			this.validator.validateMany(requestedRecords.filter((record: IApiPolicyDocumentRecord): boolean => options.namespace === undefined || record.namespace === options.namespace));
+			this.validator.validateMany(requestedRecords.filter((record: IApiPolicyDocumentRecord): boolean => options.namespace === undefined || typeof record.namespace !== "string" || record.namespace.length === 0 || record.namespace === options.namespace));
 
 			for (const record of requestedRecords) {
 				const existingRecord: IApiPolicyDocumentRecord | undefined = recordsById.get(record.id);

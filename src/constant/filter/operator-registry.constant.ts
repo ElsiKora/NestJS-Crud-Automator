@@ -3,8 +3,11 @@ import type { FindOperator } from "typeorm";
 
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
 import { EFilterOperand, EFilterOperation } from "@enum/filter";
-import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or } from "typeorm";
+import { ApiControllerGetListQueryLike } from "@utility/api/controller/get-list/query/like.utility";
+import { Between, Equal, In, IsNull, LessThan, LessThanOrEqual, MoreThan, MoreThanOrEqual, Not, Or } from "typeorm";
 
+// A case-insensitive comparison of the whole text, as `eql`, `nel`, `inl` and `notinl` make.
+const EXACT_CASE_INSENSITIVE: Readonly<{ hasLeadingWildcard: boolean; hasTrailingWildcard: boolean; isCaseInsensitive: boolean }> = Object.freeze({ hasLeadingWildcard: false, hasTrailingWildcard: false, isCaseInsensitive: true });
 const COMPARABLE_KINDS: ReadonlyArray<EApiPropertyDescribeType> = Object.freeze([EApiPropertyDescribeType.DATE, EApiPropertyDescribeType.NUMBER]);
 const MEMBERSHIP_KINDS: ReadonlyArray<EApiPropertyDescribeType> = Object.freeze([EApiPropertyDescribeType.BOOLEAN, EApiPropertyDescribeType.ENUM, EApiPropertyDescribeType.NUMBER, EApiPropertyDescribeType.STRING, EApiPropertyDescribeType.UUID]);
 const NO_KINDS: ReadonlyArray<EApiPropertyDescribeType> = Object.freeze([]);
@@ -24,22 +27,22 @@ const OPERATOR_REGISTRY: Readonly<Record<EFilterOperation, IApiControllerGetList
 		operand: EFilterOperand.PAIR,
 	}),
 	[EFilterOperation.CONT]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => Like(`%${operand as string}%`),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => ApiControllerGetListQueryLike(operand as string, { hasLeadingWildcard: true, hasTrailingWildcard: true, isCaseInsensitive: false }, driverType),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUE,
 	}),
 	[EFilterOperation.CONTL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => ILike(`%${operand as string}%`),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => ApiControllerGetListQueryLike(operand as string, { hasLeadingWildcard: true, hasTrailingWildcard: true, isCaseInsensitive: true }, driverType),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUE,
 	}),
 	[EFilterOperation.ENDS]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => Like(`%${operand as string}`),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => ApiControllerGetListQueryLike(operand as string, { hasLeadingWildcard: true, hasTrailingWildcard: false, isCaseInsensitive: false }, driverType),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUE,
 	}),
 	[EFilterOperation.ENDSL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => ILike(`%${operand as string}`),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => ApiControllerGetListQueryLike(operand as string, { hasLeadingWildcard: true, hasTrailingWildcard: false, isCaseInsensitive: true }, driverType),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUE,
 	}),
@@ -49,17 +52,17 @@ const OPERATOR_REGISTRY: Readonly<Record<EFilterOperation, IApiControllerGetList
 		operand: EFilterOperand.VALUE,
 	}),
 	[EFilterOperation.EQL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => ILike(operand as string),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => ApiControllerGetListQueryLike(operand as string, EXACT_CASE_INSENSITIVE, driverType),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUE,
 	}),
 	[EFilterOperation.EXCL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => Not(Like(`%${operand as string}%`)),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => Not(ApiControllerGetListQueryLike(operand as string, { hasLeadingWildcard: true, hasTrailingWildcard: true, isCaseInsensitive: false }, driverType)),
 		kinds: NO_KINDS,
 		operand: EFilterOperand.VALUES,
 	}),
 	[EFilterOperation.EXCLL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => Not(ILike(`%${operand as string}%`)),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => Not(ApiControllerGetListQueryLike(operand as string, { hasLeadingWildcard: true, hasTrailingWildcard: true, isCaseInsensitive: true }, driverType)),
 		kinds: NO_KINDS,
 		operand: EFilterOperand.VALUES,
 	}),
@@ -79,7 +82,7 @@ const OPERATOR_REGISTRY: Readonly<Record<EFilterOperation, IApiControllerGetList
 		operand: EFilterOperand.VALUES,
 	}),
 	[EFilterOperation.INL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => Or(...(operand as ReadonlyArray<unknown>).map((value: unknown): FindOperator<string> => ILike(value as string))),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => Or(...(operand as ReadonlyArray<unknown>).map((value: unknown): FindOperator<string> => ApiControllerGetListQueryLike(value as string, EXACT_CASE_INSENSITIVE, driverType))),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUES,
 	}),
@@ -104,7 +107,7 @@ const OPERATOR_REGISTRY: Readonly<Record<EFilterOperation, IApiControllerGetList
 		operand: EFilterOperand.VALUE,
 	}),
 	[EFilterOperation.NEL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => Not(ILike(operand as string)),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => Not(ApiControllerGetListQueryLike(operand as string, EXACT_CASE_INSENSITIVE, driverType)),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUE,
 	}),
@@ -114,7 +117,7 @@ const OPERATOR_REGISTRY: Readonly<Record<EFilterOperation, IApiControllerGetList
 		operand: EFilterOperand.VALUES,
 	}),
 	[EFilterOperation.NOTINL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => Not(Or(...(operand as ReadonlyArray<unknown>).map((value: unknown): FindOperator<string> => ILike(value as string)))),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => Not(Or(...(operand as ReadonlyArray<unknown>).map((value: unknown): FindOperator<string> => ApiControllerGetListQueryLike(value as string, EXACT_CASE_INSENSITIVE, driverType)))),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUES,
 	}),
@@ -124,12 +127,12 @@ const OPERATOR_REGISTRY: Readonly<Record<EFilterOperation, IApiControllerGetList
 		operand: EFilterOperand.NONE,
 	}),
 	[EFilterOperation.STARTS]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => Like(`${operand as string}%`),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => ApiControllerGetListQueryLike(operand as string, { hasLeadingWildcard: false, hasTrailingWildcard: true, isCaseInsensitive: false }, driverType),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUE,
 	}),
 	[EFilterOperation.STARTSL]: Object.freeze({
-		compile: (operand?: unknown): FindOperator<unknown> => ILike(`${operand as string}%`),
+		compile: (operand?: unknown, driverType?: string): FindOperator<unknown> => ApiControllerGetListQueryLike(operand as string, { hasLeadingWildcard: false, hasTrailingWildcard: true, isCaseInsensitive: true }, driverType),
 		kinds: STRING_KINDS,
 		operand: EFilterOperand.VALUE,
 	}),

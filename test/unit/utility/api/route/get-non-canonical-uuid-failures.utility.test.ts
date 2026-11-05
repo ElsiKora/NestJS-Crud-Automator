@@ -5,9 +5,10 @@ import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiPropertyStringType } from "@enum/decorator/api";
 import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
+import { SIGNED_BIGINT_TEXT_FAILURE_CONSTANT } from "@constant/signed-bigint-text-failure.constant";
 import { ApiRouteGetNonCanonicalUuidFailures } from "@utility/api/route/get-non-canonical-uuid-failures.utility";
 import { Expose, Type } from "class-transformer";
-import { IsUUID, ValidateNested } from "class-validator";
+import { IsUUID, ValidateBy, ValidateNested } from "class-validator";
 import { describe, expect, it } from "vitest";
 
 const LOWER_UUID: string = "6f1b0c7e-5c3b-4c0a-8a1a-0d6f3e2b1a11";
@@ -64,6 +65,17 @@ class CanonicalUuidBodyDto {
 	public variant?: CanonicalUuidKindADto | CanonicalUuidKindBDto;
 }
 
+// The validator a generated write body gives a text value of a signed 64-bit integer column.
+const isSignedBigIntText = (isEach: boolean = false): PropertyDecorator => ValidateBy({ name: SIGNED_BIGINT_TEXT_FAILURE_CONSTANT.NOT_SIGNED_BIGINT_TEXT_CONSTRAINT, validator: { validate: (): boolean => true } }, { each: isEach });
+
+class CanonicalBigIntBodyDto {
+	@isSignedBigIntText()
+	public amount?: string;
+
+	@isSignedBigIntText(true)
+	public amounts?: Array<string>;
+}
+
 /**
  * Reads the property and constraint of each failure.
  * @param {unknown} value - Request value.
@@ -104,5 +116,25 @@ describe("ApiRouteGetNonCanonicalUuidFailures", () => {
 
 	it("gives failures that render as the ValidationPipe message list", () => {
 		expect(new ApiRequestValidationException(ApiRouteGetNonCanonicalUuidFailures(CanonicalUuidBodyDto, { items: [{ id: UPPER_UUID }] }, "")).getResponse()).toMatchObject({ message: ["items.0.id must be a lower-case UUID"], statusCode: 400 });
+	});
+});
+
+describe("ApiRouteGetNonCanonicalUuidFailures on a signed 64-bit integer value", () => {
+	const readBigInt = (value: unknown): Array<{ constraints: unknown; property: string }> => ApiRouteGetNonCanonicalUuidFailures(CanonicalBigIntBodyDto, value, "").map(({ constraints, property }: { constraints?: unknown; property: string }) => ({ constraints, property }));
+
+	it.each(["0", "-1", "9223372036854775807", "-9223372036854775808"])("accepts %s", (sent: string) => {
+		expect(readBigInt({ amount: sent, amounts: [sent] })).toEqual([]);
+	});
+
+	it.each(["9223372036854775808", "-9223372036854775809", "-0", "016", "+1", "1.0", "abc", 1])("refuses %s on a single property and in a list", (sent: unknown) => {
+		expect(readBigInt({ amount: sent, amounts: ["1", sent] })).toEqual([
+			{ constraints: { isSignedBigIntText: "amount must be a signed 64-bit integer in canonical decimal text" }, property: "amount" },
+			{ constraints: { isSignedBigIntText: "amounts.1 must be a signed 64-bit integer in canonical decimal text" }, property: "amounts.1" },
+		]);
+	});
+
+	it("leaves a missing or null value to the presence validators", () => {
+		expect(readBigInt({ amount: null })).toEqual([]);
+		expect(readBigInt({})).toEqual([]);
 	});
 });

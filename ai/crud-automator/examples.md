@@ -602,6 +602,24 @@ const document = {
 // GET /items/a%2Fb → 403: a value that holds "/" names no resource.
 ```
 
+## IAM Path Keys With One Spelling
+
+```ts
+// An enum key under its own type: other spellings answer 400 before IAM.
+@PrimaryColumn({ enum: EKind, type: "enum" })
+@ApiPropertyDescribe({ description: "kind", enum: EKind, enumName: "EKind", type: EApiPropertyDescribeType.ENUM })
+public kind!: EKind;
+// Deny Resource "admin:kind/secret": GET /kinds/secret → 403, /kinds/SECRET → 400, /kinds/public → 200.
+// The same column described as STRING, or a `time`/`inet`/`set` key, fails at startup.
+
+// A placeholder bound by pathScope reads the bound column with no field mapping.
+// path: "tenants/:tenant/items", pathScope: { parameters: [{ field: "tenantCode", parameter: "tenant" }] },
+// resourcePath: "admin:item/{tenant}/{id}", fields: [{ path: "resource.id", queryPath: "id", isFilterable: true }]
+// Allow Resource "admin:item/acme/*": GET /tenants/acme/items/1 → 200, /tenants/other/items/2 → 403.
+
+// LIKE filters are literal: ?label[operator]=cont&label[value]=%25 lists only labels that hold "%".
+```
+
 ## IAM Operator Families
 
 ```ts

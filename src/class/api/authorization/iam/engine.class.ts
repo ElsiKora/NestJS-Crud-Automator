@@ -25,6 +25,7 @@ import type {
 	IApiPolicyStatement,
 	IApiResolvedPolicyAttachments,
 } from "@interface/class/api/authorization";
+import type { IApiControllerPropertiesPathScope } from "@interface/decorator/api/controller/properties/path-scope";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
 import { ApiAuthorizationIamCollection } from "@class/api/authorization/iam/collection.class";
@@ -42,6 +43,7 @@ import { AuthorizationScopeMergeWhere } from "@utility/authorization";
 import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query-field.utility";
 import { AuthorizationIsCreateRoute } from "@utility/authorization/is-create-route.utility";
 import { AuthorizationIsListRoute } from "@utility/authorization/is-list-route.utility";
+import { AuthorizationPlaceholderResolveQueryPath } from "@utility/authorization/placeholder-resolve-query-path.utility";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -61,6 +63,7 @@ export class ApiAuthorizationIamEngine {
 	 * @param {IApiResolvedPolicyAttachments} options.attachments - Identity and boundary attachments of the principal.
 	 * @param {IApiAuthorizationIamDialect} [options.dialect] - SQL dialect of the resource entity, which the query scopes are lowered to; portable when absent.
 	 * @param {ReadonlyArray<IApiPolicyDocumentRecord>} options.documents - Attached policy documents.
+	 * @param {IApiControllerPropertiesPathScope<E>} [options.pathScope] - Path scope of the controller, which binds a path parameter to the column a placeholder of its name reads.
 	 * @param {string} options.policyNamespace - Policy namespace of the resource.
 	 * @param {IApiAuthorizationPrincipal} options.principal - Evaluated principal.
 	 * @param {IApiAuthorizationRequestMetadata<E, M>} options.requestMetadata - Request metadata.
@@ -74,6 +77,7 @@ export class ApiAuthorizationIamEngine {
 		attachments: IApiResolvedPolicyAttachments;
 		dialect?: IApiAuthorizationIamDialect;
 		documents: ReadonlyArray<IApiPolicyDocumentRecord>;
+		pathScope?: IApiControllerPropertiesPathScope<E>;
 		policyNamespace: string;
 		principal: IApiAuthorizationPrincipal;
 		requestMetadata: IApiAuthorizationRequestMetadata<E, M>;
@@ -85,7 +89,7 @@ export class ApiAuthorizationIamEngine {
 
 		// One request reads one time, so every key and scope of it compares with the same instant.
 		const requestMetadata: IApiAuthorizationRequestMetadata<E, M> = options.requestMetadata.time ? options.requestMetadata : { ...options.requestMetadata, time: new Date() };
-		const requestResource: IApiAuthorizationIamRequestResource = this.resolveRequestResource(options.resourceDefinition, requestMetadata, options.resource, options.dialect);
+		const requestResource: IApiAuthorizationIamRequestResource = this.resolveRequestResource(options.resourceDefinition, requestMetadata, options.resource, options.dialect, options.pathScope);
 		const isCreateRequest: boolean = AuthorizationIsCreateRoute(options.routeType, options.action, options.policyNamespace);
 		const isListRequest: boolean = AuthorizationIsListRoute(options.routeType, options.action, options.policyNamespace);
 		const documentMap: Map<string, IApiPolicyDocumentRecord> = new Map<string, IApiPolicyDocumentRecord>(options.documents.map((document: IApiPolicyDocumentRecord): [string, IApiPolicyDocumentRecord] => [document.id, document]));
@@ -812,7 +816,7 @@ export class ApiAuthorizationIamEngine {
 	 * @param {Map<string, IApiPolicyDocumentRecord>} documentMap - Resolved documents by id.
 	 * @param {string} policyNamespace - Policy namespace of the request.
 	 * @returns {Array<IApiPolicyDocumentRecord>} The documents of the namespace, in attachment order.
-	 * @throws {Error} When an attached document is not available.
+	 * @throws {Error} When an attached document is not available, or its namespace is not a non-empty string, so it cannot be skipped as a document of another namespace.
 	 */
 	private resolveDocumentRecords(attachments: ReadonlyArray<IApiPolicyAttachment>, documentMap: Map<string, IApiPolicyDocumentRecord>, policyNamespace: string): Array<IApiPolicyDocumentRecord> {
 		const documents: Array<IApiPolicyDocumentRecord> = [];
@@ -824,6 +828,12 @@ export class ApiAuthorizationIamEngine {
 				iamEngineLogger.error(`Policy document "${attachment.policyId}" is not available for IAM evaluation`);
 
 				throw ErrorException(`Policy document "${attachment.policyId}" is not available for IAM evaluation`);
+			}
+
+			if (typeof document.namespace !== "string" || document.namespace.length === 0) {
+				iamEngineLogger.error(`Policy document "${attachment.policyId}" namespace must be a non-empty string`);
+
+				throw ErrorException(`Policy document "${attachment.policyId}" namespace must be a non-empty string`);
 			}
 
 			if (document.namespace === policyNamespace) {
@@ -866,9 +876,10 @@ export class ApiAuthorizationIamEngine {
 	 * @param {IApiAuthorizationRequestMetadata<E, M>} requestMetadata - Request metadata.
 	 * @param {E | undefined} resource - Loaded resource, when available.
 	 * @param {IApiAuthorizationIamDialect} [dialect] - SQL dialect of the resource entity.
+	 * @param {IApiControllerPropertiesPathScope<E>} [pathScope] - Path scope of the controller.
 	 * @returns {IApiAuthorizationIamRequestResource} The text and row readings, with adjacent literals merged.
 	 */
-	private resolveRequestResource<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, requestMetadata: IApiAuthorizationRequestMetadata<E, M>, resource: E | undefined, dialect?: IApiAuthorizationIamDialect): IApiAuthorizationIamRequestResource {
+	private resolveRequestResource<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, requestMetadata: IApiAuthorizationRequestMetadata<E, M>, resource: E | undefined, dialect?: IApiAuthorizationIamDialect, pathScope?: IApiControllerPropertiesPathScope<E>): IApiAuthorizationIamRequestResource {
 		const parameters: Record<string, unknown> = this.isRecord(requestMetadata.parameters) ? requestMetadata.parameters : {};
 		const resourcePath: string = resourceDefinition.resourcePath;
 		const separatorClass: string = this.readSeparatorClass(resourcePath);
@@ -930,7 +941,7 @@ export class ApiAuthorizationIamEngine {
 			if (renderedValue) {
 				appendLiteral(segments, renderedValue);
 
-				const storedRow: { isText: boolean; queryPath?: string } | undefined = resource === undefined && isParameter ? this.resolveStoredRowColumn(resourceDefinition, placeholder) : undefined;
+				const storedRow: { isText: boolean; queryPath?: string } | undefined = resource === undefined && isParameter ? this.resolveStoredRowColumn(resourceDefinition, placeholder, pathScope) : undefined;
 
 				if (storedRow?.isText === false && storedRow.queryPath !== undefined) {
 					// Only a text column gets the stored-row comparison; any other column keeps the path text.
@@ -1038,18 +1049,19 @@ export class ApiAuthorizationIamEngine {
 	/**
 	 * Resolves the column a placeholder filled by a path value reads on the stored row. A field that maps the placeholder
 	 * gives its column, whether or not it is filterable, as the filterable flag only limits what a policy key or a client
-	 * filter may read. Without a mapping the placeholder name is read as a property of the resource entity. A text column
+	 * filter may read. Without a mapping the path scope binding of the path parameter of that name gives it, and without
+	 * either the placeholder name is read as a property of the resource entity. A text column
 	 * has a collation that can find a row by another spelling of the path value, so the row is compared where it is
 	 * stored; any other column keeps the path text. A placeholder that resolves to no column, or to a to-many relation,
 	 * has no query path, so a pattern that constrains it fails closed.
 	 * @template E - Entity type.
 	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
 	 * @param {string} placeholder - Placeholder name.
+	 * @param {IApiControllerPropertiesPathScope<E>} [pathScope] - Path scope of the controller.
 	 * @returns {{ isText: boolean; queryPath?: string }} Whether the column is text, and its query path when one resolves.
 	 */
-	private resolveStoredRowColumn<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, placeholder: string): { isText: boolean; queryPath?: string } {
-		const field: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === `resource.${placeholder}`);
-		const queryPath: string = field?.queryPath ?? placeholder;
+	private resolveStoredRowColumn<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, placeholder: string, pathScope?: IApiControllerPropertiesPathScope<E>): { isText: boolean; queryPath?: string } {
+		const queryPath: string = AuthorizationPlaceholderResolveQueryPath(resourceDefinition, placeholder, pathScope);
 		const queryField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, queryPath);
 
 		if (!queryField.isResolvable || queryField.collectionPath !== undefined || queryField.column === undefined) {

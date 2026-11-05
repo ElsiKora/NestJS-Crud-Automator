@@ -1,23 +1,30 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthorizationResourceDefinition } from "@interface/class/api/authorization";
 import type { IApiControllerParametersCustomRuleOptions } from "@interface/class/api/controller/parameters-custom-rule-options.interface";
 import type { IApiControllerParametersRouteDtoExposure } from "@interface/class/api/controller/parameters-route-dto-exposure.interface";
 import type { IApiControllerParametersRouteDtoProblem } from "@interface/class/api/controller/parameters-route-dto-problem.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiControllerParametersSource } from "@interface/class/api/controller/parameters-source.interface";
-import type { IApiEntityColumn } from "@interface/entity";
+import type { IApiControllerPropertiesPathScope } from "@interface/decorator/api/controller/properties/path-scope";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-property-metadata.type";
 
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
+import { AuthorizationPlaceholderResolveQueryPath } from "@utility/authorization/placeholder-resolve-query-path.utility";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
 import { ClassTransformerReadLimits } from "@utility/class-transformer/read-limits.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { TransformationType } from "class-transformer";
 import { getMetadataStorage, IS_UUID, ValidationTypes } from "class-validator";
 
-import { ApiControllerParametersIsDecimalColumn } from "./column/numeric-type.utility";
+import { ApiControllerParametersReadKeyDescribeTypes } from "./column/key-type.utility";
 import { ApiControllerParametersConvert } from "./convert.utility";
 import { API_CONTROLLER_PARAMETERS_AUTO_COPY_METADATA_KEY, API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY } from "./dto/metadata-key.constant";
 import { ApiControllerParametersRouteDtoFindDropped, ApiControllerParametersRouteDtoReadExposure } from "./route-dto-startup.utility";
@@ -29,17 +36,47 @@ type TValidationMetadata = ReturnType<ReturnType<typeof getMetadataStorage>["get
 const STARTUP_SAMPLES: Array<string> = ["1", "Aa"];
 const BOOLEAN_SAMPLES: Array<string> = ["true", "false"];
 
+// The described type of the value each `ApiProperty*` decorator of a PARAMETERS DTO describes.
+const MANUAL_DECORATOR_DESCRIBE_TYPES: ReadonlyMap<EManualDtoPropertyMetadataDecorator, EApiPropertyDescribeType> = new Map<EManualDtoPropertyMetadataDecorator, EApiPropertyDescribeType>([
+	[EManualDtoPropertyMetadataDecorator.BOOLEAN, EApiPropertyDescribeType.BOOLEAN],
+	[EManualDtoPropertyMetadataDecorator.DATE, EApiPropertyDescribeType.DATE],
+	[EManualDtoPropertyMetadataDecorator.ENUM, EApiPropertyDescribeType.ENUM],
+	[EManualDtoPropertyMetadataDecorator.NUMBER, EApiPropertyDescribeType.NUMBER],
+	[EManualDtoPropertyMetadataDecorator.OBJECT, EApiPropertyDescribeType.OBJECT],
+	[EManualDtoPropertyMetadataDecorator.STRING, EApiPropertyDescribeType.STRING],
+	[EManualDtoPropertyMetadataDecorator.UUID, EApiPropertyDescribeType.UUID],
+]);
+
 /**
- * Rejects a path value held in a decimal column on a securable route: a database reads `1.5`, `1.50` and `01.5` as one key, while an IAM Deny and a HOOKS policy on `context.parameters` compare text, so no policy value can name it.
+ * Rejects a path value on a securable route that a database could find by more than one spelling, while an IAM Deny and a HOOKS policy on `context.parameters` compare text: one row has exactly one accepted spelling, or the route does not start.
+ * A text column compares the text itself, and an integer column gets its canonical decimal text checked on each request. A UUID, enum, boolean, date or date-and-time column must be described by its own type, which accepts one spelling of each value. No described type does that for a decimal, a floating-point number, a time of day, a year, an interval, a network address, a set or any other column type, so such a column cannot hold a path value.
  * @param {IApiControllerParametersRule} rule - Path value rule of the route.
  * @param {string} route - Controller and method, for the error message.
+ * @param {ReadonlyMap<string, EApiPropertyDescribeType>} [describedTypes] - The type the PARAMETERS DTO of a custom route describes each path parameter as; the described type of the entity column when a parameter is absent.
  * @returns {void}
- * @throws {Error} When a path parameter holds a decimal column.
+ * @throws {Error} When a path parameter holds a column whose type no described type gives one spelling, or a column that is not described by its own type.
  */
-export function ApiControllerParametersAssertComparableColumns(rule: IApiControllerParametersRule, route: string): void {
+export function ApiControllerParametersAssertComparableColumns(rule: IApiControllerParametersRule, route: string, describedTypes?: ReadonlyMap<string, EApiPropertyDescribeType>): void {
 	for (const [parameter, column] of rule.columns ?? []) {
-		if (ApiControllerParametersIsDecimalColumn(column.type)) {
-			throw ErrorException(`${route} holds the path parameter "${parameter}" in the ${String(column.type)} column "${String(column.name)}", and a database reads many spellings of such a value as one key, so a policy that compares its text, an IAM Deny or a HOOKS condition on context.parameters, cannot name it: use an integer, UUID or text key on this route`);
+		const keyTypes: ReadonlySet<EApiPropertyDescribeType> | undefined = ApiControllerParametersReadKeyDescribeTypes(column.type);
+
+		if (keyTypes === undefined) {
+			continue;
+		}
+
+		const typeName: string = typeof column.type === "function" ? column.type.name : (column.type ?? "untyped");
+		const holds: string = `${route} holds the path parameter "${parameter}" in the ${typeName} column "${String(column.name)}"`;
+
+		if (keyTypes.size === 0) {
+			throw ErrorException(`${holds}, and a database reads many spellings of such a value as one key, so a policy that compares its text, an IAM Deny or a HOOKS condition on context.parameters, cannot name it: use an integer, UUID or text key on this route`);
+		}
+
+		const describedType: EApiPropertyDescribeType | undefined = describedTypes?.get(parameter) ?? (column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as Partial<TApiPropertyDescribeProperties> | undefined)?.type;
+
+		if (describedType === undefined || !keyTypes.has(describedType)) {
+			const ownTypes: string = [...keyTypes].join(" or ");
+
+			throw ErrorException(`${holds} and describes it as ${describedType ?? "no type"}, while a database reads several spellings of such a value as one key and only the ${ownTypes} type accepts one spelling of each value, so a policy that compares its text, an IAM Deny or a HOOKS condition on context.parameters, could not name it: describe the value as ${ownTypes}`);
 		}
 	}
 }
@@ -96,8 +133,19 @@ export function ApiControllerParametersBuildCustomRule(options: IApiControllerPa
 		return undefined;
 	}
 
-	const rule: IApiControllerParametersRule = { columns: readCopiedColumns(options.dto, routeDtoProperties), dto: options.dto, routeDtoProperties, uuidParameters: readUuidParameters(options.dto, routeDtoProperties) };
-	ApiControllerParametersAssertComparableColumns(rule, route);
+	const uuidParameters: Set<string> = readUuidParameters(options.dto, routeDtoProperties);
+	const columns: Map<string, IApiEntityColumn<unknown>> = readCopiedColumns(options.dto, routeDtoProperties);
+
+	if (options.resourceDefinition) {
+		for (const [parameter, column] of readPlaceholderColumns(options.resourceDefinition, options.pathScope, parameters)) {
+			if (!columns.has(parameter)) {
+				columns.set(parameter, column);
+			}
+		}
+	}
+
+	const rule: IApiControllerParametersRule = { columns, dto: options.dto, routeDtoProperties, uuidParameters };
+	ApiControllerParametersAssertComparableColumns(rule, route, readDescribedTypes(options.dto, routeDtoProperties, uuidParameters));
 
 	return rule;
 }
@@ -350,6 +398,92 @@ function readCopiedColumns(dto: { prototype: object }, properties: ReadonlyMap<s
 	}
 
 	return columns;
+}
+
+/**
+ * Reads the type the PARAMETERS DTO describes each path parameter as: the described type of the column a property copies, the type of its `ApiProperty*` decorator, or UUID for a property validated as a UUID.
+ * @param {{ prototype: object }} dto - PARAMETERS DTO of the route.
+ * @param {object} dto.prototype - Prototype of the DTO class.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @param {ReadonlySet<string>} uuidParameters - The path parameters held by a property validated as a UUID.
+ * @returns {Map<string, EApiPropertyDescribeType>} The described type of each path parameter that has one.
+ */
+function readDescribedTypes(dto: { prototype: object }, properties: ReadonlyMap<string, string>, uuidParameters: ReadonlySet<string>): Map<string, EApiPropertyDescribeType> {
+	const manualProperties: ReadonlyMap<string | symbol, TManualDtoPropertyMetadata> = GetManualDtoPropertyMetadata(dto.prototype);
+	const describedTypes: Map<string, EApiPropertyDescribeType> = new Map<string, EApiPropertyDescribeType>();
+
+	for (const [parameter, property] of properties) {
+		const source: IApiControllerParametersSource | undefined = Reflect.getMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, dto.prototype, property) as IApiControllerParametersSource | undefined;
+		const decorator: EManualDtoPropertyMetadataDecorator | undefined = manualProperties.get(property)?.decorator;
+		const describedType: EApiPropertyDescribeType | undefined = source?.metadata.type ?? (decorator === undefined ? undefined : MANUAL_DECORATOR_DESCRIBE_TYPES.get(decorator));
+
+		if (describedType !== undefined) {
+			describedTypes.set(parameter, describedType);
+		} else if (uuidParameters.has(parameter)) {
+			describedTypes.set(parameter, EApiPropertyDescribeType.UUID);
+		}
+	}
+
+	return describedTypes;
+}
+
+/**
+ * Lists the entity column that each IAM resource path placeholder of a path parameter reads: the field that maps it, then the path scope binding of that parameter, then the entity property of its name. A placeholder that reaches no column of the entity or of a to-one related entity is left out.
+ * @param {IApiAuthorizationResourceDefinition<IApiBaseEntity>} resourceDefinition - IAM resource definition of the controller.
+ * @param {IApiControllerPropertiesPathScope<IApiBaseEntity> | undefined} pathScope - Path scope of the controller.
+ * @param {ReadonlySet<string>} parameters - Path parameters of the route.
+ * @returns {Map<string, IApiEntityColumn<unknown>>} The column of each such path parameter.
+ */
+function readPlaceholderColumns(resourceDefinition: IApiAuthorizationResourceDefinition<IApiBaseEntity>, pathScope: IApiControllerPropertiesPathScope<IApiBaseEntity> | undefined, parameters: ReadonlySet<string>): Map<string, IApiEntityColumn<unknown>> {
+	const columns: Map<string, IApiEntityColumn<unknown>> = new Map<string, IApiEntityColumn<unknown>>();
+
+	for (const match of resourceDefinition.resourcePath.matchAll(/\{([\w.-]+)\}/g)) {
+		const placeholder: string = match[1] ?? "";
+
+		if (!parameters.has(placeholder)) {
+			continue;
+		}
+
+		const column: IApiEntityColumn<unknown> | undefined = readQueryPathColumn(resourceDefinition.entity, AuthorizationPlaceholderResolveQueryPath(resourceDefinition, placeholder, pathScope));
+
+		if (column) {
+			columns.set(placeholder, column);
+		}
+	}
+
+	return columns;
+}
+
+/**
+ * Finds the column a query path ends on, through to-one relations: `tenantCode` on the entity, `operator.id` on the entity the `operator` relation targets.
+ * @param {object} entity - Entity class the path starts on.
+ * @param {string} queryPath - Dotted query path.
+ * @returns {IApiEntityColumn<unknown> | undefined} The column, or undefined when the path ends on a relation or reaches no column.
+ */
+function readQueryPathColumn(entity: object, queryPath: string): IApiEntityColumn<unknown> | undefined {
+	const segments: Array<string> = queryPath.split(".");
+	let target: object = entity;
+
+	for (const [index, segment] of segments.entries()) {
+		const information: IApiEntity<unknown> = GenerateEntityInformation(target as never);
+		const column: IApiEntityColumn<unknown> | undefined = information.columns.find((candidate: IApiEntityColumn<unknown>): boolean => String(candidate.name) === segment);
+
+		if (!column) {
+			return undefined;
+		}
+
+		if (index === segments.length - 1) {
+			return column.relation ? undefined : column;
+		}
+
+		if (typeof column.relation?.target !== "function") {
+			return undefined;
+		}
+
+		target = column.relation.target;
+	}
+
+	return undefined;
 }
 
 /**

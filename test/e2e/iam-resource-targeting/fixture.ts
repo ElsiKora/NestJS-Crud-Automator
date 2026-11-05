@@ -220,7 +220,7 @@ export function E2eIamTargetBuild(database: TE2eIamTargetDatabase): IE2eIamTarge
 		public readonly service!: ItemService;
 	}
 
-	// The path parameter scopes the tenant column, but the placeholder `{region}` resolves to no column of the entity.
+	// The placeholder `{region}` names no column of the entity; the path scope binds the parameter of that name to the tenant column.
 	@ApiControllerSecurable()
 	@ApiController<TenantEntity>({ authorization: authorizationOf(TenantEntity, namespaces.region, `${namespaces.region}/{region}/i/{id}`), entity: TenantEntity, name: `E2eIamTargetRegions${suffix}`, path: "iam-target/regions/:region/items", pathScope: { parameters: [{ field: "tenant", parameter: "region" }] }, routes: everyRoute } as never)
 	class RegionController {

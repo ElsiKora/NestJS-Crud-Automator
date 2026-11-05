@@ -4,12 +4,16 @@ import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeDateProperties, TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
+import { SIGNED_BIGINT_TEXT_FAILURE_CONSTANT } from "@constant/signed-bigint-text-failure.constant";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { DtoGenerateDecorator } from "@utility/dto/generate/decorator.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoHandleDateProperty } from "@utility/dto/handle-date-property.utility";
 import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed/for-guard.utility";
 import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/infrastructure-timestamp.utility";
+import { IsBigIntColumnType } from "@utility/is/bigint-column-type.utility";
+import { IsSignedBigIntText } from "@utility/is/signed-bigint-text.utility";
+import { buildMessage, ValidateBy } from "class-validator";
 
 /**
  * Creates property decorators for DTOs based on property metadata, entity information, and context.
@@ -67,6 +71,28 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 	}
 
 	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType);
+	const decorator: PropertyDecorator = DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs, dtoNameBase, dtoPropertyName, hostDtoName);
 
-	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs, dtoNameBase, dtoPropertyName, hostDtoName)];
+	return isWriteBody && propertyMetadata.type === EApiPropertyDescribeType.STRING && IsBigIntColumnType(entity.columns.find((column: { name: unknown }): boolean => String(column.name) === propertyName)?.type) ? [decorator, buildBigIntRangeDecorator(propertyMetadata.isArray === true)] : [decorator];
+}
+
+/**
+ * Builds the validator a written text value of a signed 64-bit integer column gets: canonical decimal text in that range, so a value PostgreSQL would refuse with an error answers 400 on every database. `ApiRouteGetNonCanonicalUuidFailures` refuses the same values before any pipe, so the rule holds without a host `ValidationPipe` too. A missing or null value is left to the presence validators of the property.
+ * @param {boolean} isArray - Whether the property holds a list, whose every item is checked.
+ * @returns {PropertyDecorator} The validator.
+ */
+function buildBigIntRangeDecorator(isArray: boolean): PropertyDecorator {
+	// eslint-disable-next-line @elsikora/typescript/naming-convention
+	const validationOptions: { each: boolean } = { each: isArray };
+
+	return ValidateBy(
+		{
+			name: SIGNED_BIGINT_TEXT_FAILURE_CONSTANT.NOT_SIGNED_BIGINT_TEXT_CONSTRAINT,
+			validator: {
+				defaultMessage: buildMessage((eachPrefix: string): string => `${eachPrefix}$property must be a signed 64-bit integer in canonical decimal text`, validationOptions),
+				validate: (value: unknown): boolean => value === undefined || value === null || IsSignedBigIntText(value),
+			},
+		},
+		validationOptions,
+	);
 }
