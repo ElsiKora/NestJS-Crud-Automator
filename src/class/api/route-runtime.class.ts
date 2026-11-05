@@ -2,7 +2,7 @@ import type { EFilterOrderDirection } from "@enum/filter";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
-import type { IApiControllerGetListQueryAstNode, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerGetListQueryAstNode, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanFilterRelation, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRelationFilterContext, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiControllerPathPlan, IApiControllerPathPlanParameter } from "@interface/class/api/controller/path";
@@ -606,7 +606,7 @@ export class ApiRouteRuntime {
 				}
 
 				// Date-time values the DTO or plan accepted must also name a calendar instant before any query.
-				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery, routeSource));
+				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery, routeSource, queryPlan));
 
 				const {
 					limit,
@@ -624,7 +624,7 @@ export class ApiRouteRuntime {
 				const listPublishedFields: ReadonlySet<string> | undefined = listResponseDto ? ApiControllerGetListResponsePublishedFields(listResponseDto) : undefined;
 
 				// The startup check keeps such a column out of a typed plan; a plan that skipped it, as a bare ApiControllerFactory does, answers as the legacy path does.
-				if (runtimeQuery?.ast?.nodes.some((node: IApiControllerGetListQueryAstNode): boolean => ApiControllerGetListIsHiddenColumn(options.entityMetadata, node.path, routeConfig.security?.authentication?.guard, listPublishedFields))) {
+				if (runtimeQuery?.ast?.nodes.some((node: IApiControllerGetListQueryAstNode): boolean => queryPlan?.filter.fields[node.path]?.relationFilter?.isDeclaredReach !== true && ApiControllerGetListIsHiddenColumn(options.entityMetadata, node.path, routeConfig.security?.authentication?.guard, listPublishedFields))) {
 					throw new BadRequestException("FILTER_NOT_VALID");
 				}
 
@@ -632,7 +632,10 @@ export class ApiRouteRuntime {
 				// The client text of a LIKE family filter matches itself, which takes an ESCAPE clause on a database without a default escape character.
 				const listRepository: unknown = options.controller.service.repository;
 				const driverType: string | undefined = DatabaseTypeOrmIsRepository<E>(listRepository) && listRepository.manager.dataSource.isInitialized ? listRepository.manager.dataSource.options.type : undefined;
-				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast, driverType) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard, listPublishedFields, driverType);
+
+				const relationFilterContext: IApiControllerGetListQueryRelationFilterContext | undefined = queryPlan ? { plan: queryPlan, repository: listRepository as Repository<ObjectLiteral>, source: routeSource } : undefined;
+
+				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast, driverType, relationFilterContext) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard, listPublishedFields, driverType);
 				const service: ApiServiceBase<E> = options.controller.service;
 				const getManyFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>) | undefined = cursorRuntimeQuery ? ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, options.properties.entity) : undefined;
 				const getListFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetListProperties<E>) => Promise<unknown>) | undefined = cursorRuntimeQuery ? undefined : ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, options.properties.entity);
@@ -1133,16 +1136,23 @@ export class ApiRouteRuntime {
 	 * @param {unknown} service - Service of the route
 	 * @param {Record<string, unknown>} query - Query as the request carries it
 	 * @param {string} source - Controller and route named in the error
+	 * @param {IApiControllerGetListQueryPlan} [queryPlan] - Compiled query plan of the route, whose relation filters name their own column
 	 * @returns {ReadonlyMap<string, boolean>} Filter paths over date and time columns, each with whether its column stores an exact instant
 	 * @throws {Error} When the service has no TypeORM repository, so the filter values cannot be checked
 	 */
-	private static resolveDateTimeFilterPaths(service: unknown, query: Record<string, unknown>, source: string): ReadonlyMap<string, boolean> {
+	private static resolveDateTimeFilterPaths(service: unknown, query: Record<string, unknown>, source: string, queryPlan?: IApiControllerGetListQueryPlan): ReadonlyMap<string, boolean> {
 		const repository: Repository<ObjectLiteral> = DatabaseTypeOrmAssertServiceRepository(service, source, ", so its date and time filter values cannot be checked");
 		const dateTimePaths: Map<string, boolean> = new Map<string, boolean>();
 
 		for (const key of Object.keys(query)) {
 			const path: string | undefined = FILTER_VALUE_KEY_PATTERN.exec(key)?.[1];
-			const column: TTypeOrmColumnMetadata | undefined = path ? this.resolveFilterColumn(repository.metadata, path) : undefined;
+			const relationFilter: IApiControllerGetListQueryPlanFilterRelation | undefined = path ? queryPlan?.filter.fields[path]?.relationFilter : undefined;
+			let column: TTypeOrmColumnMetadata | undefined = path ? this.resolveFilterColumn(repository.metadata, path) : undefined;
+
+			if (relationFilter) {
+				column = repository.manager.dataSource.hasMetadata(relationFilter.leafEntity as never) ? repository.manager.dataSource.getMetadata(relationFilter.leafEntity as never).findColumnWithPropertyPath(relationFilter.leafProperty) : undefined;
+			}
+
 			const columnType: string | undefined = column ? repository.manager.dataSource.driver.normalizeType(column) : undefined;
 
 			if (path && columnType && (DATABASE_COLUMN_TYPE_CONSTANT.DATE.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType))) {

@@ -1,11 +1,25 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanCondition, IApiControllerGetListQueryPlanFilter, IApiControllerGetListQueryPlanFilterField, IApiControllerGetListQueryPlanOrder, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryPlanOrderField } from "@interface/class/api/controller/get-list/query";
+import type {
+	IApiControllerGetListQueryOperator,
+	IApiControllerGetListQueryPlan,
+	IApiControllerGetListQueryPlanCondition,
+	IApiControllerGetListQueryPlanFilter,
+	IApiControllerGetListQueryPlanFilterField,
+	IApiControllerGetListQueryPlanFilterRelation,
+	IApiControllerGetListQueryPlanFilterRelationCondition,
+	IApiControllerGetListQueryPlanFilterRelationHop,
+	IApiControllerGetListQueryPlanOrder,
+	IApiControllerGetListQueryPlanOrderEntry,
+	IApiControllerGetListQueryPlanOrderField,
+	IApiControllerGetListQueryRelationFilterPath,
+} from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerGetListQueryPlanPagination } from "@interface/class/api/controller/get-list/query/plan/pagination.interface";
-import type { IApiControllerPropertiesRouteGetListQueryFilter, IApiControllerPropertiesRouteGetListQueryOrder, IApiControllerPropertiesRouteGetListQueryOrderEntry, IApiControllerPropertiesRouteGetListQueryPagination } from "@interface/decorator/api";
+import type { IApiControllerPropertiesRouteGetListQueryFilter, IApiControllerPropertiesRouteGetListQueryFilterLink, IApiControllerPropertiesRouteGetListQueryOrder, IApiControllerPropertiesRouteGetListQueryOrderEntry, IApiControllerPropertiesRouteGetListQueryPagination } from "@interface/decorator/api";
 import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiEntityReference } from "@type/api-entity-reference.type";
+import type { TMetadataStorageTarget } from "@type/class";
 import type { TApiControllerGetListQueryCompiledOrderField } from "@type/class/api/controller/get-list/compiled/order-field.type";
 import type { TApiControllerGetListQueryCompiledOrder } from "@type/class/api/controller/get-list/compiled/order.type";
 import type { TApiControllerGetListQueryCompiledPlan } from "@type/class/api/controller/get-list/compiled/plan.type";
@@ -13,14 +27,15 @@ import type { TApiControllerGetListQueryOrderField, TApiControllerPropertiesRout
 import type { TApiControllerGetListQueryRequestTarget } from "@type/decorator/api/controller/get-list/query/request-target.type";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeDtoQueryGetListProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-property-metadata.type";
-import type { TTypeOrmColumnMetadataArguments, TTypeOrmEntityListenerMetadataArguments } from "@type/utility/typeorm";
+import type { TTypeOrmColumnMetadataArguments, TTypeOrmEntityListenerMetadataArguments, TTypeOrmMetadataArgumentsStorage } from "@type/utility/typeorm";
 import type { ObjectLiteral } from "typeorm";
 
 import { createHash } from "node:crypto";
 
+import { ApiControllerGetListQueryRelationFilterPath } from "@class/api/controller/get-list/query/relation-filter";
 import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
 import { PROPERTY_DATE_DECORATOR_API_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
-import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
+import { FILTER_OPERATOR_REGISTRY_CONSTANT, FILTER_RELATION_CONSTANT } from "@constant/filter";
 import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-property-names.constant";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
@@ -58,6 +73,8 @@ const CURSOR_INTEGER_COLUMN_TYPES: ReadonlySet<string> = new Set<string>([...CUR
 const CURSOR_NON_PERSISTED_COLUMN_MODES: ReadonlySet<string> = new Set<string>(["array", "treeChildrenCount", "virtual", "virtual-property"]);
 const CURSOR_TIMESTAMP_MAXIMUM_PRECISION: number = 3;
 const CURSOR_UUID_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["uuid"]);
+// A link name is the first segment of the query names of its fields.
+const FILTER_LINK_NAME_PATTERN: RegExp = /^[A-Za-z_]\w*$/u;
 
 export class ApiControllerGetListQueryPlanCompiler {
 	/**
@@ -93,6 +110,11 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		for (const { name } of DtoGenerateGetListQueryProperties(entityMetadata, markedProperties, currentGuard, queryPlan)) {
+			// A declared relation path answers for its own leaf while it compiles; what the route publishes names no column of another entity.
+			if (queryPlan?.filter.fields[name]?.relationFilter?.isDeclaredReach) {
+				continue;
+			}
+
 			if (ApiControllerGetListIsHiddenColumn(entityMetadata, name, currentGuard, publishedFields)) {
 				throw ErrorException(`${this.describeHiddenFilterField(controller, entityMetadata, name, currentGuard, publishedFields)}. Set request.query.filter.fields["${name}"] to { isEnabled: false }, leave it out of a REJECT filter allowlist, or set properties.getList.query.isEnabled: false on its @ApiPropertyDescribe`);
 			}
@@ -161,7 +183,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const orderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildOrderBaseline(entity, entityMetadata, serverOrderBaseline, isCursor, currentGuard, publishedFields);
 		const describeUnorderableField: (path: string) => string = (path: string): string => this.describeUnorderableOrderField(controller, entityMetadata, serverOrderBaseline, path, currentGuard, publishedFields);
 		const isHiddenOrderField: (path: string) => boolean = (path: string): boolean => serverOrderBaseline[path] !== undefined && ApiControllerGetListIsHiddenColumn(entityMetadata, path, currentGuard, publishedFields);
-		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline, isCursor, controller, hiddenFilterPaths, describeHiddenFilterField) : Object.freeze({ fields: filterBaseline, isLegacy: !isCursor, ...(isCursor ? { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } : {}) });
+		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline, isCursor, controller, hiddenFilterPaths, describeHiddenFilterField, entity, currentGuard) : Object.freeze({ fields: filterBaseline, isLegacy: !isCursor, ...(isCursor ? { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } : {}) });
 		const order: TApiControllerGetListQueryCompiledOrder = queryTarget.order ? this.compileOrder(queryTarget.order, orderBaseline, serverOrderBaseline, isCursor, describeUnorderableField, isHiddenOrderField) : Object.freeze({ fields: orderBaseline, isLegacy: true, serverFields: serverOrderBaseline });
 		const cursorFields: ReadonlyArray<string> = isCursor ? ApiControllerGetListQueryResolveCursorOrderFields(order) : Object.freeze([]);
 
@@ -219,9 +241,11 @@ export class ApiControllerGetListQueryPlanCompiler {
 					allowedOperations: field.allowedOperations,
 					defaultCondition: field.defaultCondition,
 					isEnabled: field.isEnabled,
+					maxValues: field.maxValues,
 					...(isCursor ? { metadata: this.createFieldFingerprint(field) } : {}),
 					missingBehavior: field.missingBehavior,
 					path: field.path,
+					relationFilter: field.relationFilter ? this.createRelationFilterFingerprint(field.relationFilter) : undefined,
 				})),
 				isLegacy: filter.isLegacy,
 				unlistedFields: filter.unlistedFields,
@@ -267,6 +291,23 @@ export class ApiControllerGetListQueryPlanCompiler {
 		});
 
 		return plan;
+	}
+
+	/**
+	 * Fails when a field of a link takes a query name that a key of `fields` uses.
+	 * @param {string} name - Name of the link.
+	 * @param {unknown} rawLink - The link as configured.
+	 * @param {Record<string, unknown>} configuredFields - The `fields` of the filter.
+	 * @param {Type<unknown>} controller - Controller class, which an error names.
+	 */
+	private static assertFilterLinkQueryNames(name: string, rawLink: unknown, configuredFields: Record<string, unknown>, controller: Type<unknown>): void {
+		const context: string = `Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter link "${name}"`;
+
+		for (const fieldPath of Object.keys(this.requireRecord(this.requireRecord(rawLink, context).fields, `${context} fields`))) {
+			if (Object.hasOwn(configuredFields, `${name}.${fieldPath}`)) {
+				throw ErrorException(`Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter field "${name}.${fieldPath}": both a key of fields and a field of link "${name}" use this query name`);
+			}
+		}
 	}
 
 	private static buildFilterBaseline<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, currentGuard: Type<CanActivate> | undefined, isCursor: boolean): Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>> {
@@ -394,38 +435,38 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return Object.freeze(operations.toSorted((left: EFilterOperation, right: EFilterOperation): number => this.compareStrings(left, right, isCursor)));
 	}
 
-	private static compileDefaultCondition(rawCondition: unknown, field: IApiControllerGetListQueryPlanFilterField, allowedOperations: ReadonlyArray<EFilterOperation>, controller: Type<unknown>): IApiControllerGetListQueryPlanCondition {
-		const condition: Record<string, unknown> = this.requireRecord(rawCondition, `GET_LIST filter defaultCondition for "${field.path}"`);
+	private static compileDefaultCondition(rawCondition: unknown, field: IApiControllerGetListQueryPlanFilterField, allowedOperations: ReadonlyArray<EFilterOperation>, controller: Type<unknown>, label: string = "defaultCondition"): IApiControllerGetListQueryPlanCondition {
+		const condition: Record<string, unknown> = this.requireRecord(rawCondition, `GET_LIST filter ${label} for "${field.path}"`);
 		const operation: unknown = condition.operator;
 
 		if (!EnumIsValue(EFilterOperation, operation) || !allowedOperations.includes(operation)) {
-			throw ErrorException(`GET_LIST filter defaultCondition operation for "${field.path}" is not allowed`);
+			throw ErrorException(`GET_LIST filter ${label} operation for "${field.path}" is not allowed`);
 		}
 
 		const operand: EFilterOperand = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation].operand;
 
 		if (operand === EFilterOperand.NONE) {
-			this.requireExactKeys(condition, ["operator"], `GET_LIST filter defaultCondition for "${field.path}"`);
+			this.requireExactKeys(condition, ["operator"], `GET_LIST filter ${label} for "${field.path}"`);
 
 			return Object.freeze({ operation });
 		}
 
 		if (operand === EFilterOperand.VALUE) {
-			this.requireExactKeys(condition, ["operator", "value"], `GET_LIST filter defaultCondition for "${field.path}"`);
-			this.validateStaticValue(condition.value, field, controller);
+			this.requireExactKeys(condition, ["operator", "value"], `GET_LIST filter ${label} for "${field.path}"`);
+			this.validateStaticValue(condition.value, field, controller, label);
 			const value: unknown = this.copyStaticValue(condition.value, field);
 
 			return Object.freeze({ operation, value });
 		}
 
-		this.requireExactKeys(condition, ["operator", "values"], `GET_LIST filter defaultCondition for "${field.path}"`);
+		this.requireExactKeys(condition, ["operator", "values"], `GET_LIST filter ${label} for "${field.path}"`);
 
 		if (!Array.isArray(condition.values) || condition.values.length < FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT || (operand === EFilterOperand.PAIR && condition.values.length !== FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT) || (operand === EFilterOperand.VALUES && condition.values.length > DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES)) {
-			throw ErrorException(`GET_LIST filter defaultCondition for "${field.path}" has invalid operand cardinality`);
+			throw ErrorException(`GET_LIST filter ${label} for "${field.path}" has invalid operand cardinality`);
 		}
 
 		for (const value of condition.values as Array<unknown>) {
-			this.validateStaticValue(value, field, controller);
+			this.validateStaticValue(value, field, controller, label);
 		}
 
 		const conditionValues: Array<unknown> = (condition.values as Array<unknown>).map((value: unknown): unknown => this.copyStaticValue(value, field));
@@ -433,13 +474,18 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return Object.freeze({ operation, values: Object.freeze([...conditionValues]) });
 	}
 
-	private static compileFilter<E>(config: IApiControllerPropertiesRouteGetListQueryFilter<E>, baseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>>, isCursor: boolean, controller: Type<unknown>, hiddenPaths: ReadonlySet<string>, describeHiddenField: (path: string) => string): IApiControllerGetListQueryPlanFilter {
+	private static compileFilter<E>(config: IApiControllerPropertiesRouteGetListQueryFilter<E>, baseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>>, isCursor: boolean, controller: Type<unknown>, hiddenPaths: ReadonlySet<string>, describeHiddenField: (path: string) => string, entity: ObjectLiteral, currentGuard: Type<CanActivate> | undefined): IApiControllerGetListQueryPlanFilter {
 		const rawConfig: Record<string, unknown> = this.requireRecord(config, "GET_LIST filter");
 
-		this.requireExactKeys(rawConfig, ["fields", "unlistedFields"], "GET_LIST filter");
+		this.requireExactKeys(rawConfig, "links" in rawConfig ? ["fields", "links", "unlistedFields"] : ["fields", "unlistedFields"], "GET_LIST filter");
 		this.validateUnlistedFields(config.unlistedFields, "filter");
 		const configuredFields: Record<string, unknown> = this.requireRecord(config.fields, "GET_LIST filter fields");
 		const fields: Record<string, IApiControllerGetListQueryPlanFilterField> = config.unlistedFields === EApiControllerGetListQueryUnlistedFields.INHERIT ? { ...baseline } : {};
+		const links: Array<[string, unknown]> = Object.entries(config.links === undefined ? {} : this.requireRecord(config.links, "GET_LIST filter links")).toSorted(([left]: [string, unknown], [right]: [string, unknown]): number => this.compareStrings(left, right, isCursor));
+
+		for (const [name, rawLink] of links) {
+			this.assertFilterLinkQueryNames(name, rawLink, configuredFields, controller);
+		}
 
 		for (const [path, rawField] of Object.entries(configuredFields).toSorted(([left]: [string, unknown], [right]: [string, unknown]): number => this.compareStrings(left, right, isCursor))) {
 			const baselineField: IApiControllerGetListQueryPlanFilterField | undefined = baseline[path];
@@ -453,6 +499,19 @@ export class ApiControllerGetListQueryPlanCompiler {
 				}
 
 				this.requireExactKeys(hiddenField, ["isEnabled"], `Disabled GET_LIST filter field "${path}"`);
+
+				continue;
+			}
+
+			const isDeclaredReach: boolean = !baselineField && ApiControllerGetListQueryRelationFilterPath.isDeclaredReach(entity, path);
+
+			if (isDeclaredReach || (baselineField && path.includes(".") && (rawField as Record<string, unknown> | undefined)?.relationConditions !== undefined)) {
+				const context: string = `Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter field "${path}"`;
+				const relationField: IApiControllerGetListQueryPlanFilterField | undefined = this.compileRelationFilterField(path, rawField, ApiControllerGetListQueryRelationFilterPath.read(entity, path, context), isDeclaredReach, isCursor, controller, currentGuard);
+
+				if (relationField) {
+					fields[path] = relationField;
+				}
 
 				continue;
 			}
@@ -475,29 +534,12 @@ export class ApiControllerGetListQueryPlanCompiler {
 				throw ErrorException(`GET_LIST filter field "${path}" must declare isEnabled`);
 			}
 
-			this.requireAllowedKeys(field, ["allowedOperations", "defaultCondition", "isEnabled", "missingBehavior"], `GET_LIST filter field "${path}"`);
-			const allowedOperations: ReadonlyArray<EFilterOperation> = this.compileAllowedOperations(field.allowedOperations, baselineField, isCursor);
-			const missingBehavior: unknown = field.missingBehavior ?? EApiControllerGetListQueryFilterMissingBehavior.OMIT;
+			this.requireAllowedKeys(field, ["allowedOperations", "defaultCondition", "isEnabled", "maxValues", "missingBehavior"], `GET_LIST filter field "${path}"`);
+			fields[path] = this.compileFilterEntry(path, field, baselineField, isCursor, controller, false);
+		}
 
-			if (!EnumIsValue(EApiControllerGetListQueryFilterMissingBehavior, missingBehavior)) {
-				throw ErrorException(`GET_LIST filter field "${path}" has an invalid missingBehavior`);
-			}
-
-			let defaultCondition: IApiControllerGetListQueryPlanCondition | undefined;
-
-			if (missingBehavior === EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT) {
-				defaultCondition = this.compileDefaultCondition(field.defaultCondition, baselineField, allowedOperations, controller);
-			} else if (field.defaultCondition !== undefined) {
-				throw ErrorException(`GET_LIST filter field "${path}" can declare defaultCondition only with USE_DEFAULT`);
-			}
-
-			fields[path] = Object.freeze({
-				...baselineField,
-				allowedOperations,
-				defaultCondition,
-				isEnabled: true,
-				missingBehavior,
-			});
+		for (const [name, rawLink] of links) {
+			this.compileFilterLink(name, rawLink, fields, isCursor, controller, entity, currentGuard);
 		}
 
 		return Object.freeze({
@@ -505,6 +547,123 @@ export class ApiControllerGetListQueryPlanCompiler {
 			isLegacy: false,
 			unlistedFields: config.unlistedFields,
 		});
+	}
+
+	/**
+	 * Compiles what every enabled filter entry holds, whether it compares a column of the row or crosses a relation.
+	 * @param {string} path - Key of the entry.
+	 * @param {Record<string, unknown>} field - The entry as configured.
+	 * @param {IApiControllerGetListQueryPlanFilterField} baseField - The column the entry filters.
+	 * @param {boolean} isCursor - Whether the route pages by cursor.
+	 * @param {Type<unknown>} controller - Controller class, which an error names.
+	 * @param {boolean} isExists - Whether the entry compiles to a subquery, which needs a cap on its values.
+	 * @returns {IApiControllerGetListQueryPlanFilterField} The compiled entry.
+	 */
+	private static compileFilterEntry(path: string, field: Record<string, unknown>, baseField: IApiControllerGetListQueryPlanFilterField, isCursor: boolean, controller: Type<unknown>, isExists: boolean): IApiControllerGetListQueryPlanFilterField {
+		const allowedOperations: ReadonlyArray<EFilterOperation> = this.compileAllowedOperations(field.allowedOperations, baseField, isCursor);
+		const missingBehavior: unknown = field.missingBehavior ?? EApiControllerGetListQueryFilterMissingBehavior.OMIT;
+
+		if (!EnumIsValue(EApiControllerGetListQueryFilterMissingBehavior, missingBehavior)) {
+			throw ErrorException(`GET_LIST filter field "${path}" has an invalid missingBehavior`);
+		}
+
+		const maxValues: number | undefined = this.compileMaxValues(path, field.maxValues, allowedOperations, controller, isExists);
+		let defaultCondition: IApiControllerGetListQueryPlanCondition | undefined;
+
+		if (missingBehavior === EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT) {
+			defaultCondition = this.compileDefaultCondition(field.defaultCondition, baseField, allowedOperations, controller);
+
+			if (maxValues !== undefined && FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[defaultCondition.operation].operand === EFilterOperand.VALUES && (defaultCondition.values?.length ?? 0) > maxValues) {
+				throw ErrorException(`Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter field "${path}" has a defaultCondition with more values than its maxValues of ${String(maxValues)}`);
+			}
+		} else if (field.defaultCondition !== undefined) {
+			throw ErrorException(`GET_LIST filter field "${path}" can declare defaultCondition only with USE_DEFAULT`);
+		}
+
+		return Object.freeze({
+			...baseField,
+			allowedOperations,
+			defaultCondition,
+			isEnabled: true,
+			...(maxValues === undefined ? {} : { maxValues }),
+			missingBehavior,
+		});
+	}
+
+	/**
+	 * Compiles a declared link into the fields of the plan, under the name the developer wrote.
+	 * @param {string} name - Name of the link.
+	 * @param {unknown} rawLink - The link as configured.
+	 * @param {Record<string, IApiControllerGetListQueryPlanFilterField>} fields - The fields of the plan, which this adds to.
+	 * @param {boolean} isCursor - Whether the route pages by cursor.
+	 * @param {Type<unknown>} controller - Controller class, which an error names.
+	 * @param {ObjectLiteral} entity - Route entity class.
+	 * @param {Type<CanActivate> | undefined} currentGuard - Guard of the route.
+	 */
+	private static compileFilterLink(name: string, rawLink: unknown, fields: Record<string, IApiControllerGetListQueryPlanFilterField>, isCursor: boolean, controller: Type<unknown>, entity: ObjectLiteral, currentGuard: Type<CanActivate> | undefined): void {
+		const context: string = `Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter link "${name}"`;
+		const hierarchy: Array<new () => unknown> = GetClassHierarchy(ResolveMetadataTarget(entity));
+		const storage: TTypeOrmMetadataArgumentsStorage = getMetadataArgsStorage();
+
+		if (!FILTER_LINK_NAME_PATTERN.test(name) || UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT.has(name)) {
+			throw ErrorException(`${context}: the name must be a plain identifier, as it starts the query names of the link`);
+		}
+
+		if ([...storage.filterColumns(hierarchy), ...storage.filterRelations(hierarchy), ...storage.filterEmbeddeds(hierarchy)].some((property: { propertyName: string }): boolean => property.propertyName === name)) {
+			throw ErrorException(`${context}: the name equals a property of the route entity, so its query names could mean a path through that property; rename the link`);
+		}
+
+		const link: IApiControllerPropertiesRouteGetListQueryFilterLink = this.requireRecord(rawLink, context) as unknown as IApiControllerPropertiesRouteGetListQueryFilterLink;
+
+		this.requireExactKeys(link as unknown as Record<string, unknown>, ["entity", "fields", "source", "target"], context);
+		const linkFields: Array<[string, unknown]> = Object.entries(this.requireRecord(link.fields, `${context} fields`));
+
+		if (linkFields.length === 0) {
+			throw ErrorException(`${context}: declares no fields`);
+		}
+
+		for (const [fieldPath, rawField] of linkFields) {
+			const path: string = `${name}.${fieldPath}`;
+			const fieldContext: string = `Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter field "${path}"`;
+
+			const relationField: IApiControllerGetListQueryPlanFilterField | undefined = this.compileRelationFilterField(path, rawField, ApiControllerGetListQueryRelationFilterPath.readLink(entity, link, fieldPath, fieldContext), true, isCursor, controller, currentGuard);
+
+			if (relationField) {
+				fields[path] = relationField;
+			}
+		}
+	}
+
+	/**
+	 * Compiles the cap of a field's membership operators.
+	 * @param {string} path - Key of the field.
+	 * @param {unknown} rawMaxValues - The cap as configured.
+	 * @param {ReadonlyArray<EFilterOperation>} allowedOperations - The operations of the field.
+	 * @param {Type<unknown>} controller - Controller class, which an error names.
+	 * @param {boolean} isRequired - Whether a membership operator needs a declared cap.
+	 * @returns {number | undefined} The cap, or undefined for the global limit.
+	 */
+	private static compileMaxValues(path: string, rawMaxValues: unknown, allowedOperations: ReadonlyArray<EFilterOperation>, controller: Type<unknown>, isRequired: boolean): number | undefined {
+		const context: string = `Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter field "${path}"`;
+		const hasMembership: boolean = allowedOperations.some((operation: EFilterOperation): boolean => FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation].operand === EFilterOperand.VALUES);
+
+		if (rawMaxValues === undefined) {
+			if (isRequired && hasMembership) {
+				throw ErrorException(`${context} crosses a relation with a membership operator, so it must declare maxValues`);
+			}
+
+			return undefined;
+		}
+
+		if (!hasMembership) {
+			throw ErrorException(`${context} declares maxValues without a membership operator`);
+		}
+
+		if (typeof rawMaxValues !== "number" || !Number.isInteger(rawMaxValues) || rawMaxValues < FILTER_RELATION_CONSTANT.MINIMUM_VALUES || rawMaxValues > FILTER_RELATION_CONSTANT.MAXIMUM_VALUES) {
+			throw ErrorException(`${context} must declare maxValues as an integer from ${String(FILTER_RELATION_CONSTANT.MINIMUM_VALUES)} to ${String(FILTER_RELATION_CONSTANT.MAXIMUM_VALUES)}`);
+		}
+
+		return rawMaxValues;
 	}
 
 	private static compileOrder<E>(config: IApiControllerPropertiesRouteGetListQueryOrder<E>, baseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, isCursor: boolean, describeUnorderableField: (path: string) => string, isHiddenField: (path: string) => boolean): TApiControllerGetListQueryCompiledOrder {
@@ -620,6 +779,124 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	/**
+	 * Compiles the fixed conditions of a relation filter field.
+	 * @param {string} path - Key of the field.
+	 * @param {unknown} rawConditions - The conditions as configured.
+	 * @param {IApiControllerGetListQueryRelationFilterPath} relationPath - What the key names.
+	 * @param {Type<unknown>} controller - Controller class, which an error names.
+	 * @returns {ReadonlyArray<IApiControllerGetListQueryPlanFilterRelationCondition>} The compiled conditions.
+	 */
+	private static compileRelationConditions(path: string, rawConditions: unknown, relationPath: IApiControllerGetListQueryRelationFilterPath, controller: Type<unknown>): ReadonlyArray<IApiControllerGetListQueryPlanFilterRelationCondition> {
+		const context: string = `Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter field "${path}"`;
+
+		if (rawConditions === undefined) {
+			return Object.freeze([]);
+		}
+
+		if (!Array.isArray(rawConditions)) {
+			throw ErrorException(`${context}: relationConditions must be an array`);
+		}
+
+		return Object.freeze(
+			(rawConditions as Array<unknown>).map((rawCondition: unknown, index: number): IApiControllerGetListQueryPlanFilterRelationCondition => {
+				const conditionContext: string = `${context}: relationConditions[${String(index)}]`;
+				const { field, operator, relation, ...operand }: Record<string, unknown> = this.requireRecord(rawCondition, conditionContext);
+				const lastRow: number = relationPath.rows.length - 1;
+				const rowIndexes: Array<number> = relation === undefined ? [lastRow] : relationPath.rows.flatMap((row: { name: string }, candidate: number): Array<number> => (row.name === relation ? [candidate] : []));
+				const [rowIndex]: Array<number> = rowIndexes;
+
+				if (rowIndex === undefined || rowIndexes.length > 1) {
+					throw ErrorException(`${conditionContext} names relation "${String(relation)}", which ${rowIndex === undefined ? "the path does not cross" : "the path crosses more than once"}`);
+				}
+
+				const row: { entity: TMetadataStorageTarget; name: string } = relationPath.rows[rowIndex] as { entity: TMetadataStorageTarget; name: string };
+				const column: IApiEntityColumn<unknown> | undefined = typeof field === "string" ? GenerateRelationEntityInformation<unknown>(row.entity)?.columns.find((candidate: IApiEntityColumn<unknown>): boolean => String(candidate.name) === field) : undefined;
+				const metadata: TApiPropertyDescribeProperties | undefined = column ? this.getPropertyMetadata(column) : undefined;
+				const storage: TTypeOrmColumnMetadataArguments | undefined = typeof field === "string" ? this.findColumnMetadata(row.entity, field) : undefined;
+				const reason: string | undefined = column && metadata ? this.getRelationColumnRefusal(metadata, storage) : `"${String(field)}" is no described column of entity "${row.entity.name}"`;
+
+				if (reason !== undefined || !column || !metadata) {
+					throw ErrorException(`${conditionContext}: ${String(reason)}`);
+				}
+
+				if (FILTER_RELATION_CONSTANT.ABSENCE_OPERATIONS.has(operator as EFilterOperation)) {
+					throw ErrorException(`${conditionContext}: operation "${String(operator)}" asks about the absence of a value, and a relation filter means that a related row exists that matches`);
+				}
+
+				const compiled: IApiControllerGetListQueryPlanCondition = this.withRouteInError(conditionContext, (): IApiControllerGetListQueryPlanCondition => {
+					const conditionField: IApiControllerGetListQueryPlanFilterField = this.createFilterField(`${path}: ${row.name}.${String(field)}`, metadata, this.isColumnNullable(row.entity, String(field), metadata), column.type);
+
+					return this.compileDefaultCondition({ operator, ...operand }, conditionField, this.compileAllowedOperations([operator], conditionField, false), controller, "relationConditions value");
+				});
+
+				return Object.freeze({ ...compiled, field: String(field), rowIndex });
+			}),
+		);
+	}
+
+	/**
+	 * Compiles a filter field that crosses a relation with a correlated subquery. The leaf answers for itself: it is a
+	 * described scalar its own entity shows, whatever the relations before it show. Absence stops startup, because the
+	 * field means that a related row exists that matches.
+	 * @param {string} path - Query name of the field.
+	 * @param {unknown} rawField - The entry as configured.
+	 * @param {IApiControllerGetListQueryRelationFilterPath} relationPath - What the key names.
+	 * @param {boolean} isDeclaredReach - Whether the key reaches past what a plan offers without a declaration.
+	 * @param {boolean} isCursor - Whether the route pages by cursor.
+	 * @param {Type<unknown>} controller - Controller class, which an error names.
+	 * @param {Type<CanActivate> | undefined} currentGuard - Guard of the route.
+	 * @returns {IApiControllerGetListQueryPlanFilterField | undefined} The field, or undefined for an entry that disables it, which needs no field: nothing offers the path without a declaration.
+	 */
+	private static compileRelationFilterField(path: string, rawField: unknown, relationPath: IApiControllerGetListQueryRelationFilterPath, isDeclaredReach: boolean, isCursor: boolean, controller: Type<unknown>, currentGuard: Type<CanActivate> | undefined): IApiControllerGetListQueryPlanFilterField | undefined {
+		const context: string = `Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter field "${path}"`;
+		const field: Record<string, unknown> = this.requireRecord(rawField, context);
+		const { leafEntity, leafProperty }: IApiControllerGetListQueryRelationFilterPath = relationPath;
+		const column: IApiEntityColumn<unknown> | undefined = GenerateRelationEntityInformation<unknown>(leafEntity)?.columns.find((candidate: IApiEntityColumn<unknown>): boolean => String(candidate.name) === leafProperty);
+		const metadata: TApiPropertyDescribeProperties | undefined = column ? this.getPropertyMetadata(column) : undefined;
+
+		if (!column || !metadata) {
+			throw ErrorException(`${context}: "${leafProperty}" is no described column of entity "${leafEntity.name}"`);
+		}
+
+		const storage: TTypeOrmColumnMetadataArguments | undefined = this.findColumnMetadata(leafEntity, leafProperty);
+		const refusal: string | undefined = this.getRelationColumnRefusal(metadata, storage) ?? this.getRelationLeafHiddenReason(leafProperty, metadata, column, currentGuard);
+
+		if (refusal !== undefined) {
+			throw ErrorException(`${context}: "${leafProperty}" of entity "${leafEntity.name}" cannot be filtered: ${refusal}`);
+		}
+
+		if (field.isEnabled === false) {
+			this.requireExactKeys(field, ["isEnabled"], `Disabled ${context}`);
+
+			return undefined;
+		}
+
+		if (field.isEnabled !== true) {
+			throw ErrorException(`${context} must declare isEnabled`);
+		}
+
+		this.requireAllowedKeys(field, ["allowedOperations", "defaultCondition", "isEnabled", "maxValues", "missingBehavior", "relationConditions"], context);
+		const absence: EFilterOperation | undefined = Array.isArray(field.allowedOperations) ? (field.allowedOperations as Array<EFilterOperation>).find((operation: EFilterOperation): boolean => FILTER_RELATION_CONSTANT.ABSENCE_OPERATIONS.has(operation)) : undefined;
+
+		if (absence !== undefined) {
+			throw ErrorException(`${context}: operation "${absence}" asks about absence, and a relation filter means that a related row exists that matches, so it cannot mean the same`);
+		}
+
+		const base: IApiControllerGetListQueryPlanFilterField = this.createFilterField(path, metadata, this.isColumnNullable(leafEntity, leafProperty, metadata), column.type);
+		const entry: IApiControllerGetListQueryPlanFilterField = this.withRouteInError(context, (): IApiControllerGetListQueryPlanFilterField => this.compileFilterEntry(path, field, base, isCursor, controller, true));
+
+		const relationFilter: IApiControllerGetListQueryPlanFilterRelation = Object.freeze({
+			conditions: this.compileRelationConditions(path, field.relationConditions, relationPath, controller),
+			hops: Object.freeze([...relationPath.hops]),
+			isDeclaredReach,
+			leafEntity,
+			leafProperty,
+		});
+
+		return Object.freeze({ ...entry, relationFilter });
+	}
+
+	/**
 	 * Copies a validated defaultCondition value into the plan, so later changes to the configured value do not reach it.
 	 * A UTC instant string on a date-time field becomes the Date it names, as a client value does.
 	 * @param {unknown} value - Validated defaultCondition value
@@ -726,6 +1003,14 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return Object.freeze(planMetadata);
 	}
 
+	private static createRelationFilterFingerprint(relationFilter: IApiControllerGetListQueryPlanFilterRelation): Record<string, unknown> {
+		return {
+			conditions: relationFilter.conditions,
+			hops: relationFilter.hops.map((hop: IApiControllerGetListQueryPlanFilterRelationHop): Record<string, unknown> => ({ entity: hop.entity.name, relation: hop.relation, source: hop.source, target: hop.target.name })),
+			leaf: `${relationFilter.leafEntity.name}.${relationFilter.leafProperty}`,
+		};
+	}
+
 	private static describeHiddenFilterField<E>(controller: Type<unknown>, entityMetadata: IApiEntity<E>, path: string, currentGuard: Type<CanActivate> | undefined, publishedFields: ReadonlySet<string> | undefined): string {
 		const field: string = `Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter field "${path}" is hidden from the list response, so no client may filter by it`;
 		const [rootName, nestedName]: Array<string | undefined> = path.split(".");
@@ -799,6 +1084,44 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 	private static getPropertyMetadata<E>(column: IApiEntityColumn<E>): TApiPropertyDescribeProperties | undefined {
 		return column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
+	}
+
+	/**
+	 * Names why a column cannot be read inside a relation filter subquery, which writes its values with no TypeORM value transformer.
+	 * @param {TApiPropertyDescribeProperties} metadata - The described property.
+	 * @param {TTypeOrmColumnMetadataArguments | undefined} storage - The TypeORM column.
+	 * @returns {string | undefined} The reason, or undefined for a column it reads.
+	 */
+	private static getRelationColumnRefusal(metadata: TApiPropertyDescribeProperties, storage: TTypeOrmColumnMetadataArguments | undefined): string | undefined {
+		if (metadata.type === EApiPropertyDescribeType.OBJECT || metadata.type === EApiPropertyDescribeType.RELATION) {
+			return "it is not a scalar";
+		}
+
+		if (!storage || CURSOR_NON_PERSISTED_COLUMN_MODES.has(storage.mode)) {
+			return "it is not a persisted column";
+		}
+
+		if (storage.options.array === true) {
+			return "it holds a list";
+		}
+
+		return storage.options.transformer === undefined ? undefined : "it declares a value transformer, which a subquery does not apply";
+	}
+
+	/**
+	 * Names why a route may not filter by the last column of a relation path, by what its own entity shows.
+	 * @param {string} name - Property of the column.
+	 * @param {TApiPropertyDescribeProperties} metadata - The described property.
+	 * @param {IApiEntityColumn<unknown>} column - The entity column.
+	 * @param {Type<CanActivate> | undefined} currentGuard - Guard of the route.
+	 * @returns {string | undefined} The reason, or undefined for a column the route may filter by.
+	 */
+	private static getRelationLeafHiddenReason(name: string, metadata: TApiPropertyDescribeProperties, column: IApiEntityColumn<unknown>, currentGuard: Type<CanActivate> | undefined): string | undefined {
+		if (!DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, name, metadata, false, currentGuard)) {
+			return "it is not enabled as a GET_LIST query field for the route guard";
+		}
+
+		return this.getHiddenReason(name, metadata, column.isPrimary, column.isSelected !== false, currentGuard);
 	}
 
 	// Follows the checks of FilterOrderByFromEntity in order, so the first one a described scalar column fails names the reason.
@@ -1193,12 +1516,12 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 	}
 
-	private static validateStaticValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField, controller: Type<unknown>): void {
+	private static validateStaticValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField, controller: Type<unknown>, label: string): void {
 		let isValid: boolean;
 		const fieldType: EApiPropertyDescribeType = field.type;
 
 		if (fieldType === EApiPropertyDescribeType.OBJECT || fieldType === EApiPropertyDescribeType.RELATION) {
-			throw ErrorException(`GET_LIST filter defaultCondition for "${field.path}" must target a scalar field`);
+			throw ErrorException(`GET_LIST filter ${label} for "${field.path}" must target a scalar field`);
 		}
 
 		switch (fieldType) {
@@ -1217,7 +1540,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 					return;
 				}
 
-				throw ErrorException(`Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter defaultCondition for "${field.path}" must be ${isDateTime ? "a Date or a UTC instant" : "text"} in ${PROPERTY_DATE_DECORATOR_API_CONSTANT.TEMPLATE[dateFormat]} format`);
+				throw ErrorException(`Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter ${label} for "${field.path}" must be ${isDateTime ? "a Date or a UTC instant" : "text"} in ${PROPERTY_DATE_DECORATOR_API_CONSTANT.TEMPLATE[dateFormat]} format`);
 			}
 
 			case EApiPropertyDescribeType.ENUM: {
@@ -1250,13 +1573,30 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		if (!isValid) {
-			throw ErrorException(`GET_LIST filter defaultCondition for "${field.path}" has an invalid typed value`);
+			throw ErrorException(`GET_LIST filter ${label} for "${field.path}" has an invalid typed value`);
 		}
 	}
 
 	private static validateUnlistedFields(value: EApiControllerGetListQueryUnlistedFields, section: string): void {
 		if (!EnumIsValue(EApiControllerGetListQueryUnlistedFields, value)) {
 			throw ErrorException(`GET_LIST ${section} requires unlistedFields INHERIT or REJECT`);
+		}
+	}
+
+	/**
+	 * Runs a rule shared with plain fields, whose error names only the field, so that its error also names the controller and the route.
+	 * @param {string} context - What the error names first.
+	 * @param {() => T} step - The rule.
+	 * @returns {T} What the rule returns.
+	 * @template T - What the rule returns.
+	 */
+	private static withRouteInError<T>(context: string, step: () => T): T {
+		try {
+			return step();
+		} catch (error: unknown) {
+			const message: string = (error as Error).message;
+
+			throw message.includes(context) ? (error as Error) : ErrorException(`${context}: ${message.slice(message.indexOf("] ") + "] ".length)}`);
 		}
 	}
 }

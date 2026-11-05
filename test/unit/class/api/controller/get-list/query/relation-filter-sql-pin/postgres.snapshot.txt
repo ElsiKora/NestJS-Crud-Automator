@@ -1,0 +1,90 @@
+{
+	"rendered": [
+		{
+			"operation": "eq",
+			"path": "gameSource.provider.id",
+			"query": {
+				"parameters": [
+					"c0000000-0000-4000-8000-000000000001",
+					"ACTIVE"
+				],
+				"sql": "SELECT \"RelationFilterGameEntity\".\"gameSourceId\" AS \"RelationFilterGameEntity_gameSourceId\", \"RelationFilterGameEntity\".\"id\" AS \"RelationFilterGameEntity_id\", \"RelationFilterGameEntity\".\"region\" AS \"RelationFilterGameEntity_region\" FROM \"relation_filter_games\" \"RelationFilterGameEntity\" WHERE ((EXISTS (SELECT 1 FROM \"relation_filter_sources\" \"relation_filter_0\" INNER JOIN \"relation_filter_providers\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"providerId\" WHERE \"relation_filter_0\".\"id\" = \"RelationFilterGameEntity\".\"gameSourceId\" AND \"relation_filter_0\".\"gameId\" = \"RelationFilterGameEntity\".\"id\" AND \"relation_filter_1\".\"id\" = $1 AND \"relation_filter_1\".\"state\" = $2)))"
+			}
+		},
+		{
+			"operation": "in",
+			"path": "gameSource.provider.id",
+			"query": {
+				"parameters": [
+					"c0000000-0000-4000-8000-000000000001",
+					"ACTIVE"
+				],
+				"sql": "SELECT \"RelationFilterGameEntity\".\"gameSourceId\" AS \"RelationFilterGameEntity_gameSourceId\", \"RelationFilterGameEntity\".\"id\" AS \"RelationFilterGameEntity_id\", \"RelationFilterGameEntity\".\"region\" AS \"RelationFilterGameEntity_region\" FROM \"relation_filter_games\" \"RelationFilterGameEntity\" WHERE ((EXISTS (SELECT 1 FROM \"relation_filter_sources\" \"relation_filter_0\" INNER JOIN \"relation_filter_providers\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"providerId\" WHERE \"relation_filter_0\".\"id\" = \"RelationFilterGameEntity\".\"gameSourceId\" AND \"relation_filter_0\".\"gameId\" = \"RelationFilterGameEntity\".\"id\" AND \"relation_filter_1\".\"id\" IN ($1) AND \"relation_filter_1\".\"state\" = $2)))"
+			}
+		},
+		{
+			"operation": "eq",
+			"path": "category.id",
+			"query": {
+				"parameters": [
+					"b0000000-0000-4000-8000-000000000001",
+					"ACTIVE"
+				],
+				"sql": "SELECT \"RelationFilterGameEntity\".\"gameSourceId\" AS \"RelationFilterGameEntity_gameSourceId\", \"RelationFilterGameEntity\".\"id\" AS \"RelationFilterGameEntity_id\", \"RelationFilterGameEntity\".\"region\" AS \"RelationFilterGameEntity_region\" FROM \"relation_filter_games\" \"RelationFilterGameEntity\" WHERE ((EXISTS (SELECT 1 FROM \"relation_filter_category_games\" \"relation_filter_0\" INNER JOIN \"relation_filter_categories\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"categoryId\" WHERE \"relation_filter_0\".\"gameId\" = \"RelationFilterGameEntity\".\"id\" AND \"relation_filter_0\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"id\" = $1 AND \"relation_filter_1\".\"state\" = $2)))"
+			}
+		},
+		{
+			"operation": "in",
+			"path": "category.id",
+			"query": {
+				"parameters": [
+					"b0000000-0000-4000-8000-000000000001",
+					"b0000000-0000-4000-8000-000000000002",
+					"ACTIVE"
+				],
+				"sql": "SELECT \"RelationFilterGameEntity\".\"gameSourceId\" AS \"RelationFilterGameEntity_gameSourceId\", \"RelationFilterGameEntity\".\"id\" AS \"RelationFilterGameEntity_id\", \"RelationFilterGameEntity\".\"region\" AS \"RelationFilterGameEntity_region\" FROM \"relation_filter_games\" \"RelationFilterGameEntity\" WHERE ((EXISTS (SELECT 1 FROM \"relation_filter_category_games\" \"relation_filter_0\" INNER JOIN \"relation_filter_categories\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"categoryId\" WHERE \"relation_filter_0\".\"gameId\" = \"RelationFilterGameEntity\".\"id\" AND \"relation_filter_0\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"id\" IN ($1, $2) AND \"relation_filter_1\".\"state\" = $3)))"
+			}
+		},
+		{
+			"operation": "eq",
+			"path": "featuredCategory.id",
+			"query": {
+				"parameters": [
+					"b0000000-0000-4000-8000-000000000001",
+					"ACTIVE"
+				],
+				"sql": "SELECT \"RelationFilterGameEntity\".\"gameSourceId\" AS \"RelationFilterGameEntity_gameSourceId\", \"RelationFilterGameEntity\".\"id\" AS \"RelationFilterGameEntity_id\", \"RelationFilterGameEntity\".\"region\" AS \"RelationFilterGameEntity_region\" FROM \"relation_filter_games\" \"RelationFilterGameEntity\" WHERE ((EXISTS (SELECT 1 FROM \"relation_filter_featured_categories\" \"relation_filter_0\" INNER JOIN \"relation_filter_categories\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"categoryId\" WHERE \"relation_filter_0\".\"gameId\" = \"RelationFilterGameEntity\".\"id\" AND \"relation_filter_1\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"id\" = $1 AND \"relation_filter_1\".\"state\" = $2)))"
+			}
+		},
+		{
+			"operation": "eq",
+			"path": "categoryLinks.category.id",
+			"query": {
+				"parameters": [
+					"b0000000-0000-4000-8000-000000000001",
+					"ACTIVE"
+				],
+				"sql": "SELECT \"RelationFilterInverseGameEntity\".\"id\" AS \"RelationFilterInverseGameEntity_id\", \"RelationFilterInverseGameEntity\".\"region\" AS \"RelationFilterInverseGameEntity_region\" FROM \"relation_filter_inverse_games\" \"RelationFilterInverseGameEntity\" WHERE ((EXISTS (SELECT 1 FROM \"relation_filter_inverse_links\" \"relation_filter_0\" INNER JOIN \"relation_filter_categories\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"categoryId\" WHERE \"relation_filter_0\".\"gameId\" = \"RelationFilterInverseGameEntity\".\"id\" AND \"relation_filter_0\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"id\" = $1 AND \"relation_filter_1\".\"state\" = $2)))"
+			}
+		},
+		{
+			"operation": "eq",
+			"path": "categories.id",
+			"query": {
+				"parameters": [
+					"b0000000-0000-4000-8000-000000000001",
+					"ACTIVE"
+				],
+				"sql": "SELECT \"RelationFilterTaggedGameEntity\".\"id\" AS \"RelationFilterTaggedGameEntity_id\", \"RelationFilterTaggedGameEntity\".\"region\" AS \"RelationFilterTaggedGameEntity_region\" FROM \"relation_filter_tagged_games\" \"RelationFilterTaggedGameEntity\" WHERE ((EXISTS (SELECT 1 FROM \"relation_filter_tagged_game_categories\" \"relation_filter_0\" INNER JOIN \"relation_filter_categories\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"relationFilterCategoriesId\" WHERE \"relation_filter_0\".\"relationFilterTaggedGamesId\" = \"RelationFilterTaggedGameEntity\".\"id\" AND \"relation_filter_1\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"id\" = $1 AND \"relation_filter_1\".\"state\" = $2)))"
+			}
+		}
+	],
+	"together": {
+		"parameters": [
+			"c0000000-0000-4000-8000-000000000001",
+			"ACTIVE",
+			"b0000000-0000-4000-8000-000000000001"
+		],
+		"sql": "SELECT \"RelationFilterGameEntity\".\"gameSourceId\" AS \"RelationFilterGameEntity_gameSourceId\", \"RelationFilterGameEntity\".\"id\" AS \"RelationFilterGameEntity_id\", \"RelationFilterGameEntity\".\"region\" AS \"RelationFilterGameEntity_region\" FROM \"relation_filter_games\" \"RelationFilterGameEntity\" WHERE (((EXISTS (SELECT 1 FROM \"relation_filter_sources\" \"relation_filter_0\" INNER JOIN \"relation_filter_providers\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"providerId\" WHERE \"relation_filter_0\".\"id\" = \"RelationFilterGameEntity\".\"gameSourceId\" AND \"relation_filter_0\".\"gameId\" = \"RelationFilterGameEntity\".\"id\" AND \"relation_filter_1\".\"id\" = $1 AND \"relation_filter_1\".\"state\" = $2) AND EXISTS (SELECT 1 FROM \"relation_filter_category_games\" \"relation_filter_0\" INNER JOIN \"relation_filter_categories\" \"relation_filter_1\" ON \"relation_filter_1\".\"id\" = \"relation_filter_0\".\"categoryId\" WHERE \"relation_filter_0\".\"gameId\" = \"RelationFilterGameEntity\".\"id\" AND \"relation_filter_0\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"deletedAt\" IS NULL AND \"relation_filter_1\".\"id\" = $3 AND \"relation_filter_1\".\"state\" = $2))))"
+	}
+}

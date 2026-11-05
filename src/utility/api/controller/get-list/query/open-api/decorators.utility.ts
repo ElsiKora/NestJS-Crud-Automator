@@ -48,7 +48,7 @@ export function ApiControllerGetListQueryOpenApiDecorators(plan: IApiControllerG
 			if (operand === EFilterOperand.VALUES || operand === EFilterOperand.PAIR) {
 				properties.values = {
 					items: valueSchema,
-					maxItems: operand === EFilterOperand.PAIR ? FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT : DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES,
+					maxItems: operand === EFilterOperand.PAIR ? FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT : (field.maxValues ?? DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES),
 					minItems: operand === EFilterOperand.PAIR ? FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT : FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT,
 					type: "array",
 				};

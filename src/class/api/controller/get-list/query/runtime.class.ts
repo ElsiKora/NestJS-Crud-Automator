@@ -1,7 +1,8 @@
-import type { IApiControllerGetListQueryAst, IApiControllerGetListQueryAstNode, IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanFilterField, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRawGroup, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerGetListQueryAst, IApiControllerGetListQueryAstNode, IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanFilterField, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRawGroup, IApiControllerGetListQueryRelationFilterContext, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 import type { TApiFunctionGetListPropertiesWhere } from "@type/decorator/api/function";
 import type { FindOperator } from "typeorm";
 
+import { ApiControllerGetListQueryRelationFilterSubquery } from "@class/api/controller/get-list/query/relation-filter";
 import { DATE_TIME_TEXT_CONSTANT } from "@constant/date-time-text.constant";
 import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
@@ -15,6 +16,7 @@ import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { IsCalendarDateTime } from "@utility/is/calendar-date-time.utility";
 import { NumberParseCanonicalInteger } from "@utility/number";
+import { And } from "typeorm";
 
 // A date-time filter value is a calendar date, or a date, a "T" or a space, a time of day, and an optional `Z` or numeric offset with minutes.
 const DATE_VALUE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
@@ -50,11 +52,13 @@ export class ApiControllerGetListQueryRuntime {
 	 * @template E - Entity type.
 	 * @param {IApiControllerGetListQueryAst} ast - Parsed list request.
 	 * @param {string} [driverType] - Driver type of the DataSource the list reads, so the client text of a LIKE family filter matches itself there.
+	 * @param {IApiControllerGetListQueryRelationFilterContext} [relationFilter] - What the relation filters of the plan read.
 	 * @returns {TApiFunctionGetListPropertiesWhere<E>} The WHERE.
 	 */
-	public static compileWhere<E>(ast: IApiControllerGetListQueryAst, driverType?: string): TApiFunctionGetListPropertiesWhere<E> {
+	public static compileWhere<E>(ast: IApiControllerGetListQueryAst, driverType?: string, relationFilter?: IApiControllerGetListQueryRelationFilterContext): TApiFunctionGetListPropertiesWhere<E> {
 		const where: TApiFunctionGetListPropertiesWhere<E> = {};
 		const whereRecord: Record<string, unknown> = where;
+		const existsConditions: Array<{ key: string; operator: FindOperator<unknown> }> = [];
 
 		for (const node of ast.nodes) {
 			const descriptor: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[node.operation];
@@ -67,6 +71,14 @@ export class ApiControllerGetListQueryRuntime {
 			}
 
 			const compiled: FindOperator<unknown> = descriptor.compile(operand, driverType);
+			const relationField: IApiControllerGetListQueryPlanFilterField | undefined = relationFilter?.plan.filter.fields[node.path];
+
+			if (relationFilter && relationField?.relationFilter) {
+				existsConditions.push(ApiControllerGetListQueryRelationFilterSubquery.compile(relationField, compiled, relationFilter.repository, relationFilter.source));
+
+				continue;
+			}
+
 			const path: Array<string> = node.path.split(".");
 
 			if (path.length !== GET_LIST_QUERY_DTO_FACTORY_CONSTANT.NESTED_FILTER_PATH_SEGMENT_COUNT) {
@@ -85,6 +97,13 @@ export class ApiControllerGetListQueryRuntime {
 
 			relationWhere[nestedName] = compiled;
 			whereRecord[relationName] = relationWhere;
+		}
+
+		// After the loop, so a filter on the same column of the row cannot overwrite a subquery, nor a subquery that filter.
+		for (const { key, operator } of existsConditions) {
+			const existing: unknown = whereRecord[key];
+
+			whereRecord[key] = existing === undefined ? operator : And(existing as FindOperator<unknown>, operator);
 		}
 
 		return where;
@@ -300,7 +319,7 @@ export class ApiControllerGetListQueryRuntime {
 
 		const rawValues: ReadonlyArray<unknown> = Array.isArray(group.values) ? group.values : [group.values];
 
-		if (rawValues.length < FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT || (descriptor.operand === EFilterOperand.PAIR && rawValues.length !== FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT) || (descriptor.operand === EFilterOperand.VALUES && rawValues.length > DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES)) {
+		if (rawValues.length < FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT || (descriptor.operand === EFilterOperand.PAIR && rawValues.length !== FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT) || (descriptor.operand === EFilterOperand.VALUES && rawValues.length > (field.maxValues ?? DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES))) {
 			throw new BadRequestException("FILTER_NOT_VALID");
 		}
 

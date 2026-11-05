@@ -31,7 +31,7 @@ import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/a
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithPathPlan } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerGetInheritedRouteMethod } from "@utility/api/controller/apply/route-methods.utility";
-import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteFunctions, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
+import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteFunctions, ApiControllerAssertRouteRelationFilters, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
@@ -363,6 +363,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 		this.assertCreateRoute(repository, isSecurable);
 		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
+		ApiControllerAssertRouteRelationFilters(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
 		ApiControllerAssertRouteFunctions(this.properties, service as object, this.target.name);
 	}
 

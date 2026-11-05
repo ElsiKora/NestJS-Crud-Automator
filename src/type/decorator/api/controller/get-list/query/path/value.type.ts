@@ -1,3 +1,6 @@
-import type { TApiControllerGetListQueryFilterPath } from "./filter.type";
+import type { TApiControllerGetListQueryRelationTarget } from "./relation/target.type";
 
-export type TApiControllerGetListQueryFilterPathValue<E, P extends TApiControllerGetListQueryFilterPath<E>> = P extends `${infer R}.${infer N}` ? (R extends keyof E ? (N extends keyof NonNullable<E[R]> & string ? NonNullable<E[R]>[N] : never) : never) : P extends keyof E & string ? E[P] : never;
+/**
+ * The type of the value a filter path names.
+ */
+export type TApiControllerGetListQueryFilterPathValue<E, P extends string> = P extends `${infer R}.${infer N}` ? (R extends keyof E ? TApiControllerGetListQueryFilterPathValue<TApiControllerGetListQueryRelationTarget<E[R]>, N> : never) : P extends keyof E & string ? E[P] : never;

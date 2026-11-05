@@ -159,6 +159,7 @@ export function DtoGenerate<E>(
 	const queryFilterProperties: Array<{
 		allowedOperations?: ReadonlyArray<EFilterOperation>;
 		entityMetadata: IApiEntity<unknown>;
+		maxValues?: number;
 		metadata: TApiPropertyDescribeProperties;
 		name: string;
 	}> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGenerateGetListQueryProperties(entityMetadata, markedProperties, currentGuard, queryPlan) : [];
@@ -242,7 +243,8 @@ export function DtoGenerate<E>(
 					...property.metadata,
 					isArray: true,
 					isUniqueItems: false,
-					maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES,
+					// A `between` of the same field takes two values under this one property, whatever cap its membership operator has.
+					maxItems: property.maxValues === undefined ? DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES : Math.max(property.maxValues, FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT),
 					minItems: FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT,
 				} as TApiPropertyDescribeProperties;
 

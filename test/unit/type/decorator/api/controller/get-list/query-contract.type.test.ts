@@ -151,10 +151,9 @@ describe("typed GET_LIST query public contract", () => {
 		expect(route).toBeDefined();
 	});
 
-	it("rejects to-many filter paths", () => {
+	it("accepts a declared to-many filter path", () => {
 		const route: TApiControllerPropertiesRoute<ITypedQueryEntity, EApiRouteType.GET_LIST> = {
 			request: {
-				// @ts-expect-error -- To-many relation paths are not generated filter paths.
 				[EApiControllerRequestTarget.QUERY]: {
 					filter: {
 						fields: {

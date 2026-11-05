@@ -1,4 +1,6 @@
-import type { TApiControllerGetListQueryDirectScalarPath } from "./direct-scalar.type";
-import type { TApiControllerGetListQueryOneHopToOneScalarPath } from "./one-hop-to-one-scalar.type";
+import type { TApiControllerGetListQueryRelationScalarPath } from "./relation/scalar.type";
 
-export type TApiControllerGetListQueryFilterPath<E> = TApiControllerGetListQueryDirectScalarPath<E> | TApiControllerGetListQueryOneHopToOneScalarPath<E>;
+/**
+ * A key a typed filter may name: a direct scalar, or a scalar reached through relations within the hop limit.
+ */
+export type TApiControllerGetListQueryFilterPath<E> = TApiControllerGetListQueryRelationScalarPath<E>;

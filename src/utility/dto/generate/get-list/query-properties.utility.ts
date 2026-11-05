@@ -1,4 +1,5 @@
 import type { EFilterOperation } from "@enum/filter";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
@@ -36,12 +37,14 @@ export function DtoGenerateGetListQueryProperties<E>(
 ): Array<{
 	allowedOperations?: ReadonlyArray<EFilterOperation>;
 	entityMetadata: IApiEntity<unknown>;
+	maxValues?: number;
 	metadata: TApiPropertyDescribeProperties;
 	name: string;
 }> {
 	const queryFilterProperties: Array<{
 		allowedOperations?: ReadonlyArray<EFilterOperation>;
 		entityMetadata: IApiEntity<unknown>;
+		maxValues?: number;
 		metadata: TApiPropertyDescribeProperties;
 		name: string;
 	}> = [];
@@ -55,7 +58,10 @@ export function DtoGenerateGetListQueryProperties<E>(
 			const path: Array<string> = field.path.split(".");
 			let propertyEntityMetadata: IApiEntity<unknown> = entityMetadata as IApiEntity<unknown>;
 
-			if (path.length === GET_LIST_QUERY_DTO_FACTORY_CONSTANT.NESTED_FILTER_PATH_SEGMENT_COUNT) {
+			if (field.relationFilter) {
+				// A relation filter names the entity of its last column, which no relation of the route entity may lead to directly.
+				propertyEntityMetadata = GenerateEntityInformation(field.relationFilter.leafEntity as unknown as IApiBaseEntity);
+			} else if (path.length === GET_LIST_QUERY_DTO_FACTORY_CONSTANT.NESTED_FILTER_PATH_SEGMENT_COUNT) {
 				const relationColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => String(column.name) === path[0]);
 
 				if (!relationColumn?.relation?.target) {
@@ -68,6 +74,7 @@ export function DtoGenerateGetListQueryProperties<E>(
 			queryFilterProperties.push({
 				allowedOperations: field.allowedOperations,
 				entityMetadata: propertyEntityMetadata,
+				...(field.maxValues === undefined ? {} : { maxValues: field.maxValues }),
 				metadata: field.metadata,
 				name: field.path,
 			});

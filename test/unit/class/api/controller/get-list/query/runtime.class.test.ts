@@ -531,12 +531,19 @@ describe("typed GET_LIST query plan and runtime", () => {
 	it.each([
 		["unknown path", { missing: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }],
 		["deeper path", { "owner.name.deep": { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }],
-		["to-many path", { "tags.id": { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }],
 		["globally disabled path", { hidden: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }],
 		["mixed disabled settings", { code: { allowedOperations: [EFilterOperation.EQ], isEnabled: false } }],
 		["incompatible operation", { count: { allowedOperations: [EFilterOperation.CONT], isEnabled: true } }],
 	])("rejects invalid bootstrap config: %s", (_label, fields) => {
 		expect(() => compilePlan(fields)).toThrow();
+	});
+
+	it("compiles a to-many path only for its explicit entry", () => {
+		const declared = compilePlan({ "tags.id": { allowedOperations: [EFilterOperation.EQ], isEnabled: true } });
+
+		expect(declared?.filter.fields["tags.id"]?.relationFilter?.isDeclaredReach).toBe(true);
+		expect(Object.keys(declared?.filter.fields ?? {}).filter((path: string): boolean => path.startsWith("tags."))).toEqual(["tags.id"]);
+		expect(Object.keys(compilePlan({})?.filter.fields ?? {}).filter((path: string): boolean => path.startsWith("tags."))).toEqual([]);
 	});
 
 	it("rejects a manual QUERY DTO combined with generated query configuration at bootstrap", () => {
