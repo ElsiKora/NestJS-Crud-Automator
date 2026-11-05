@@ -7,7 +7,7 @@ import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { StartedTestContainer } from "testcontainers";
 import type { Repository } from "typeorm";
 import type { IApiAuthorizationPrincipal, IApiPolicyDocumentRecord, IApiPolicyStatement } from "../../src/index";
-import type { IE2eIamParityCase, IE2eIamParityDefinition, IE2eIamParityFixture, IE2eIamParityItem, IE2eIamParityRoute, TE2eIamParityDatabase } from "./iam-parity-property";
+import type { IE2eIamParityCase, IE2eIamParityDefinition, IE2eIamParityFixture, IE2eIamParityItem, IE2eIamParityPinnedCase, IE2eIamParityRoute, TE2eIamParityDatabase } from "./iam-parity-property";
 
 import { appendFileSync } from "node:fs";
 
@@ -21,7 +21,7 @@ import { GenericContainer, Wait } from "testcontainers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiAuthorizationSimulator, AuthorizationResolveDefaultPrincipal, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiRouteType } from "../../src/index";
-import { createE2eIamParityFixture, E2E_IAM_PARITY_OWNERS, E2E_IAM_PARITY_ROWS, E2E_IAM_PARITY_USER, E2eIamParityGuard, generateE2eIamParityCase } from "./iam-parity-property";
+import { createE2eIamParityFixture, createE2eIamParityPinnedCase, E2E_IAM_PARITY_OWNERS, E2E_IAM_PARITY_PINNED_CASES, E2E_IAM_PARITY_ROWS, E2E_IAM_PARITY_USER, E2eIamParityGuard, generateE2eIamParityCase } from "./iam-parity-property";
 
 // What one in-memory evaluation of a loaded row answers; "refused" means the grammar refused the document.
 type TMemoryAnswer = "allow" | "deny" | "refused";
@@ -67,7 +67,7 @@ const readInteger = (name: string, fallback: number): number => {
 
 // A run replays from these: the same seed draws the same policies on every database.
 const SEED: number = readInteger("IAM_PARITY_SEED", 20_261_105);
-const COUNT: number = readInteger("IAM_PARITY_COUNT", 150);
+const COUNT: number = readInteger("IAM_PARITY_COUNT", 300);
 const ONLY_INDEX: string | undefined = process.env.IAM_PARITY_INDEX;
 const ONLY_DATABASES: ReadonlyArray<string> | undefined = process.env.IAM_PARITY_DATABASES?.split(",");
 const REPORT_PATH: string | undefined = process.env.IAM_PARITY_REPORT;
@@ -77,6 +77,7 @@ const CASE_INDICES: ReadonlyArray<number> = ONLY_INDEX === undefined ? Array.fro
 const MIN_COUNT_FOR_COVERAGE: number = 50;
 const MS_PER_POLICY: number = 2000;
 const BASE_TIMEOUT_MS: number = 60_000;
+const PINNED_TIMEOUT_MS: number = 30_000;
 const MAX_REPORTED_HARD: number = 5;
 const MAX_REPORTED_SOFT_SAMPLES: number = 3;
 
@@ -382,6 +383,17 @@ describe.each<{ database: TE2eIamParityDatabase; databaseName: string }>(
 			process.env.TZ = previousTimeZone;
 		}
 	});
+
+	it.each(E2E_IAM_PARITY_PINNED_CASES.map((pinned: IE2eIamParityPinnedCase): [string, IE2eIamParityPinnedCase] => [pinned.name, pinned]))(
+		"never shows a row that memory denies, nor answers an error, for %s",
+		async (_name: string, pinned: IE2eIamParityPinnedCase) => {
+			const testCase: IE2eIamParityCase = createE2eIamParityPinnedCase(pinned, database);
+			const found: Array<IDisagreement> = compareViews(await readViews(testCase.definition, testCase.statements), testCase.definition.hasRead);
+
+			expect(found.filter((disagreement: IDisagreement): boolean => disagreement.isHard)).toEqual([]);
+		},
+		PINNED_TIMEOUT_MS,
+	);
 
 	it(
 		`never shows a row that memory denies, over ${CASE_INDICES.length} policies of seed ${SEED}`,

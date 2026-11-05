@@ -43,6 +43,15 @@ export interface IE2eIamParityCase {
 	statements: Array<IApiPolicyStatement>;
 }
 
+/**
+ * One policy a run found to disagree, reduced by hand and kept for every later run.
+ */
+export interface IE2eIamParityPinnedCase {
+	definition: string;
+	name: string;
+	statements: Array<IApiPolicyStatement>;
+}
+
 type TE2eIamParityPick = <T>(values: ReadonlyArray<T>) => T;
 
 interface IE2eIamParityRandom {
@@ -104,21 +113,21 @@ export const E2E_IAM_PARITY_DEFINITIONS: ReadonlyArray<IE2eIamParityDefinition> 
 		exact: (row: IE2eIamParityItem): string => `/day/${render(row.day)}`,
 		hasRead: false,
 		name: "day",
-		patterns: ["/day/*", "/day/2024-01-01", "/day/2024-*", "/day/2024-13-01", "/day/2024-01-01T00:00:00.000Z", "/day/", "/day/${principal.attributes.today}"],
+		patterns: ["/day/*", "/day/2024-01-01", "/day/2024-*", "/day/2024-13-01", "/day/2024-02-30", "/day/not-a-date", "/day/2024-01-01T00:00:00.000Z", "/day/", "/day/${principal.attributes.today}"],
 		path: "/day/{day}",
 	},
 	{
 		exact: (row: IE2eIamParityItem): string => `/at/${render(row.occurredAt)}`,
 		hasRead: false,
 		name: "at",
-		patterns: ["/at/*", "/at/2024-*", "/at/2024-01-01T00:00:00.000Z", "/at/", "/at/${principal.attributes.since}"],
+		patterns: ["/at/*", "/at/2024-*", "/at/2024-01-01T00:00:00.000Z", "/at/2024-01-01T00:00:00Z", "/at/2024-01-01", "/at/not-a-date", "/at/", "/at/${principal.attributes.since}"],
 		path: "/at/{occurredAt}",
 	},
 	{
 		exact: (row: IE2eIamParityItem): string => `/amount/${render(row.amount)}`,
 		hasRead: false,
 		name: "amount",
-		patterns: ["/amount/*", "/amount/1.5", "/amount/1.50", "/amount/1.5000000000", "/amount/0", "/amount/1*", "/amount/"],
+		patterns: ["/amount/*", "/amount/1.5", "/amount/1.50", "/amount/1.5000000000", "/amount/abc", "/amount/1e0", "/amount/0", "/amount/1*", "/amount/"],
 		path: "/amount/{amount}",
 	},
 ];
@@ -418,6 +427,19 @@ const placeNamespace = (statement: IApiPolicyStatement, namespace: string): IApi
 
 	return placed;
 };
+
+/**
+ * Places a policy written by hand on a database, as the generator does.
+ * @param {IE2eIamParityPinnedCase} pinned - Policy with `{ns}` in its patterns.
+ * @param {string} database - Database under test.
+ * @returns {IE2eIamParityCase} The policy, which holds index 0 of seed 0.
+ */
+export function createE2eIamParityPinnedCase(pinned: IE2eIamParityPinnedCase, database: string): IE2eIamParityCase {
+	const definition: IE2eIamParityDefinition = E2E_IAM_PARITY_DEFINITIONS.find((candidate: IE2eIamParityDefinition): boolean => candidate.name === pinned.definition) as IE2eIamParityDefinition;
+	const namespace: string = readE2eIamParityNamespace(definition, database);
+
+	return { definition, index: 0, seed: 0, statements: pinned.statements.map((statement: IApiPolicyStatement): IApiPolicyStatement => placeNamespace(statement, namespace)) };
+}
 
 /**
  * Tells the namespace of a definition on a database.
