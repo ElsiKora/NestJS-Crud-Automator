@@ -111,9 +111,9 @@ describe("ApiAuthorizationIamParser", () => {
 		});
 
 		it.each([
-			["a StringLike value", { Action: ["*"], Condition: { StringLike: { "resource.tenant": "${principal.attributes.missing, ''}*" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition["StringLike"]["resource.tenant"]', "iamPolicyConditionValueInvalid"],
-			["a StringNotLike value", { Action: ["*"], Condition: { StringNotLike: { "principal.id": "a${principal.attributes.missing,''}" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition["StringNotLike"]["principal.id"]', "iamPolicyConditionValueInvalid"],
-			["an ArnLike value", { Action: ["*"], Condition: { ArnLike: { "principal.id": "${principal.attributes.missing, ''}" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition["ArnLike"]["principal.id"]', "iamPolicyConditionValueInvalid"],
+			["a StringLike value", { Action: ["*"], Condition: { StringLike: { "resource.tenant": "${principal.attributes.missing, ''}*" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition.StringLike["resource.tenant"]', "iamPolicyConditionValueInvalid"],
+			["a StringNotLike value", { Action: ["*"], Condition: { StringNotLike: { "principal.id": "a${principal.attributes.missing,''}" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition.StringNotLike["principal.id"]', "iamPolicyConditionValueInvalid"],
+			["an ArnLike value", { Action: ["*"], Condition: { ArnLike: { "principal.id": "${principal.attributes.missing, ''}" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }, 'document.Statement[0].Condition.ArnLike["principal.id"]', "iamPolicyConditionValueInvalid"],
 			["a Resource pattern", { Action: ["*"], Effect: EApiPolicyEffect.ALLOW, Resource: ["ns:item/${principal.attributes.missing, ''}*"] }, "document.Statement[0].Resource[0]", "iamPolicyPatternInvalid"],
 			["a NotResource pattern", { Action: ["*"], Effect: EApiPolicyEffect.DENY, NotResource: ["ns:item/${principal.attributes.missing, ''}"] }, "document.Statement[0].NotResource[0]", "iamPolicyPatternInvalid"],
 		])("refuses an empty default in %s", (_name: string, statement: Record<string, unknown>, property: string, code: string) => {

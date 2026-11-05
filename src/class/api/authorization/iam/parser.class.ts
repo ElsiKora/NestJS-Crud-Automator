@@ -428,6 +428,16 @@ export class ApiAuthorizationIamParser {
 	}
 
 	/**
+	 * Tells whether a pattern holds a variable whose default is empty: the pattern would read as the text around the
+	 * variable alone, and a list and a read would not agree on the rows it names.
+	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} parts - Pattern tokens.
+	 * @returns {boolean} Whether a variable of the pattern has the default `''`.
+	 */
+	private static hasEmptyDefault(parts: ReadonlyArray<IApiAuthorizationIamToken>): boolean {
+		return parts.some((part: IApiAuthorizationIamToken): boolean => part.variable?.defaultValue === "");
+	}
+
+	/**
 	 * Tells whether a value is `true`, `false`, or that exact text.
 	 * @param {unknown} value - Value to check.
 	 * @returns {boolean} Whether the value is a boolean literal.
@@ -676,6 +686,10 @@ export class ApiAuthorizationIamParser {
 			}
 		} else if (!ApiAuthorizationIamParser.checkVariables(parts, "resource", property, scope)) {
 			return undefined;
+		} else if (ApiAuthorizationIamParser.hasEmptyDefault(parts)) {
+			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.PATTERN_INVALID, `Pattern "${input}" holds a variable with an empty default`);
+
+			return undefined;
 		}
 
 		return { source: input, tokens: parts };
@@ -818,6 +832,12 @@ export class ApiAuthorizationIamParser {
 		}
 
 		const isStringFamily: boolean = family === EApiPolicyConditionOperatorFamily.STRING || family === EApiPolicyConditionOperatorFamily.STRING_IGNORE_CASE || family === EApiPolicyConditionOperatorFamily.STRING_LIKE || family === EApiPolicyConditionOperatorFamily.ARN;
+
+		if (isPattern && ApiAuthorizationIamParser.hasEmptyDefault(parts)) {
+			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_VALUE_INVALID, `Condition value "${input}" is a pattern with a variable whose default is empty`);
+
+			return undefined;
+		}
 
 		if (isStringFamily) {
 			return { parts, source: input };
