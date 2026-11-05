@@ -10,6 +10,8 @@ const ALLOW_EVERYTHING: IApiPolicyStatement = { Action: ["{ns}:*"], Effect: EApi
 
 const denyRow = (definition: string, name: string, pattern: string): IE2eIamParityPinnedCase => ({ definition, name: `a Deny of ${name}`, statements: [ALLOW_EVERYTHING, { Action: ["{ns}:*"], Effect: EApiPolicyEffect.DENY, Resource: [`{ns}${pattern}`] }] });
 const allowOthers = (definition: string, name: string, pattern: string): IE2eIamParityPinnedCase => ({ definition, name: `an Allow of what is not ${name}`, statements: [{ Action: ["{ns}:*"], Effect: EApiPolicyEffect.ALLOW, NotResource: [`{ns}${pattern}`] }] });
+const allowWhen = (operator: string, key: string, value: unknown): IE2eIamParityPinnedCase => ({ definition: "id", name: `an Allow when ${operator} ${key} is ${JSON.stringify(value)}`, statements: [{ Action: ["{ns}:*"], Condition: { [operator]: { [key]: value } }, Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] }] });
+const denyWhen = (operator: string, key: string, value: unknown): IE2eIamParityPinnedCase => ({ definition: "id", name: `a Deny when ${operator} ${key} is ${JSON.stringify(value)}`, statements: [ALLOW_EVERYTHING, { Action: ["{ns}:*"], Condition: { [operator]: { [key]: value } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }] });
 
 /**
  * Disagreements a seeded run found, each reduced to its smallest policy.
@@ -64,5 +66,33 @@ export const E2E_IAM_PARITY_PINNED_CASES: ReadonlyArray<IE2eIamParityPinnedCase>
 		definition: "id",
 		name: "an Allow on a transformer column",
 		statements: [{ Action: ["{ns}:*"], Condition: { StringEquals: { "resource.coded": "ann" } }, Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] }],
+	},
+	// The edges of a set, kept so every seed reaches them: an empty set, a set of only soft-deleted rows, NULL related values and an unreadable context set.
+	allowWhen("ForAllValues:StringEquals", "resource.noteText", "ann"),
+	allowWhen("ForAllValues:StringEqualsIfExists", "resource.noteText", ["ann", "bob"]),
+	allowWhen("ForAnyValue:StringEquals", "resource.noteText", "ann"),
+	allowWhen("ForAnyValue:StringNotEqualsIfExists", "resource.noteText", ["ann", "bob"]),
+	allowWhen("ForAllValues:StringNotEquals", "resource.noteText", ["ann", "ANN"]),
+	allowWhen("ForAnyValue:NumericGreaterThan", "resource.noteScore", "1"),
+	allowWhen("ForAllValues:NumericLessThanEquals", "resource.noteScore", ["7", "2147483647"]),
+	allowWhen("ForAnyValue:Bool", "resource.noteActive", "false"),
+	allowWhen("ForAllValues:DateLessThan", "resource.noteAt", "2024-06-01T00:00:00Z"),
+	allowWhen("ForAnyValue:DateEquals", "resource.noteDay", ["2024-01-01", "2024-02-29"]),
+	denyWhen("ForAnyValue:StringEquals", "resource.noteText", "ANN"),
+	denyWhen("ForAnyValue:StringEqualsIgnoreCase", "resource.noteText", "ann"),
+	denyWhen("ForAllValues:StringLike", "resource.noteText", ["a*", "b*"]),
+	denyWhen("ForAnyValue:StringLikeIfExists", "resource.noteText", "*"),
+	denyWhen("ForAllValues:NumericNotEquals", "resource.noteScore", ["1", "7"]),
+	denyWhen("ForAnyValue:StringEquals", "principal.attributes.nullList", "ann"),
+	denyWhen("ForAllValues:StringEquals", "principal.groups", "x"),
+	allowWhen("ForAllValues:StringLike", "principal.attributes.objectList", "*"),
+	allowWhen("ForAnyValue:StringEquals", "principal.roles", ["dev", "x"]),
+	{
+		definition: "id",
+		name: "an Allow on a set of roles and a Deny on a to-many key",
+		statements: [
+			{ Action: ["{ns}:*"], Condition: { "ForAnyValue:StringLike": { "principal.roles": "ad*" } }, Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] },
+			{ Action: ["{ns}:*"], Condition: { "ForAllValues:StringNotEquals": { "resource.noteText": "bob" }, "ForAnyValue:StringEquals": { "principal.attributes.several": "bob" } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] },
+		],
 	},
 ];
