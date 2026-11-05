@@ -266,9 +266,13 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 		expect(await listIds(PLACEHOLDER_ITEMS)).toEqual({ ids: kept, statusCode: HttpStatus.OK });
 	});
 
-	it.each(["boolp:item/1", "boolp:item/TRUE", "boolp:item/yes"])("answers 403 for a list Deny on the boolean placeholder %s", async (resource: string) => {
+	// A boolean renders as true or false, so other placeholder text names no row: the Deny keeps every row, as in memory.
+	it.each(["boolp:item/1", "boolp:item/TRUE", "boolp:item/yes"])("keeps every row for a list Deny on the boolean placeholder %s", async (resource: string) => {
 		policy = placeholderDeny(resource);
 
-		expect(await listIds(PLACEHOLDER_ITEMS)).toEqual({ ids: [], statusCode: HttpStatus.FORBIDDEN });
+		const allIds: Array<string> = ITEM_ROWS.map((row: E2eIamBooleanItemEntity): string => row.id).sort();
+
+		expect(await allowedInMemory(E2E_IAM_BOOLEAN_PLACEHOLDER_AUTHORIZATION)).toEqual(allIds);
+		expect(await listIds(PLACEHOLDER_ITEMS)).toEqual({ ids: allIds, statusCode: HttpStatus.OK });
 	});
 });

@@ -8,7 +8,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Column, DataSource, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiAuthorizationSimulator, ApiPropertyDescribe, EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationIamDialectRegistry, ApiAuthorizationModule, ApiAuthorizationSimulator, ApiPropertyDescribe, EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 
 @Entity("iam_parity_items")
 class IamParityItemEntity {
@@ -244,6 +244,9 @@ describe.each([
 			],
 		}).compile();
 
+		// Scopes lower in the dialect of the DataSource that reads the rows, as bootstrap registers it.
+		moduleRef.get(ApiAuthorizationIamDialectRegistry).register(IamParityItemEntity, dataSource);
+		moduleRef.get(ApiAuthorizationIamDialectRegistry).register(IamParityTenantItemEntity, dataSource);
 		simulator = moduleRef.get(ApiAuthorizationSimulator);
 	}, 120_000);
 
@@ -278,7 +281,8 @@ describe.each([
 		expect(keptIds.inMemory).toContain("null-a");
 	});
 
-	it(isPostgres ? "matches prefix exclusions case-sensitively" : "over-excludes prefix matches case-insensitively", async () => {
+	// SQLite lowers a prefix as a case-sensitive GLOB, so both databases keep the row memory keeps.
+	it("matches prefix exclusions case-sensitively", async () => {
 		await dataSource.getRepository(IamParityItemEntity).save({ id: "ABC-7", status: "active" });
 
 		try {
@@ -288,7 +292,7 @@ describe.each([
 			const sqlIds: Array<string> = (await dataSource.getRepository(IamParityItemEntity).find({ where: decision.scope?.where })).map((row: IamParityItemEntity): string => row.id);
 
 			expect((await evaluateList({ id: "ABC-7", status: "active" })).effect).toBe(EApiPolicyEffect.ALLOW);
-			expect(sqlIds.includes("ABC-7")).toBe(isPostgres);
+			expect(sqlIds.includes("ABC-7")).toBe(true);
 		} finally {
 			await dataSource.getRepository(IamParityItemEntity).delete({ id: "ABC-7" });
 		}
