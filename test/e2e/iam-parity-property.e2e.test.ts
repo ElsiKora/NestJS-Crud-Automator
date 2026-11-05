@@ -67,7 +67,7 @@ const readInteger = (name: string, fallback: number): number => {
 
 // A run replays from these: the same seed draws the same policies on every database.
 const SEED: number = readInteger("IAM_PARITY_SEED", 20_261_105);
-const COUNT: number = readInteger("IAM_PARITY_COUNT", 300);
+const COUNT: number = readInteger("IAM_PARITY_COUNT", 500);
 const ONLY_INDEX: string | undefined = process.env.IAM_PARITY_INDEX;
 const ONLY_DATABASES: ReadonlyArray<string> | undefined = process.env.IAM_PARITY_DATABASES?.split(",");
 const REPORT_PATH: string | undefined = process.env.IAM_PARITY_REPORT;
