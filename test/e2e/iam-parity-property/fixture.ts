@@ -35,16 +35,18 @@ interface IE2eIamParityColumnTypes {
 	// An instant on PostgreSQL and SQLite, and a wall clock on MySQL and MariaDB.
 	occurredAt: { precision?: number; type: "datetime" | "timestamptz" };
 	ratio: "double precision" | "double";
+	// Single precision: `real` is a double on MySQL and MariaDB.
+	single: "float" | "real";
 }
 
 const TEXT_COLUMN: { length: number; type: "varchar" } = { length: 64, type: "varchar" };
-const MYSQL_COLUMN_TYPES: IE2eIamParityColumnTypes = { address: TEXT_COLUMN, occurredAt: { precision: 6, type: "datetime" }, ratio: "double" };
+const MYSQL_COLUMN_TYPES: IE2eIamParityColumnTypes = { address: TEXT_COLUMN, occurredAt: { precision: 6, type: "datetime" }, ratio: "double", single: "float" };
 
 const COLUMN_TYPES: Record<TE2eIamParityDatabase, IE2eIamParityColumnTypes> = {
 	mariadb: MYSQL_COLUMN_TYPES,
 	mysql: MYSQL_COLUMN_TYPES,
-	postgres: { address: { type: "inet" }, occurredAt: { type: "timestamptz" }, ratio: "double precision" },
-	sqlite: { address: TEXT_COLUMN, occurredAt: { type: "datetime" }, ratio: "double" },
+	postgres: { address: { type: "inet" }, occurredAt: { type: "timestamptz" }, ratio: "double precision", single: "real" },
+	sqlite: { address: TEXT_COLUMN, occurredAt: { type: "datetime" }, ratio: "double", single: "real" },
 };
 
 // `resource.*` keys and the query paths they read, on the row and on its owner, whose row may be absent.
@@ -69,6 +71,7 @@ const FIELDS: ReadonlyArray<[string, string]> = [
 	["ownerRank", "owner.rank"],
 	["rank", "rank"],
 	["ratio", "ratio"],
+	["single", "single"],
 ];
 
 // A column whose stored text differs from what the entity holds.
@@ -173,6 +176,9 @@ export function createE2eIamParityFixture(database: TE2eIamParityDatabase): IE2e
 
 		@Column({ nullable: true, type: types.ratio })
 		public ratio?: null | number;
+
+		@Column({ nullable: true, type: types.single })
+		public single?: null | number;
 	}
 
 	@Injectable()

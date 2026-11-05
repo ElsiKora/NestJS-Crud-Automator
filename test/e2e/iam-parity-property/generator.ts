@@ -73,6 +73,9 @@ const render = (value: unknown): string => (value === null || value === undefine
  * settles it on the dialects where the database enforces that alphabet. Only the path of `{id}` has a read route: the
  * guard fills a placeholder from a path value, and startup refuses a read route that lacks one.
  */
+// Zeros of a number no floating-point column can hold.
+const OVERFLOW_ZEROS: number = 400;
+
 export const E2E_IAM_PARITY_DEFINITIONS: ReadonlyArray<IE2eIamParityDefinition> = [
 	{
 		exact: (row: IE2eIamParityItem): string => `/${row.id}`,
@@ -113,7 +116,7 @@ export const E2E_IAM_PARITY_DEFINITIONS: ReadonlyArray<IE2eIamParityDefinition> 
 		exact: (row: IE2eIamParityItem): string => `/day/${render(row.day)}`,
 		hasRead: false,
 		name: "day",
-		patterns: ["/day/*", "/day/2024-01-01", "/day/2024-*", "/day/2024-13-01", "/day/2024-02-30", "/day/not-a-date", "/day/2024-01-01T00:00:00.000Z", "/day/", "/day/${principal.attributes.today}"],
+		patterns: ["/day/*", "/day/2024-01-01", "/day/2024-*", "/day/2024-13-01", "/day/2024-02-30", "/day/not-a-date", "/day/0001-01-01", "/day/2024-01-01T00:00:00.000Z", "/day/", "/day/${principal.attributes.today}"],
 		path: "/day/{day}",
 	},
 	{
@@ -129,6 +132,20 @@ export const E2E_IAM_PARITY_DEFINITIONS: ReadonlyArray<IE2eIamParityDefinition> 
 		name: "amount",
 		patterns: ["/amount/*", "/amount/1.5", "/amount/1.50", "/amount/1.5000000000", "/amount/abc", "/amount/1e0", "/amount/0", "/amount/1*", "/amount/"],
 		path: "/amount/{amount}",
+	},
+	{
+		exact: (row: IE2eIamParityItem): string => `/ratio/${render(row.ratio)}`,
+		hasRead: false,
+		name: "ratio",
+		patterns: ["/ratio/*", "/ratio/0.1", "/ratio/1.5", "/ratio/1.50", "/ratio/1000000000000000", "/ratio/abc", "/ratio/1e15", `/ratio/1${"0".repeat(OVERFLOW_ZEROS)}`, "/ratio/"],
+		path: "/ratio/{ratio}",
+	},
+	{
+		exact: (row: IE2eIamParityItem): string => `/single/${render(row.single)}`,
+		hasRead: false,
+		name: "single",
+		patterns: ["/single/*", "/single/0.1", "/single/1.5", "/single/abc", `/single/1${"0".repeat(OVERFLOW_ZEROS)}`, "/single/"],
+		path: "/single/{single}",
 	},
 ];
 

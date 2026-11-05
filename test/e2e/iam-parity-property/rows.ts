@@ -24,6 +24,7 @@ export interface IE2eIamParityItem {
 	owner?: IE2eIamParityOwner | null;
 	rank?: null | number;
 	ratio?: null | number;
+	single?: null | number;
 }
 
 export const E2E_IAM_PARITY_UUID_A: string = "0b6f1c1e-7d2a-4c8e-9a51-3f4e2d1c0b9a";
@@ -59,6 +60,8 @@ const RANKS: ReadonlyArray<null | number> = [null, 0, 1, -1, 2, 7, 70, INT32_MAX
 const AMOUNTS: ReadonlyArray<null | string> = ["1.5", null, "-1.5", "0", "0.0000000001", "-0.0000000001", E2E_IAM_PARITY_LONG_AMOUNT, "3"];
 const BIGS: ReadonlyArray<null | string> = ["0", "-1", null, "5", E2E_IAM_PARITY_TWO_TO_53, E2E_IAM_PARITY_TWO_TO_53_PLUS_1, E2E_IAM_PARITY_INT64_MAX, E2E_IAM_PARITY_INT64_MIN];
 const RATIOS: ReadonlyArray<null | number> = [1.5, -1.5, 0, null, 0.1, -0.1, 1e15, 3];
+// 0.1 and 1.1 have no exact binary form, and a single-precision column widens each to another number than the double it is compared with.
+const SINGLES: ReadonlyArray<null | number> = [0.1, null, 1.5, 1.1];
 const BOOLEANS: ReadonlyArray<boolean | null> = [true, false, null];
 // The instants hold the first of the two 01:30 hours of 2024-11-03 and the hour right after the one skipped on 2024-03-10, in New York.
 const INSTANTS: ReadonlyArray<Date | null> = [new Date("2024-01-01T00:00:00.000Z"), new Date("2024-01-01T02:00:00.123Z"), null, new Date("2023-12-31T23:59:59.999Z"), new Date("2100-01-01T00:00:00.000Z"), new Date("2024-11-03T05:30:00.000Z"), new Date("2024-03-10T07:30:00.000Z")];
@@ -90,6 +93,7 @@ export const E2E_IAM_PARITY_ROWS: ReadonlyArray<IE2eIamParityItem> = IDS.map((id
 	owner: cycle(ROW_OWNERS, index),
 	rank: cycle(RANKS, index),
 	ratio: cycle(RATIOS, index),
+	single: cycle(SINGLES, index),
 }));
 
 // The one principal: its attributes feed the variables of a policy, resolved, empty, and of the wrong type.
