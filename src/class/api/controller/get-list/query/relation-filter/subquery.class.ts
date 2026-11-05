@@ -205,15 +205,17 @@ export class ApiControllerGetListQueryRelationFilterSubquery {
 	 * @param {string} expression - The escaped column.
 	 * @param {Record<string, unknown>} parameters - Parameters of the subquery, which this adds to.
 	 * @param {DataSource} dataSource - The DataSource.
-	 * @param {string} path - Key of the field, for an error.
+	 * @param {string} path - Key of the field, which names its parameters and an error.
 	 * @param {string} source - Controller and route, for an error.
 	 * @returns {string} The SQL.
 	 */
 	private static render(operand: FindOperator<unknown>, expression: string, parameters: Record<string, unknown>, dataSource: DataSource, path: string, source: string): string {
-		// PostgreSQL deduces one type per parameter, so a name holds the column as well as the value.
+		// PostgreSQL deduces one type per parameter, so a name holds the column as well as the value. Every subquery numbers its
+		// aliases from 0, so the column alone repeats in another subquery of the query; the key of the field, which a query
+		// applies once, keeps each subquery's names its own.
 		const createName = (value: unknown): string =>
 			`relationFilter${createHash("sha256")
-				.update(JSON.stringify([expression, value]))
+				.update(JSON.stringify([path, expression, value]))
 				.digest("hex")
 				.slice(0, FILTER_RELATION_CONSTANT.PARAMETER_HASH_LENGTH)}`;
 

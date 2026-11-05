@@ -84,12 +84,13 @@ export function createRelationFilterPolicy<E extends object>(entity: Type<E>): T
  * @param {Type<ApiServiceBase<E>>} service - Service of the route.
  * @param {IApiControllerPropertiesRouteGetListQueryFilter<E>} filter - The typed filter.
  * @param {object} options - How the route pages and whether a policy narrows it.
+ * @param {object} [options.authorization] - Authorization of a scoped route; HOOKS when omitted.
  * @param {boolean} options.isCursor - Whether the route pages by cursor.
- * @param {boolean} options.isScoped - Whether a HOOKS policy narrows the route.
+ * @param {boolean} options.isScoped - Whether a policy narrows the route.
  * @returns {Type<unknown>} The controller class.
  * @template E - Route entity type.
  */
-export function createRelationFilterController<E extends object>(path: string, entity: Type<E>, service: Type<ApiServiceBase<E>>, filter: IApiControllerPropertiesRouteGetListQueryFilter<E>, options: { isCursor: boolean; isScoped: boolean }): Type<unknown> {
+export function createRelationFilterController<E extends object>(path: string, entity: Type<E>, service: Type<ApiServiceBase<E>>, filter: IApiControllerPropertiesRouteGetListQueryFilter<E>, options: { authorization?: object; isCursor: boolean; isScoped: boolean }): Type<unknown> {
 	class RelationFilterController {
 		@Inject(service)
 		public readonly service!: ApiServiceBase<E>;
@@ -98,7 +99,7 @@ export function createRelationFilterController<E extends object>(path: string, e
 	Object.defineProperty(RelationFilterController, "name", { value: `${CamelCaseString(path)}Controller` });
 
 	const controller = ApiController<E>({
-		...(options.isScoped ? { authorization: { defaultMode: EApiAuthorizationMode.HOOKS } } : {}),
+		...(options.isScoped ? { authorization: options.authorization ?? { defaultMode: EApiAuthorizationMode.HOOKS } } : {}),
 		entity,
 		name: path,
 		path,

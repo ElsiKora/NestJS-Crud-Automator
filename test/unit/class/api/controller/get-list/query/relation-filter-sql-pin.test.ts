@@ -66,6 +66,11 @@ describe("relation filter SQL", () => {
 		});
 		const [providerCase, , categoryCase]: ReadonlyArray<(typeof CASES)[number]> = CASES;
 		const together = render(RelationFilterGameEntity, { id: And(compile(providerCase as (typeof CASES)[number]).operator, compile(categoryCase as (typeof CASES)[number]).operator) });
+		const names = (testCase: (typeof CASES)[number]): Array<string> => Object.keys(compile(testCase).operator.objectLiteralParameters ?? {});
+		const categoryNames: Array<string> = names(categoryCase as (typeof CASES)[number]);
+
+		// Both bind ACTIVE to "relation_filter_1"."state", so only the key of the field keeps the names of the two subqueries apart.
+		expect(names(providerCase as (typeof CASES)[number]).filter((parameterName: string): boolean => categoryNames.includes(parameterName))).toEqual([]);
 
 		await expect(JSON.stringify({ rendered, together }, undefined, "\t")).toMatchFileSnapshot(`./relation-filter-sql-pin/${name}.snapshot.txt`);
 	});
