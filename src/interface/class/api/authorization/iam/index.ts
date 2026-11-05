@@ -1,9 +1,11 @@
+export { type IApiAuthorizationIamCollection } from "./collection.interface";
 export { type IApiAuthorizationIamColumn } from "./column.interface";
 export { type IApiAuthorizationIamContextKey } from "./context-key.interface";
 export { type IApiAuthorizationIamDateValue } from "./date-value.interface";
 export { type IApiAuthorizationIamDecimal } from "./decimal.interface";
 export { type IApiAuthorizationIamDenyExclusion } from "./deny-exclusion.interface";
 export { type IApiAuthorizationIamDialect } from "./dialect.interface";
+export { type IApiAuthorizationIamElement } from "./element.interface";
 export { type IApiAuthorizationIamFailure } from "./failure.interface";
 export { type IApiAuthorizationIamNetwork } from "./network.interface";
 export { type IApiAuthorizationIamOperand } from "./operand.interface";

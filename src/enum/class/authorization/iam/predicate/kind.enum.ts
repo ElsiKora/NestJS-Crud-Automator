@@ -10,6 +10,8 @@ export enum EApiAuthorizationIamPredicateKind {
 	ARN = "arn",
 	// The column compares with a value by its order; a NULL column holds in no comparison.
 	COMPARE = "compare",
+	// Some row of a to-many relation of the row satisfies a predicate on its column, or, negated, none does; it is never NULL.
+	EXISTS = "exists",
 	// No row.
 	FALSE = "false",
 	// The column equals one of the values, or, negated, none of them; a NULL column is in neither set.

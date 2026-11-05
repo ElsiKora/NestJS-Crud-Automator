@@ -1,4 +1,5 @@
 export * from "./attachment";
+export { ApiAuthorizationIamCollection } from "./collection.class";
 export { ApiAuthorizationIamDateValue } from "./date-value.class";
 export { ApiAuthorizationIamDecimal } from "./decimal.class";
 export { ApiAuthorizationIamDialectRegistry } from "./dialect-registry.class";

@@ -24,6 +24,10 @@ export class ApiAuthorizationIamPredicateNormalForm {
 				return JSON.stringify([atom.kind, atom.column.queryPath, atom.comparison, atom.operator, atom.value]);
 			}
 
+			case EApiAuthorizationIamPredicateKind.EXISTS: {
+				return JSON.stringify([atom.kind, atom.column.queryPath, atom.isNegated, atom.collection.from, atom.collection.element, atom.predicate]);
+			}
+
 			case EApiAuthorizationIamPredicateKind.IN: {
 				return JSON.stringify([atom.kind, atom.column.queryPath, atom.comparison, atom.isNegated, atom.values]);
 			}
@@ -100,6 +104,9 @@ export class ApiAuthorizationIamPredicateNormalForm {
 			// falls through
 
 			case EApiAuthorizationIamPredicateKind.COMPARE:
+			// falls through
+
+			case EApiAuthorizationIamPredicateKind.EXISTS:
 			// falls through
 
 			case EApiAuthorizationIamPredicateKind.IN:

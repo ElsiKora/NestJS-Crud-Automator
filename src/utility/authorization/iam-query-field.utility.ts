@@ -27,8 +27,10 @@ const authorizationIamQueryFieldCollectionRelationTypes: ReadonlySet<string> = n
  * its `@ApiPropertyDescribe` type is `BOOLEAN`, so a boolean column without describe metadata counts too, and so does `bit`, the SQL Server boolean.
  * A path that crosses a to-one relation is optional, and its presence path names the primary column of the last relation
  * it crosses: the scope joins relations with LEFT JOIN, so that column is NULL exactly when the path is missing.
- * A path that crosses a `OneToMany` or `ManyToMany` relation is not resolvable and names that relation in `collectionPath`:
- * the in-memory evaluator reads a list there, and SQL compares each joined row, so no comparison means the same in both.
+ * A path that crosses a `OneToMany` or `ManyToMany` relation is not resolvable as one value and names that relation in
+ * `collectionPath`: the in-memory evaluator reads a list there, and SQL compares each joined row, so no single-valued
+ * comparison means the same in both. When that relation belongs to the resource itself and the rest of the path ends on
+ * a column of the related entity, `element` names that column, which a `ForAnyValue` or `ForAllValues` key compares as a set.
  * A path that ends before a column, or names a property TypeORM does not map, is not resolvable. So is every path of a
  * resource entity that no TypeORM decorator maps, such as one registered only through an `EntitySchema`: its column types
  * cannot be read, so its scope fails closed instead of binding values as text.
@@ -68,7 +70,14 @@ export function AuthorizationIamReadQueryField(entity: object, queryPath: string
 		const relation: TTypeOrmRelationMetadataArguments | undefined = storage.filterRelations(hierarchy).find((candidate: TTypeOrmRelationMetadataArguments): boolean => candidate.propertyName === segment);
 
 		if (relation && authorizationIamQueryFieldCollectionRelationTypes.has(relation.relationType)) {
-			return { collectionPath: segments.slice(0, index + 1).join("."), isBoolean: false, isOptional: false, isResolvable: false };
+			const collectionPath: string = segments.slice(0, index + 1).join(".");
+			const relatedTarget: object | undefined = index === 0 ? AuthorizationIamResolveNestedTarget(storage, hierarchy, segment) : undefined;
+			const elementPath: string = segments.slice(index + 1).join(".");
+			const elementField: IApiAuthorizationIamQueryField | undefined = relatedTarget && elementPath.length > 0 ? AuthorizationIamReadQueryField(relatedTarget, elementPath) : undefined;
+			// Only a column of the related row itself compares as a set: a further relation would need a join inside the subquery.
+			const isElement: boolean = elementField !== undefined && elementField.isResolvable && !elementField.isOptional && elementField.collectionPath === undefined;
+
+			return { collectionPath, ...(isElement && elementField && relatedTarget ? { element: { field: elementField, queryPath: elementPath, relationPath: collectionPath, target: relatedTarget } } : {}), isBoolean: false, isOptional: false, isResolvable: false };
 		}
 
 		target = AuthorizationIamResolveNestedTarget(storage, hierarchy, segment);

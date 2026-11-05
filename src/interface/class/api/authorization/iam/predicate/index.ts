@@ -2,6 +2,7 @@ export { type IApiAuthorizationIamPredicateArn } from "./arn.interface";
 export { type IApiAuthorizationIamPredicateColumn } from "./column.interface";
 export { type IApiAuthorizationIamPredicateCompare } from "./compare.interface";
 export { type IApiAuthorizationIamPredicateConstant } from "./constant.interface";
+export { type IApiAuthorizationIamPredicateExists } from "./exists.interface";
 export { type IApiAuthorizationIamPredicateGroup } from "./group.interface";
 export { type IApiAuthorizationIamPredicateIn } from "./in.interface";
 export { type IApiAuthorizationIamPredicateIpContained } from "./ip-contained.interface";

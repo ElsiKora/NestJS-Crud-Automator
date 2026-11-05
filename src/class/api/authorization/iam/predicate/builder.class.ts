@@ -1,8 +1,8 @@
-import type { IApiAuthorizationIamColumn, IApiAuthorizationIamCondition, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair, IApiAuthorizationIamQueryField, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamCollection, IApiAuthorizationIamColumn, IApiAuthorizationIamCondition, IApiAuthorizationIamPredicateColumn, IApiAuthorizationIamPredicatePair, IApiAuthorizationIamQueryField, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamPredicate, TApiAuthorizationIamPredicateValue } from "@type/class/api/authorization/iam";
 
 import { AUTHORIZATION_IAM_COLUMN_FAMILY_CONSTANT } from "@constant/class/authorization";
-import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType, EApiPolicyConditionOperatorFamily } from "@enum/class/authorization";
+import { EApiAuthorizationIamColumnFamily, EApiAuthorizationIamPredicateComparison, EApiAuthorizationIamPredicateKind, EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType, EApiPolicyConditionOperatorFamily, EApiPolicyConditionQualifier } from "@enum/class/authorization";
 
 // Column families a String operator compares as text: the in-memory evaluator reads their values as the text the column stores.
 const IAM_PREDICATE_TEXT_FAMILIES: ReadonlySet<EApiAuthorizationIamColumnFamily> = new Set<EApiAuthorizationIamColumnFamily>([EApiAuthorizationIamColumnFamily.ENUM, EApiAuthorizationIamColumnFamily.TEXT, EApiAuthorizationIamColumnFamily.UUID]);
@@ -35,6 +35,16 @@ const IAM_PREDICATE_COMPLEMENT: ReadonlyMap<EApiAuthorizationIamPredicateOperato
  * - a negated operator, with or without `IfExists`, swaps the pair of its positive form, because a missing value is NULL;
  * - a StringLike glob that matches `""` reads a NULL column as a match: `holds = c ∈ V ∨ c IS NULL`, `fails = c ∉ V`, and
  *   then a negated `IfExists` is the form that tells a missing relation from a NULL column.
+ *
+ * With several values, `c ∈ V` is the OR of the positive atoms and `c ∉ V` the AND of their complements, so a negated
+ * operator holds when no value matches, and the key stays one pair however many values it has.
+ *
+ * A key through a to-many relation reads a set, with `H` and `F` the pair of the operator on one related row:
+ * - `ForAnyValue`: `holds = EXISTS(H)`, `fails = NOT EXISTS(H)`;
+ * - `ForAnyValueIfExists`: `holds = EXISTS(H) ∨ NOT EXISTS(TRUE)`, `fails = NOT EXISTS(H) ∧ EXISTS(TRUE)`;
+ * - `ForAllValues`, with or without `IfExists`: `holds = NOT EXISTS(F)`, `fails = EXISTS(F)`.
+ *
+ * `H` and `F` split the related rows, NULL included, and `EXISTS` is never NULL, so the set pair is exact too.
  */
 export class ApiAuthorizationIamPredicateBuilder {
 	/**
@@ -47,44 +57,45 @@ export class ApiAuthorizationIamPredicateBuilder {
 	}
 
 	/**
-	 * Builds the pair of one Arn condition key: the column matches the pattern segment by segment.
+	 * Builds the pair of one Arn condition key: the column matches a pattern segment by segment.
 	 * @param {object} options - Key options.
 	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Column the key reads.
 	 * @param {IApiAuthorizationIamCondition} options.condition - Condition key read by the grammar.
-	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} options.pattern - Literal, `*` and `?` tokens of the resolved value.
+	 * @param {ReadonlyArray<ReadonlyArray<IApiAuthorizationIamToken>>} options.patterns - Literal, `*` and `?` tokens of each resolved value.
 	 * @param {IApiAuthorizationIamPredicateColumn} [options.presence] - Presence column of an optional path.
 	 * @returns {IApiAuthorizationIamPredicatePair | undefined} The pair, or undefined when the key cannot be expressed.
 	 */
-	public static buildArn(options: { column: IApiAuthorizationIamPredicateColumn; condition: IApiAuthorizationIamCondition; pattern: ReadonlyArray<IApiAuthorizationIamToken>; presence?: IApiAuthorizationIamPredicateColumn }): IApiAuthorizationIamPredicatePair | undefined {
+	public static buildArn(options: { column: IApiAuthorizationIamPredicateColumn; condition: IApiAuthorizationIamCondition; patterns: ReadonlyArray<ReadonlyArray<IApiAuthorizationIamToken>>; presence?: IApiAuthorizationIamPredicateColumn }): IApiAuthorizationIamPredicatePair | undefined {
 		return ApiAuthorizationIamPredicateBuilder.buildPair({
 			column: options.column,
 			condition: options.condition,
-			isIn: { column: options.column, isNegated: false, kind: EApiAuthorizationIamPredicateKind.ARN, pattern: options.pattern },
-			isNotIn: { column: options.column, isNegated: true, kind: EApiAuthorizationIamPredicateKind.ARN, pattern: options.pattern },
+			isIn: ApiAuthorizationIamPredicateBuilder.or(options.patterns.map((pattern: ReadonlyArray<IApiAuthorizationIamToken>): TApiAuthorizationIamPredicate => ({ column: options.column, isNegated: false, kind: EApiAuthorizationIamPredicateKind.ARN, pattern }))),
+			isNotIn: ApiAuthorizationIamPredicateBuilder.and(options.patterns.map((pattern: ReadonlyArray<IApiAuthorizationIamToken>): TApiAuthorizationIamPredicate => ({ column: options.column, isNegated: true, kind: EApiAuthorizationIamPredicateKind.ARN, pattern }))),
 			presence: options.presence,
 		});
 	}
 
 	/**
-	 * Builds the pair of one Numeric or Date condition key: the column compares with the value by its order. The
+	 * Builds the pair of one Numeric or Date condition key: the column compares with a value by its order. The
 	 * complement of each comparison over non-NULL values is also a comparison, so no `NOT` meets a NULL.
 	 * @param {object} options - Key options.
 	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Column the key reads.
 	 * @param {EApiAuthorizationIamPredicateComparison} options.comparison - `NUMERIC` or `DATE`.
 	 * @param {IApiAuthorizationIamCondition} options.condition - Condition key read by the grammar.
-	 * @param {EApiAuthorizationIamPredicateOperator} options.operator - How the operator's positive form orders the column against the value.
+	 * @param {EApiAuthorizationIamPredicateOperator} options.operator - How the operator's positive form orders the column against a value.
 	 * @param {IApiAuthorizationIamPredicateColumn} [options.presence] - Presence column of an optional path.
-	 * @param {string} options.value - Canonical text of the resolved value.
+	 * @param {ReadonlyArray<string>} options.values - Canonical text of each resolved value.
 	 * @returns {IApiAuthorizationIamPredicatePair | undefined} The pair, or undefined when the key cannot be expressed.
 	 */
-	public static buildCompare(options: { column: IApiAuthorizationIamPredicateColumn; comparison: EApiAuthorizationIamPredicateComparison; condition: IApiAuthorizationIamCondition; operator: EApiAuthorizationIamPredicateOperator; presence?: IApiAuthorizationIamPredicateColumn; value: string }): IApiAuthorizationIamPredicatePair | undefined {
-		const createAtom: (operator: EApiAuthorizationIamPredicateOperator) => TApiAuthorizationIamPredicate = (operator: EApiAuthorizationIamPredicateOperator): TApiAuthorizationIamPredicate => ({ column: options.column, comparison: options.comparison, kind: EApiAuthorizationIamPredicateKind.COMPARE, operator, value: options.value });
+	public static buildCompare(options: { column: IApiAuthorizationIamPredicateColumn; comparison: EApiAuthorizationIamPredicateComparison; condition: IApiAuthorizationIamCondition; operator: EApiAuthorizationIamPredicateOperator; presence?: IApiAuthorizationIamPredicateColumn; values: ReadonlyArray<string> }): IApiAuthorizationIamPredicatePair | undefined {
+		const createAtom = (operator: EApiAuthorizationIamPredicateOperator, value: string): TApiAuthorizationIamPredicate => ({ column: options.column, comparison: options.comparison, kind: EApiAuthorizationIamPredicateKind.COMPARE, operator, value });
+		const complement: EApiAuthorizationIamPredicateOperator = IAM_PREDICATE_COMPLEMENT.get(options.operator) ?? options.operator;
 
 		return ApiAuthorizationIamPredicateBuilder.buildPair({
 			column: options.column,
 			condition: options.condition,
-			isIn: createAtom(options.operator),
-			isNotIn: createAtom(IAM_PREDICATE_COMPLEMENT.get(options.operator) ?? options.operator),
+			isIn: ApiAuthorizationIamPredicateBuilder.or(options.values.map((value: string): TApiAuthorizationIamPredicate => createAtom(options.operator, value))),
+			isNotIn: ApiAuthorizationIamPredicateBuilder.and(options.values.map((value: string): TApiAuthorizationIamPredicate => createAtom(complement, value))),
 			presence: options.presence,
 		});
 	}
@@ -167,41 +178,41 @@ export class ApiAuthorizationIamPredicateBuilder {
 	}
 
 	/**
-	 * Builds the pair of one IP condition key: the column's network lies within the range.
+	 * Builds the pair of one IP condition key: the column's network lies within a range.
 	 * @param {object} options - Key options.
 	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Column the key reads.
 	 * @param {IApiAuthorizationIamCondition} options.condition - Condition key read by the grammar.
 	 * @param {IApiAuthorizationIamPredicateColumn} [options.presence] - Presence column of an optional path.
-	 * @param {string} options.range - The resolved range as text.
+	 * @param {ReadonlyArray<string>} options.ranges - Each resolved range as text.
 	 * @returns {IApiAuthorizationIamPredicatePair | undefined} The pair, or undefined when the key cannot be expressed.
 	 */
-	public static buildIpContained(options: { column: IApiAuthorizationIamPredicateColumn; condition: IApiAuthorizationIamCondition; presence?: IApiAuthorizationIamPredicateColumn; range: string }): IApiAuthorizationIamPredicatePair | undefined {
+	public static buildIpContained(options: { column: IApiAuthorizationIamPredicateColumn; condition: IApiAuthorizationIamCondition; presence?: IApiAuthorizationIamPredicateColumn; ranges: ReadonlyArray<string> }): IApiAuthorizationIamPredicatePair | undefined {
 		return ApiAuthorizationIamPredicateBuilder.buildPair({
 			column: options.column,
 			condition: options.condition,
-			isIn: { column: options.column, isNegated: false, kind: EApiAuthorizationIamPredicateKind.IP_CONTAINED, range: options.range },
-			isNotIn: { column: options.column, isNegated: true, kind: EApiAuthorizationIamPredicateKind.IP_CONTAINED, range: options.range },
+			isIn: ApiAuthorizationIamPredicateBuilder.or(options.ranges.map((range: string): TApiAuthorizationIamPredicate => ({ column: options.column, isNegated: false, kind: EApiAuthorizationIamPredicateKind.IP_CONTAINED, range }))),
+			isNotIn: ApiAuthorizationIamPredicateBuilder.and(options.ranges.map((range: string): TApiAuthorizationIamPredicate => ({ column: options.column, isNegated: true, kind: EApiAuthorizationIamPredicateKind.IP_CONTAINED, range }))),
 			presence: options.presence,
 		});
 	}
 
 	/**
 	 * Builds the pair of one StringLike condition key: a NULL column reads as `""`, so it belongs to the positive form
-	 * exactly when the glob matches `""`.
+	 * exactly when some glob matches `""`.
 	 * @param {object} options - Key options.
 	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Column the key reads.
 	 * @param {IApiAuthorizationIamCondition} options.condition - Condition key read by the grammar.
-	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} options.pattern - Literal, `*` and `?` tokens of the resolved value.
+	 * @param {ReadonlyArray<ReadonlyArray<IApiAuthorizationIamToken>>} options.patterns - Literal, `*` and `?` tokens of each resolved value.
 	 * @param {IApiAuthorizationIamPredicateColumn} [options.presence] - Presence column of an optional path.
 	 * @returns {IApiAuthorizationIamPredicatePair | undefined} The pair, or undefined when the key cannot be expressed.
 	 */
-	public static buildLike(options: { column: IApiAuthorizationIamPredicateColumn; condition: IApiAuthorizationIamCondition; pattern: ReadonlyArray<IApiAuthorizationIamToken>; presence?: IApiAuthorizationIamPredicateColumn }): IApiAuthorizationIamPredicatePair | undefined {
+	public static buildLike(options: { column: IApiAuthorizationIamPredicateColumn; condition: IApiAuthorizationIamCondition; patterns: ReadonlyArray<ReadonlyArray<IApiAuthorizationIamToken>>; presence?: IApiAuthorizationIamPredicateColumn }): IApiAuthorizationIamPredicatePair | undefined {
 		return ApiAuthorizationIamPredicateBuilder.buildPair({
 			column: options.column,
 			condition: options.condition,
-			isIn: { column: options.column, isConditionKey: true, isNegated: false, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern: options.pattern },
-			isNotIn: { column: options.column, isConditionKey: true, isNegated: true, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern: options.pattern },
-			isNullIn: options.pattern.every((token: IApiAuthorizationIamToken): boolean => token.type === EApiAuthorizationIamTokenType.STAR),
+			isIn: ApiAuthorizationIamPredicateBuilder.or(options.patterns.map((pattern: ReadonlyArray<IApiAuthorizationIamToken>): TApiAuthorizationIamPredicate => ({ column: options.column, isConditionKey: true, isNegated: false, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern }))),
+			isNotIn: ApiAuthorizationIamPredicateBuilder.and(options.patterns.map((pattern: ReadonlyArray<IApiAuthorizationIamToken>): TApiAuthorizationIamPredicate => ({ column: options.column, isConditionKey: true, isNegated: true, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern }))),
+			isNullIn: options.patterns.some((pattern: ReadonlyArray<IApiAuthorizationIamToken>): boolean => pattern.every((token: IApiAuthorizationIamToken): boolean => token.type === EApiAuthorizationIamTokenType.STAR)),
 			presence: options.presence,
 		});
 	}
@@ -209,15 +220,19 @@ export class ApiAuthorizationIamPredicateBuilder {
 	/**
 	 * Builds the pair of one Null condition key: a missing value reads as NULL on the joined row, so no presence column is needed.
 	 * @param {object} options - Key options.
+	 * @param {ReadonlyArray<boolean>} options.answers - Each value of the key: whether it asks for a missing or NULL value.
 	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Column the key reads.
-	 * @param {boolean} options.isNull - Whether the key asks for a missing or NULL value.
 	 * @returns {IApiAuthorizationIamPredicatePair} The pair.
 	 */
-	public static buildNull(options: { column: IApiAuthorizationIamPredicateColumn; isNull: boolean }): IApiAuthorizationIamPredicatePair {
+	public static buildNull(options: { answers: ReadonlyArray<boolean>; column: IApiAuthorizationIamPredicateColumn }): IApiAuthorizationIamPredicatePair {
 		const isNull: TApiAuthorizationIamPredicate = { column: options.column, kind: EApiAuthorizationIamPredicateKind.IS_NULL };
 		const notNull: TApiAuthorizationIamPredicate = { column: options.column, kind: EApiAuthorizationIamPredicateKind.NOT_NULL };
+		const answers: Array<boolean> = [...new Set<boolean>(options.answers)];
 
-		return options.isNull ? { fails: notNull, holds: isNull } : { fails: isNull, holds: notNull };
+		return {
+			fails: ApiAuthorizationIamPredicateBuilder.and(answers.map((isAnswerNull: boolean): TApiAuthorizationIamPredicate => (isAnswerNull ? notNull : isNull))),
+			holds: ApiAuthorizationIamPredicateBuilder.or(answers.map((isAnswerNull: boolean): TApiAuthorizationIamPredicate => (isAnswerNull ? isNull : notNull))),
+		};
 	}
 
 	/**
@@ -240,6 +255,40 @@ export class ApiAuthorizationIamPredicateBuilder {
 			]),
 			holds: { column: options.column, isNegated: false, kind: EApiAuthorizationIamPredicateKind.LIKE, pattern: options.pattern },
 		};
+	}
+
+	/**
+	 * Builds the pair of one key with a set qualifier through a to-many relation, as the class comment says.
+	 * @param {object} options - Key options.
+	 * @param {IApiAuthorizationIamCollection} options.collection - Subquery of the relation.
+	 * @param {IApiAuthorizationIamPredicateColumn} options.column - Column of the resource the subquery correlates on.
+	 * @param {IApiAuthorizationIamCondition} options.condition - Condition key read by the grammar.
+	 * @param {IApiAuthorizationIamPredicatePair} options.element - The pair of the operator on one related row.
+	 * @returns {IApiAuthorizationIamPredicatePair} The pair.
+	 */
+	public static buildQualified(options: { collection: IApiAuthorizationIamCollection; column: IApiAuthorizationIamPredicateColumn; condition: IApiAuthorizationIamCondition; element: IApiAuthorizationIamPredicatePair }): IApiAuthorizationIamPredicatePair {
+		const createExists = (predicate: TApiAuthorizationIamPredicate, isNegated: boolean): TApiAuthorizationIamPredicate => {
+			// No related row can hold, so some row never does and no row always does.
+			if (predicate.kind === EApiAuthorizationIamPredicateKind.FALSE) {
+				return { kind: isNegated ? EApiAuthorizationIamPredicateKind.TRUE : EApiAuthorizationIamPredicateKind.FALSE };
+			}
+
+			return { collection: options.collection, column: options.column, isNegated, kind: EApiAuthorizationIamPredicateKind.EXISTS, predicate };
+		};
+
+		if (options.condition.qualifier === EApiPolicyConditionQualifier.FOR_ALL_VALUES) {
+			return { fails: createExists(options.element.fails, false), holds: createExists(options.element.fails, true) };
+		}
+
+		const some: IApiAuthorizationIamPredicatePair = { fails: createExists(options.element.holds, true), holds: createExists(options.element.holds, false) };
+
+		if (!options.condition.isIfExists) {
+			return some;
+		}
+
+		const everyRow: TApiAuthorizationIamPredicate = { kind: EApiAuthorizationIamPredicateKind.TRUE };
+
+		return { fails: ApiAuthorizationIamPredicateBuilder.and([some.fails, createExists(everyRow, false)]), holds: ApiAuthorizationIamPredicateBuilder.or([some.holds, createExists(everyRow, true)]) };
 	}
 
 	/**

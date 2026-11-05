@@ -659,17 +659,29 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 				throw ErrorException(`Controller "${controllerName}" resourceDefinition contains duplicate queryPath "${field.queryPath}"`);
 			}
 
-			// A list of related rows has no single value: SQL would compare each joined row and the evaluator reads the list as missing.
+			// A set of related rows reads through a subquery on the relation of the resource, and through no other path.
 			const queryField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, field.queryPath);
 
-			if (queryField.collectionPath !== undefined) {
-				authorizationBootstrapValidationLogger.error(`Controller "${controllerName}" resource field "${field.path}" queryPath "${field.queryPath}" crosses the to-many relation "${queryField.collectionPath}"; map a column of the resource or of a to-one relation`);
+			if (queryField.collectionPath !== undefined && !queryField.element) {
+				authorizationBootstrapValidationLogger.error(`Controller "${controllerName}" resource field "${field.path}" queryPath "${field.queryPath}" crosses the to-many relation "${queryField.collectionPath}"; map a column of the resource, of a to-one relation, or of a to-many relation of the resource itself`);
 
-				throw ErrorException(`Controller "${controllerName}" resource field "${field.path}" queryPath "${field.queryPath}" crosses the to-many relation "${queryField.collectionPath}"; map a column of the resource or of a to-one relation`);
+				throw ErrorException(`Controller "${controllerName}" resource field "${field.path}" queryPath "${field.queryPath}" crosses the to-many relation "${queryField.collectionPath}"; map a column of the resource, of a to-one relation, or of a to-many relation of the resource itself`);
 			}
 
 			fieldPaths.add(field.path);
 			queryPaths.add(field.queryPath);
+		}
+
+		for (const placeholder of resourceDefinition.resourcePath.matchAll(/\{([\w.-]+)\}/g)) {
+			const name: string | undefined = placeholder[1];
+			const queryPath: string | undefined = resourceDefinition.fields.find((candidate: { path: string }): boolean => candidate.path === `resource.${name ?? ""}`)?.queryPath;
+			const collectionPath: string | undefined = queryPath === undefined ? undefined : AuthorizationIamReadQueryField(resourceDefinition.entity, queryPath).collectionPath;
+
+			if (collectionPath !== undefined) {
+				authorizationBootstrapValidationLogger.error(`Controller "${controllerName}" resource path placeholder "${name ?? ""}" reads the to-many relation "${collectionPath}", which holds no one value to render`);
+
+				throw ErrorException(`Controller "${controllerName}" resource path placeholder "${name ?? ""}" reads the to-many relation "${collectionPath}", which holds no one value to render`);
+			}
 		}
 	}
 }

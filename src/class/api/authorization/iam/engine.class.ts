@@ -26,6 +26,7 @@ import type {
 } from "@interface/class/api/authorization";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
+import { ApiAuthorizationIamCollection } from "@class/api/authorization/iam/collection.class";
 import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class";
 import { ApiAuthorizationIamOperator } from "@class/api/authorization/iam/operator.class";
 import { ApiAuthorizationIamParser } from "@class/api/authorization/iam/parser.class";
@@ -331,6 +332,61 @@ export class ApiAuthorizationIamEngine {
 	}
 
 	/**
+	 * Evaluates one `resource.*` key through a to-many relation on a loaded resource, reading the rows its subquery reads:
+	 * a soft-deleted related row does not count, as it does not in SQL. The key needs a set qualifier and compiles for the
+	 * dialect, or a row would decide one way when loaded and another when listed. A relation that is not loaded, or a
+	 * related row that does not carry what the subquery reads, cannot be read exactly and fails the key closed.
+	 * @template E - Entity type.
+	 * @template M - List pagination mode.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {IApiAuthorizationIamQueryField} field - Resolved query path of the key.
+	 * @param {ReadonlyArray<IApiAuthorizationIamOperand>} operands - Operands of the key.
+	 * @param {object} options - Matching options.
+	 * @param {IApiAuthorizationIamDialect} [options.dialect] - SQL dialect of the resource entity.
+	 * @param {IApiAuthorizationPrincipal} options.principal - Evaluated principal.
+	 * @param {IApiAuthorizationRequestMetadata<E, M>} options.requestMetadata - Request metadata.
+	 * @param {E} [options.resource] - Loaded resource, when available.
+	 * @param {IApiAuthorizationResourceDefinition<E>} options.resourceDefinition - IAM resource definition.
+	 * @returns {boolean | undefined} Whether the key holds, or undefined when it cannot be read.
+	 */
+	private evaluateCollectionCondition<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(
+		condition: IApiAuthorizationIamCondition,
+		field: IApiAuthorizationIamQueryField,
+		operands: ReadonlyArray<IApiAuthorizationIamOperand>,
+		options: { dialect?: IApiAuthorizationIamDialect; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> },
+	): boolean | undefined {
+		const element: IApiAuthorizationIamQueryField["element"] = field.element;
+
+		if (!element || !this.queryPlanner.isConditionCompilable(condition, options)) {
+			return undefined;
+		}
+
+		const relatedRows: unknown = this.resolvePathValue(options.resource, element.relationPath);
+		const softDeletePath: string | undefined = ApiAuthorizationIamCollection.read(options.dialect?.dataSource, options.resourceDefinition.entity, element)?.softDeletePath;
+
+		if (!Array.isArray(relatedRows)) {
+			return undefined;
+		}
+
+		const values: Array<unknown> = [];
+
+		for (const relatedRow of relatedRows as ReadonlyArray<unknown>) {
+			const deletedAt: unknown = softDeletePath === undefined ? null : this.resolvePathValue(relatedRow, softDeletePath);
+			const value: unknown = this.resolvePathValue(relatedRow, element.queryPath);
+
+			if (deletedAt === undefined || value === undefined) {
+				return undefined;
+			}
+
+			if (deletedAt === null) {
+				values.push(value);
+			}
+		}
+
+		return ApiAuthorizationIamOperator.evaluateSet(condition, values, operands, true);
+	}
+
+	/**
 	 * Evaluates one condition key in memory, as `ApiAuthorizationIamOperator` says. A `resource.*` key reads the column its
 	 * field mapping declares, and compares only if its SQL scope could: otherwise the row would decide one way when loaded
 	 * and another when listed. A key on a path TypeORM does not map has no column type to check, so only String and Null
@@ -348,31 +404,42 @@ export class ApiAuthorizationIamEngine {
 	 * @returns {boolean | undefined} Whether the key holds, or undefined when it cannot be read, which fails it closed.
 	 */
 	private evaluateCondition<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(condition: IApiAuthorizationIamCondition, context: unknown, options: { dialect?: IApiAuthorizationIamDialect; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): boolean | undefined {
-		const operand: IApiAuthorizationIamOperand | undefined = ApiAuthorizationIamOperator.readOperand(condition, context);
+		const operands: Array<IApiAuthorizationIamOperand> | undefined = ApiAuthorizationIamOperator.readOperands(condition, context);
 
-		if (!operand) {
+		if (!operands) {
 			return undefined;
 		}
 
 		if (!condition.key.startsWith("resource.")) {
-			return ApiAuthorizationIamOperator.evaluate(condition, ApiAuthorizationIamVariable.readPath(context, condition.key), operand, false);
+			const contextValue: unknown = ApiAuthorizationIamVariable.readPath(context, condition.key);
+
+			return condition.qualifier === undefined ? ApiAuthorizationIamOperator.evaluate(condition, contextValue, operands, false) : ApiAuthorizationIamOperator.evaluateSet(condition, contextValue, operands, false);
 		}
 
-		// A `resource.*` key with no field mapping, or one through a to-many relation, has no single column.
+		const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = options.resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === condition.key);
+		const field: IApiAuthorizationIamQueryField | undefined = fieldDefinition ? AuthorizationIamReadQueryField(options.resourceDefinition.entity, fieldDefinition.queryPath) : undefined;
+
+		if (field?.collectionPath !== undefined) {
+			return this.evaluateCollectionCondition(condition, field, operands, options);
+		}
+
+		// A set qualifier reads a list of related rows, and a column holds one value.
+		if (condition.qualifier !== undefined) {
+			return undefined;
+		}
+
+		// A `resource.*` key with no field mapping has no column.
 		const actualValue: { isDeclared: boolean; isReadable: boolean; value?: unknown } = this.readResourceValue(options.resourceDefinition, options.resource, condition.key);
 
 		if (!actualValue.isReadable) {
 			return undefined;
 		}
 
-		const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = options.resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === condition.key);
-		const field: IApiAuthorizationIamQueryField | undefined = fieldDefinition ? AuthorizationIamReadQueryField(options.resourceDefinition.entity, fieldDefinition.queryPath) : undefined;
-
 		if (field?.isResolvable) {
-			return this.queryPlanner.isConditionCompilable(condition, options) ? ApiAuthorizationIamOperator.evaluate(condition, actualValue.value, operand, true) : undefined;
+			return this.queryPlanner.isConditionCompilable(condition, options) ? ApiAuthorizationIamOperator.evaluate(condition, actualValue.value, operands, true) : undefined;
 		}
 
-		return condition.family === EApiPolicyConditionOperatorFamily.STRING || condition.family === EApiPolicyConditionOperatorFamily.NULL ? ApiAuthorizationIamOperator.evaluate(condition, actualValue.value, operand, false) : undefined;
+		return condition.family === EApiPolicyConditionOperatorFamily.STRING || condition.family === EApiPolicyConditionOperatorFamily.NULL ? ApiAuthorizationIamOperator.evaluate(condition, actualValue.value, operands, false) : undefined;
 	}
 
 	private evaluateDocumentSet<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: {

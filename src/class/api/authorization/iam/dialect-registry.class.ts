@@ -58,7 +58,7 @@ export class ApiAuthorizationIamDialectRegistry {
 	/**
 	 * Resolves the dialect an IAM scope of a resource entity is lowered to.
 	 * @param {object} entity - Resource entity class.
-	 * @returns {Promise<IApiAuthorizationIamDialect>} The dialect: portable when no DataSource is registered for the entity, unresolved when its DataSources disagree or one cannot be read.
+	 * @returns {Promise<IApiAuthorizationIamDialect>} The dialect: portable when no DataSource is registered for the entity, unresolved when its DataSources disagree or one cannot be read, and with the DataSource when exactly one reads the entity.
 	 */
 	public async resolve(entity: object): Promise<IApiAuthorizationIamDialect> {
 		const entityDataSources: Set<DataSource> | undefined = this.dataSources.get(entity);
@@ -77,7 +77,10 @@ export class ApiAuthorizationIamDialectRegistry {
 			return { type: EApiAuthorizationIamDialect.UNRESOLVED };
 		}
 
-		return first;
+		// A key through a to-many relation names tables and columns, which only one DataSource's metadata spells for sure.
+		const [onlyDataSource]: Array<DataSource> = entityDataSources.size === 1 ? [...entityDataSources] : [];
+
+		return onlyDataSource ? { ...first, dataSource: onlyDataSource } : first;
 	}
 
 	/**

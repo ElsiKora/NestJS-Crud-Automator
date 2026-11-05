@@ -1,4 +1,4 @@
-import type { IApiAuthorizationIamColumn, IApiAuthorizationIamDateValue, IApiAuthorizationIamDecimal, IApiAuthorizationIamDialect, IApiAuthorizationIamPredicateArn, IApiAuthorizationIamPredicateCompare, IApiAuthorizationIamPredicateIn, IApiAuthorizationIamPredicateIpContained, IApiAuthorizationIamPredicateLike, IApiAuthorizationIamPredicateLowered, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamColumn, IApiAuthorizationIamDateValue, IApiAuthorizationIamDecimal, IApiAuthorizationIamDialect, IApiAuthorizationIamPredicateArn, IApiAuthorizationIamPredicateCompare, IApiAuthorizationIamPredicateExists, IApiAuthorizationIamPredicateIn, IApiAuthorizationIamPredicateIpContained, IApiAuthorizationIamPredicateLike, IApiAuthorizationIamPredicateLowered, IApiAuthorizationIamToken } from "@interface/class/api/authorization";
 import type { TApiAuthorizationIamIntegerCompare, TApiAuthorizationIamPredicate, TApiAuthorizationIamPredicateAtom, TApiAuthorizationIamPredicateValue } from "@type/class/api/authorization/iam";
 import type { FindOptionsWhere } from "typeorm";
 
@@ -28,6 +28,15 @@ const IAM_LOWERER_OPERATOR_SQL: ReadonlyMap<EApiAuthorizationIamPredicateOperato
 	[EApiAuthorizationIamPredicateOperator.NOT_EQUAL, "<>"],
 ]);
 
+// SQL of each TypeORM operator that compares a related column with one bound value.
+const IAM_LOWERER_FIND_OPERATOR_SQL: ReadonlyMap<string, string> = new Map<string, string>([
+	["equal", "="],
+	["lessThan", "<"],
+	["lessThanOrEqual", "<="],
+	["moreThan", ">"],
+	["moreThanOrEqual", ">="],
+]);
+
 // Bits of an integer column whose decorator names no type: TypeORM creates a 32-bit integer for a `number` property.
 const IAM_LOWERER_DEFAULT_INTEGER_BITS: number = 32;
 
@@ -52,6 +61,9 @@ const IAM_LOWERER_DECIMAL_BASE: number = 10;
  * form, the branch accounting and the WHERE building stay here.
  */
 export class ApiAuthorizationIamPortableLowerer {
+	// What sets the parameters of the subquery being lowered apart from those of the row, undefined outside a subquery.
+	private parameterScope: string | undefined;
+
 	public constructor(protected readonly dialect: IApiAuthorizationIamDialect) {}
 
 	/**
@@ -74,7 +86,7 @@ export class ApiAuthorizationIamPortableLowerer {
 			const conditions: Array<[string, unknown]> = [];
 
 			for (const atom of atomBranch) {
-				const lowered: IApiAuthorizationIamPredicateLowered = this.lowerAtom(atom);
+				const lowered: IApiAuthorizationIamPredicateLowered = atom.kind === EApiAuthorizationIamPredicateKind.EXISTS ? this.lowerExists(atom, maxBranches) : this.lowerAtom(atom);
 
 				if (!lowered.isExact) {
 					return { isCompilable: false };
@@ -104,11 +116,11 @@ export class ApiAuthorizationIamPortableLowerer {
 	 * and different values never collide when TypeORM merges the parameters of every branch.
 	 * @param {string} purpose - What the parameter binds, such as `in` or `like`.
 	 * @param {unknown} value - Bound value.
-	 * @returns {string} Parameter name.
+	 * @returns {string} Parameter name; another within a subquery, because PostgreSQL deduces one type per parameter and the related column may have another type.
 	 */
 	protected createParameterName(purpose: string, value: unknown): string {
 		return `iam${createHash("sha256")
-			.update(JSON.stringify([this.dialect.type, purpose, value]))
+			.update(JSON.stringify(this.parameterScope === undefined ? [this.dialect.type, purpose, value] : [this.dialect.type, purpose, value, this.parameterScope]))
 			.digest("hex")
 			.slice(0, IAM_LOWERER_PARAMETER_HASH_LENGTH)}`;
 	}
@@ -595,6 +607,16 @@ export class ApiAuthorizationIamPortableLowerer {
 	}
 
 	/**
+	 * Tells whether an atom of a subquery reads the related column, in a form the subquery can write.
+	 * @param {TApiAuthorizationIamPredicateAtom} element - Atom of the predicate on a related row.
+	 * @param {IApiAuthorizationIamPredicateExists} atom - `EXISTS` atom.
+	 * @returns {boolean} Whether the atom can lower.
+	 */
+	private isElementAtom(element: TApiAuthorizationIamPredicateAtom, atom: IApiAuthorizationIamPredicateExists): boolean {
+		return element.kind !== EApiAuthorizationIamPredicateKind.EXISTS && element.column.queryPath === atom.collection.elementPath && element.column.field.column?.hasTransformer === false;
+	}
+
+	/**
 	 * Lowers one atom. A text comparison needs a text column: on a numeric or date column SQL compares by value and the
 	 * in-memory evaluator by text, so the two disagree and the atom is not exact. A native comparison, which only the
 	 * `fails` of an exact resource placeholder holds, lowers only negated and only on a numeric or date column: SQL may
@@ -616,6 +638,11 @@ export class ApiAuthorizationIamPortableLowerer {
 				return atom.comparison === EApiAuthorizationIamPredicateComparison.DATE ? this.lowerDateCompare(atom) : this.lowerNumericCompare(atom);
 			}
 
+			case EApiAuthorizationIamPredicateKind.EXISTS: {
+				// The caller lowers a subquery of the row; a subquery holds no other.
+				return { isExact: false };
+			}
+
 			case EApiAuthorizationIamPredicateKind.IN: {
 				return this.lowerInAtom(atom);
 			}
@@ -635,11 +662,67 @@ export class ApiAuthorizationIamPortableLowerer {
 			case EApiAuthorizationIamPredicateKind.NOT_NULL: {
 				return { isExact: true, operand: Not(IsNull()) };
 			}
-
-			default: {
-				return { isExact: false };
-			}
 		}
+	}
+
+	/**
+	 * Lowers a condition on the related rows of a to-many relation to a correlated subquery on the column of the row:
+	 * `[NOT] EXISTS (SELECT 1 FROM <relation> WHERE <link> = <column> AND <the predicate on a related row>)`. A related
+	 * atom lowers as the dialect lowers it on any column, against the related column. `Raw` bypasses a TypeORM value
+	 * transformer, so a related column that declares one is not exact. A dialect whose collation nothing checks has no
+	 * exact comparison on a related row, nor does a predicate that leaves the related column or exceeds the branch cap.
+	 * @param {IApiAuthorizationIamPredicateExists} atom - `EXISTS` atom.
+	 * @param {number} maxBranches - Most branches the predicate on a related row may hold.
+	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
+	 */
+	private lowerExists(atom: IApiAuthorizationIamPredicateExists, maxBranches: number): IApiAuthorizationIamPredicateLowered {
+		if (this.dialect.type === EApiAuthorizationIamDialect.PORTABLE || this.dialect.type === EApiAuthorizationIamDialect.UNRESOLVED) {
+			return { isExact: false };
+		}
+
+		const branches: Array<Array<TApiAuthorizationIamPredicateAtom>> | undefined = ApiAuthorizationIamPredicateNormalForm.toBranches(atom.predicate, maxBranches);
+
+		if (!branches) {
+			return { isExact: false };
+		}
+
+		const parameters: Record<string, unknown> = {};
+		const renderedBranches: Array<string> = [];
+
+		this.parameterScope = `${atom.collection.from}:${atom.collection.element}`;
+
+		try {
+			for (const branch of branches) {
+				const rendered: Array<string> = [];
+
+				for (const element of branch) {
+					const lowered: IApiAuthorizationIamPredicateLowered = this.isElementAtom(element, atom) ? this.lowerAtom(element) : { isExact: false };
+					const sql: string | undefined = lowered.isExact ? this.renderElementOperand(lowered.operand, atom.collection.element, parameters) : undefined;
+
+					if (sql === undefined) {
+						return { isExact: false };
+					}
+
+					rendered.push(sql);
+				}
+
+				renderedBranches.push(rendered.length === 0 ? "1=1" : rendered.join(" AND "));
+			}
+		} finally {
+			this.parameterScope = undefined;
+		}
+
+		let condition: string = "1=0";
+
+		if (renderedBranches.length === 1) {
+			condition = renderedBranches[0] ?? condition;
+		} else if (renderedBranches.length > 1) {
+			condition = renderedBranches.map((branch: string): string => `(${branch})`).join(" OR ");
+		}
+
+		const rowCondition: string = atom.collection.rowCondition === undefined ? "" : ` AND ${atom.collection.rowCondition}`;
+
+		return { isExact: true, operand: Raw((columnAlias: string): string => `${atom.isNegated ? "NOT " : ""}EXISTS (SELECT 1 FROM ${atom.collection.from} WHERE ${atom.collection.link} = ${columnAlias}${rowCondition} AND (${condition}))`, parameters) };
 	}
 
 	/**
@@ -696,5 +779,64 @@ export class ApiAuthorizationIamPortableLowerer {
 				return "%";
 			}
 		}
+	}
+
+	/**
+	 * Writes the TypeORM condition of a related atom as SQL on the related column, where no query builder writes it.
+	 * @param {unknown} operand - Value or find operator a dialect lowered the atom to.
+	 * @param {string} expression - The related column.
+	 * @param {Record<string, unknown>} parameters - Parameters of the subquery, which this adds to.
+	 * @returns {string | undefined} The SQL, or undefined for a condition it cannot write.
+	 */
+	private renderElementOperand(operand: unknown, expression: string, parameters: Record<string, unknown>): string | undefined {
+		const bind = (value: unknown): string => {
+			const name: string = this.createParameterName("element", value);
+
+			parameters[name] = value;
+
+			return `:${name}`;
+		};
+
+		if (!(operand instanceof FindOperator)) {
+			return `${expression} = ${bind(operand)}`;
+		}
+
+		const findOperator: FindOperator<unknown> = operand as FindOperator<unknown>;
+		const comparison: string | undefined = IAM_LOWERER_FIND_OPERATOR_SQL.get(findOperator.type);
+
+		if (comparison !== undefined) {
+			return `${expression} ${comparison} ${bind(findOperator.value)}`;
+		}
+
+		if (findOperator.type === "in") {
+			const values: Array<unknown> = findOperator.value as Array<unknown>;
+			const name: string = this.createParameterName("element", values);
+
+			if (values.length === 0) {
+				return "1=0";
+			}
+
+			parameters[name] = values;
+
+			return `${expression} IN (:...${name})`;
+		}
+
+		if (findOperator.type === "isNull") {
+			return `${expression} IS NULL`;
+		}
+
+		if (findOperator.type === "not") {
+			const child: string | undefined = findOperator.child ? this.renderElementOperand(findOperator.child, expression, parameters) : undefined;
+
+			return child === undefined ? undefined : `NOT (${child})`;
+		}
+
+		if (findOperator.type === "raw") {
+			Object.assign(parameters, findOperator.objectLiteralParameters);
+
+			return findOperator.getSql?.(expression);
+		}
+
+		return undefined;
 	}
 }

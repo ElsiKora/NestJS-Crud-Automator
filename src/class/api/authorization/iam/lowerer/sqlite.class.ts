@@ -54,21 +54,35 @@ export class ApiAuthorizationIamSqliteLowerer extends ApiAuthorizationIamPortabl
 	}
 
 	/**
-	 * Lowers an IgnoreCase comparison with `GLOB`, where a character class holds both cases of each ASCII letter.
+	 * Lowers an IgnoreCase comparison with `GLOB`, where a character class holds both cases of each ASCII letter: one
+	 * `GLOB` per value, ORed, or for the negated form one `NOT GLOB` per value, ANDed.
 	 * @param {IApiAuthorizationIamPredicateIn} atom - `IN` atom with a `TEXT_IGNORE_CASE` comparison and folded values.
 	 * @returns {IApiAuthorizationIamPredicateLowered} The lowered atom.
 	 */
 	protected override lowerIgnoreCaseIn(atom: IApiAuthorizationIamPredicateIn): IApiAuthorizationIamPredicateLowered {
-		const value: TApiAuthorizationIamPredicateValue | undefined = atom.values[0];
-
-		if (typeof value !== "string" || atom.values.length !== 1 || atom.column.field.column?.family !== EApiAuthorizationIamColumnFamily.TEXT || atom.column.field.column.hasTransformer) {
+		if (atom.values.length === 0 || atom.values.some((value: TApiAuthorizationIamPredicateValue): boolean => typeof value !== "string") || atom.column.field.column?.family !== EApiAuthorizationIamColumnFamily.TEXT || atom.column.field.column.hasTransformer) {
 			return { isExact: false };
 		}
 
-		const pattern: string = value.replaceAll(IAM_SQLITE_LOWERER_GLOB_SPECIAL, "[$&]").replaceAll(/[a-z]/g, (letter: string): string => `[${letter}${letter.toUpperCase()}]`);
-		const parameterName: string = this.createParameterName("glob", pattern);
+		const parameters: Record<string, string> = {};
 
-		return { isExact: true, operand: Raw((columnAlias: string): string => `${columnAlias} ${atom.isNegated ? "NOT GLOB" : "GLOB"} :${parameterName}`, { [parameterName]: pattern }) };
+		for (const value of atom.values as ReadonlyArray<string>) {
+			const pattern: string = value.replaceAll(IAM_SQLITE_LOWERER_GLOB_SPECIAL, "[$&]").replaceAll(/[a-z]/g, (letter: string): string => `[${letter}${letter.toUpperCase()}]`);
+
+			parameters[this.createParameterName("glob", pattern)] = pattern;
+		}
+
+		const parameterNames: Array<string> = Object.keys(parameters);
+
+		return {
+			isExact: true,
+			operand: Raw((columnAlias: string): string => {
+				const operator: string = atom.isNegated ? "NOT GLOB" : "GLOB";
+				const comparisons: string = parameterNames.map((parameterName: string): string => `${columnAlias} ${operator} :${parameterName}`).join(atom.isNegated ? " AND " : " OR ");
+
+				return parameterNames.length === 1 ? comparisons : `(${comparisons})`;
+			}, parameters),
+		};
 	}
 
 	/**

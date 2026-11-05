@@ -6,7 +6,7 @@ import { ApiAuthorizationIamGlob } from "@class/api/authorization/iam/glob.class
 import { ApiAuthorizationIamNetwork } from "@class/api/authorization/iam/network.class";
 import { ApiAuthorizationIamVariable } from "@class/api/authorization/iam/variable.class";
 import { AUTHORIZATION_POLICY_CONDITION_OPERATOR_CONSTANT } from "@constant/class/authorization";
-import { EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType, EApiPolicyConditionOperatorFamily } from "@enum/class/authorization";
+import { EApiAuthorizationIamPredicateOperator, EApiAuthorizationIamTokenType, EApiPolicyConditionOperatorFamily, EApiPolicyConditionQualifier } from "@enum/class/authorization";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 
 // What a Numeric column holds above every number: PostgreSQL sorts `NaN` above `Infinity`, and no literal names either.
@@ -31,32 +31,74 @@ const IAM_OPERATOR_BELOW_EVERY_NUMBER: ReadonlySet<unknown> = new Set<unknown>([
  * On a missing or NULL value a positive operator of the last five families gives false and a negated one true. `IfExists`
  * holds on a missing value, while on a NULL column the base operator applies. A list, an object or a value that does not
  * parse for the family cannot be read.
+ *
+ * A key with several values holds on a positive operator when any value matches, and on a negated one when none does.
+ * One value that cannot be compared leaves the whole key unread, whatever the others say.
+ *
+ * A key with a set qualifier reads a set: `ForAnyValue` holds when some element holds, and `ForAllValues` when every element
+ * does. A missing or NULL value and an empty list are the empty set, on which `ForAnyValue` fails and `ForAllValues` holds,
+ * while `IfExists` holds on it either way. One element that cannot be read leaves the whole key unread. A NULL column in a
+ * set compares as the operator compares a NULL column; a request's list holds no such element, so it cannot be read.
  */
 export class ApiAuthorizationIamOperator {
 	/**
 	 * Evaluates one condition key against the value it reads.
 	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
 	 * @param {unknown} actual - Value the key reads: undefined when it is missing, null when a column holds NULL.
-	 * @param {IApiAuthorizationIamOperand} operand - Operand of the key, from `readOperand`.
+	 * @param {ReadonlyArray<IApiAuthorizationIamOperand>} operands - Operands of the key, from `readOperands`.
 	 * @param {boolean} isColumn - Whether the value comes from a database column, and not from the request: a column may also hold a value only a database has, such as `NaN`, and its address keeps the family it was stored in.
 	 * @returns {boolean | undefined} Whether the key holds, or undefined when the value cannot be read.
 	 */
-	public static evaluate(condition: IApiAuthorizationIamCondition, actual: unknown, operand: IApiAuthorizationIamOperand, isColumn: boolean): boolean | undefined {
+	public static evaluate(condition: IApiAuthorizationIamCondition, actual: unknown, operands: ReadonlyArray<IApiAuthorizationIamOperand>, isColumn: boolean): boolean | undefined {
 		if (condition.family === EApiPolicyConditionOperatorFamily.NULL) {
-			return (actual === undefined || actual === null) === operand.isTrue;
+			const isAbsent: boolean = actual === undefined || actual === null;
+
+			return operands.some((operand: IApiAuthorizationIamOperand): boolean => isAbsent === operand.isTrue);
 		}
 
 		if (condition.isIfExists && actual === undefined) {
 			return true;
 		}
 
-		const isHolding: boolean | undefined = ApiAuthorizationIamOperator.evaluatePositive(condition, actual, operand, isColumn);
+		return ApiAuthorizationIamOperator.evaluateValue(condition, actual, operands, isColumn);
+	}
 
-		if (isHolding === undefined) {
-			return undefined;
+	/**
+	 * Evaluates one condition key with a set qualifier against the set it reads, as the class comment says.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {unknown} actual - Value the key reads: a list, one value that stands for a set of one, or a missing or NULL value that stands for the empty set.
+	 * @param {ReadonlyArray<IApiAuthorizationIamOperand>} operands - Operands of the key, from `readOperands`.
+	 * @param {boolean} isColumn - Whether the elements come from database columns.
+	 * @returns {boolean | undefined} Whether the key holds, or undefined when an element cannot be read.
+	 */
+	public static evaluateSet(condition: IApiAuthorizationIamCondition, actual: unknown, operands: ReadonlyArray<IApiAuthorizationIamOperand>, isColumn: boolean): boolean | undefined {
+		let elements: ReadonlyArray<unknown>;
+
+		if (actual === undefined || actual === null) {
+			elements = [];
+		} else {
+			elements = Array.isArray(actual) ? (actual as ReadonlyArray<unknown>) : [actual];
 		}
 
-		return condition.isNegated ? !isHolding : isHolding;
+		if (elements.length === 0) {
+			return condition.isIfExists || condition.qualifier === EApiPolicyConditionQualifier.FOR_ALL_VALUES;
+		}
+
+		let hasHolding: boolean = false;
+		let hasFailing: boolean = false;
+
+		for (const element of elements) {
+			const isHolding: boolean | undefined = element === undefined || (element === null && !isColumn) ? undefined : ApiAuthorizationIamOperator.evaluateValue(condition, element, operands, isColumn);
+
+			if (isHolding === undefined) {
+				return undefined;
+			}
+
+			hasHolding ||= isHolding;
+			hasFailing ||= !isHolding;
+		}
+
+		return condition.qualifier === EApiPolicyConditionQualifier.FOR_ALL_VALUES ? !hasFailing : hasHolding;
 	}
 
 	/**
@@ -69,74 +111,29 @@ export class ApiAuthorizationIamOperator {
 	}
 
 	/**
-	 * Resolves the value of a condition key against the request, in the form its family compares.
+	 * Resolves every value of a condition key against the request, in the form its family compares.
 	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
 	 * @param {unknown} context - Evaluation context with the `principal`, `request` and `resource` roots.
-	 * @returns {IApiAuthorizationIamOperand | undefined} The operand, or undefined when a variable does not resolve or resolves to what the family cannot read, which fails the key closed.
+	 * @returns {Array<IApiAuthorizationIamOperand> | undefined} One operand per value, or undefined when a variable of any value does not resolve or resolves to what the family cannot read, which fails the key closed.
 	 */
-	public static readOperand(condition: IApiAuthorizationIamCondition, context: unknown): IApiAuthorizationIamOperand | undefined {
-		// The grammar gives a key one value until several values reach the engine.
-		const value: IApiAuthorizationIamConditionValue | undefined = condition.values[0];
-
-		if (!value) {
+	public static readOperands(condition: IApiAuthorizationIamCondition, context: unknown): Array<IApiAuthorizationIamOperand> | undefined {
+		if (condition.values.length === 0) {
 			return undefined;
 		}
 
-		switch (condition.family) {
-			case EApiPolicyConditionOperatorFamily.ARN:
-			// falls through
+		const operands: Array<IApiAuthorizationIamOperand> = [];
 
-			case EApiPolicyConditionOperatorFamily.STRING_LIKE: {
-				const pattern: Array<IApiAuthorizationIamToken> | undefined = ApiAuthorizationIamVariable.resolveTokens(typeof value.source === "string" ? value.parts : [{ type: EApiAuthorizationIamTokenType.LITERAL, value: String(value.source) }], context);
+		for (const value of condition.values) {
+			const operand: IApiAuthorizationIamOperand | undefined = ApiAuthorizationIamOperator.readOperand(condition, value, context);
 
-				return pattern ? { pattern } : undefined;
+			if (!operand) {
+				return undefined;
 			}
 
-			case EApiPolicyConditionOperatorFamily.BOOL:
-			// falls through
-
-			case EApiPolicyConditionOperatorFamily.NULL: {
-				const isTrue: boolean | undefined = ApiAuthorizationIamOperator.readBoolean(ApiAuthorizationIamVariable.resolveValue(value, context));
-
-				return isTrue === undefined ? undefined : { isTrue };
-			}
-
-			case EApiPolicyConditionOperatorFamily.DATE: {
-				const date: IApiAuthorizationIamDateValue | undefined = ApiAuthorizationIamDateValue.parse(ApiAuthorizationIamVariable.resolveValue(value, context));
-
-				return date ? { date } : undefined;
-			}
-
-			case EApiPolicyConditionOperatorFamily.IP_ADDRESS: {
-				const resolved: unknown = ApiAuthorizationIamVariable.resolveValue(value, context);
-				const network: IApiAuthorizationIamNetwork | undefined = typeof resolved === "string" ? ApiAuthorizationIamNetwork.parse(resolved) : undefined;
-
-				if (!network) {
-					return undefined;
-				}
-
-				// A value a request carries may be IPv4-mapped; one a document writes means what it says.
-				return { network: value.parts.some((part: IApiAuthorizationIamToken): boolean => part.type === EApiAuthorizationIamTokenType.VARIABLE) ? ApiAuthorizationIamNetwork.unmap(network) : network };
-			}
-
-			case EApiPolicyConditionOperatorFamily.NUMERIC: {
-				const decimal: IApiAuthorizationIamDecimal | undefined = ApiAuthorizationIamDecimal.parseOperand(ApiAuthorizationIamVariable.resolveValue(value, context));
-
-				return decimal ? { decimal } : undefined;
-			}
-
-			case EApiPolicyConditionOperatorFamily.STRING: {
-				const text: string | undefined = AuthorizationSerializeValue(ApiAuthorizationIamVariable.resolveValue(value, context));
-
-				return text === undefined ? undefined : { text };
-			}
-
-			case EApiPolicyConditionOperatorFamily.STRING_IGNORE_CASE: {
-				const text: string | undefined = AuthorizationSerializeValue(ApiAuthorizationIamVariable.resolveValue(value, context));
-
-				return text === undefined ? undefined : { text: ApiAuthorizationIamOperator.foldCase(text) };
-			}
+			operands.push(operand);
 		}
+
+		return operands;
 	}
 
 	/**
@@ -322,6 +319,30 @@ export class ApiAuthorizationIamOperator {
 	}
 
 	/**
+	 * Evaluates one value against every operand: whether any matches, or, for a negated operator, whether none does.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {unknown} actual - Value to compare.
+	 * @param {ReadonlyArray<IApiAuthorizationIamOperand>} operands - Operands of the key.
+	 * @param {boolean} isColumn - Whether the value comes from a database column.
+	 * @returns {boolean | undefined} Whether the operator holds, or undefined when the value cannot be read.
+	 */
+	private static evaluateValue(condition: IApiAuthorizationIamCondition, actual: unknown, operands: ReadonlyArray<IApiAuthorizationIamOperand>, isColumn: boolean): boolean | undefined {
+		let hasMatch: boolean = false;
+
+		for (const operand of operands) {
+			const isMatching: boolean | undefined = ApiAuthorizationIamOperator.evaluatePositive(condition, actual, operand, isColumn);
+
+			if (isMatching === undefined) {
+				return undefined;
+			}
+
+			hasMatch ||= isMatching;
+		}
+
+		return condition.isNegated ? !hasMatch : hasMatch;
+	}
+
+	/**
 	 * Reads a boolean strictly: `true`, `false` or that exact text.
 	 * @param {unknown} value - Value to read.
 	 * @returns {boolean | undefined} The boolean, or undefined when the value is none.
@@ -336,5 +357,70 @@ export class ApiAuthorizationIamOperator {
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * Resolves one value of a condition key against the request, in the form its family compares.
+	 * @param {IApiAuthorizationIamCondition} condition - Condition key read by the grammar.
+	 * @param {IApiAuthorizationIamConditionValue} value - One value of the key.
+	 * @param {unknown} context - Evaluation context with the `principal`, `request` and `resource` roots.
+	 * @returns {IApiAuthorizationIamOperand | undefined} The operand, or undefined when a variable does not resolve or resolves to what the family cannot read.
+	 */
+	private static readOperand(condition: IApiAuthorizationIamCondition, value: IApiAuthorizationIamConditionValue, context: unknown): IApiAuthorizationIamOperand | undefined {
+		switch (condition.family) {
+			case EApiPolicyConditionOperatorFamily.ARN:
+			// falls through
+
+			case EApiPolicyConditionOperatorFamily.STRING_LIKE: {
+				const pattern: Array<IApiAuthorizationIamToken> | undefined = ApiAuthorizationIamVariable.resolveTokens(typeof value.source === "string" ? value.parts : [{ type: EApiAuthorizationIamTokenType.LITERAL, value: String(value.source) }], context);
+
+				return pattern ? { pattern } : undefined;
+			}
+
+			case EApiPolicyConditionOperatorFamily.BOOL:
+			// falls through
+
+			case EApiPolicyConditionOperatorFamily.NULL: {
+				const isTrue: boolean | undefined = ApiAuthorizationIamOperator.readBoolean(ApiAuthorizationIamVariable.resolveValue(value, context));
+
+				return isTrue === undefined ? undefined : { isTrue };
+			}
+
+			case EApiPolicyConditionOperatorFamily.DATE: {
+				const date: IApiAuthorizationIamDateValue | undefined = ApiAuthorizationIamDateValue.parse(ApiAuthorizationIamVariable.resolveValue(value, context));
+
+				return date ? { date } : undefined;
+			}
+
+			case EApiPolicyConditionOperatorFamily.IP_ADDRESS: {
+				const resolved: unknown = ApiAuthorizationIamVariable.resolveValue(value, context);
+				const network: IApiAuthorizationIamNetwork | undefined = typeof resolved === "string" ? ApiAuthorizationIamNetwork.parse(resolved) : undefined;
+
+				if (!network) {
+					return undefined;
+				}
+
+				// A value a request carries may be IPv4-mapped; one a document writes means what it says.
+				return { network: value.parts.some((part: IApiAuthorizationIamToken): boolean => part.type === EApiAuthorizationIamTokenType.VARIABLE) ? ApiAuthorizationIamNetwork.unmap(network) : network };
+			}
+
+			case EApiPolicyConditionOperatorFamily.NUMERIC: {
+				const decimal: IApiAuthorizationIamDecimal | undefined = ApiAuthorizationIamDecimal.parseOperand(ApiAuthorizationIamVariable.resolveValue(value, context));
+
+				return decimal ? { decimal } : undefined;
+			}
+
+			case EApiPolicyConditionOperatorFamily.STRING: {
+				const text: string | undefined = AuthorizationSerializeValue(ApiAuthorizationIamVariable.resolveValue(value, context));
+
+				return text === undefined ? undefined : { text };
+			}
+
+			case EApiPolicyConditionOperatorFamily.STRING_IGNORE_CASE: {
+				const text: string | undefined = AuthorizationSerializeValue(ApiAuthorizationIamVariable.resolveValue(value, context));
+
+				return text === undefined ? undefined : { text: ApiAuthorizationIamOperator.foldCase(text) };
+			}
+		}
 	}
 }

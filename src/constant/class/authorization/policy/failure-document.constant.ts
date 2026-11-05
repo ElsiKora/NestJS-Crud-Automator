@@ -12,6 +12,7 @@ export const AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT: {
 	readonly CONDITION_KEY_UNKNOWN: string;
 	readonly CONDITION_OPERATOR_NOT_ALLOWED: string;
 	readonly CONDITION_OPERATOR_UNKNOWN: string;
+	readonly CONDITION_QUALIFIER_REQUIRED: string;
 	readonly CONDITION_QUALIFIER_UNKNOWN: string;
 	readonly CONDITION_QUALIFIER_UNSUPPORTED: string;
 	readonly CONDITION_VALUE_EMPTY: string;
@@ -53,6 +54,8 @@ export const AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT: {
 	CONDITION_OPERATOR_NOT_ALLOWED: "iamPolicyConditionOperatorNotAllowed",
 	// A name that is no condition operator, or `IfExists` on an operator without that form.
 	CONDITION_OPERATOR_UNKNOWN: "iamPolicyConditionOperatorUnknown",
+	// A `resource.*` key through a to-many relation without `ForAnyValue` or `ForAllValues`: a list of related rows holds no one value.
+	CONDITION_QUALIFIER_REQUIRED: "iamPolicyConditionQualifierRequired",
 	// A qualifier other than `ForAnyValue` and `ForAllValues`.
 	CONDITION_QUALIFIER_UNKNOWN: "iamPolicyConditionQualifierUnknown",
 	// A qualifier on a key that holds one value, or on `Null`.

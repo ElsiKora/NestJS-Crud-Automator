@@ -301,7 +301,8 @@ export class ApiAuthorizationIamParser {
 	/**
 	 * Checks a `resource.*` key against the resource definitions of the namespace: some definition must map it as a
 	 * filterable field, and the operator must fit the column in every definition that maps it, as
-	 * `ApiAuthorizationIamPredicateBuilder.isOperatorFitting` says.
+	 * `ApiAuthorizationIamPredicateBuilder.isOperatorFitting` says. A key through a to-many relation needs a set
+	 * qualifier and fits the column of a related row, and a set qualifier fits nothing else.
 	 * @param {IApiAuthorizationIamCondition} condition - Condition key read so far.
 	 * @param {string} property - Path of the key.
 	 * @param {IApiAuthorizationIamParserScope} scope - Failure scope with the resource definitions.
@@ -328,7 +329,22 @@ export class ApiAuthorizationIamParser {
 		for (const { definition, field } of mappings) {
 			const queryField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(definition.entity, field.queryPath);
 
-			if (!ApiAuthorizationIamParser.isResourceKeyFitting(condition, queryField)) {
+			if (queryField.collectionPath !== undefined && condition.qualifier === undefined) {
+				ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_QUALIFIER_REQUIRED, `Condition key "${condition.key}" maps through the to-many relation "${queryField.collectionPath}" in resource type "${definition.resourceType}", so it needs ForAnyValue or ForAllValues`);
+
+				return;
+			}
+
+			if (queryField.collectionPath === undefined && condition.qualifier !== undefined) {
+				ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_QUALIFIER_UNSUPPORTED, `Condition qualifier "${condition.qualifier}" does not apply to "${condition.key}", which holds one value in resource type "${definition.resourceType}"`);
+
+				return;
+			}
+
+			// A subquery bypasses a value transformer, so a related column with one fits no operator.
+			const isFitting: boolean = queryField.collectionPath === undefined ? ApiAuthorizationIamParser.isResourceKeyFitting(condition, queryField) : queryField.element?.field.column?.hasTransformer === false && ApiAuthorizationIamParser.isResourceKeyFitting(condition, queryField.element.field);
+
+			if (!isFitting) {
 				ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_KEY_TYPE_MISMATCH, `Condition operator "${condition.source}" does not fit the column "${field.queryPath}" that "${condition.key}" maps to in resource type "${definition.resourceType}"`);
 
 				return;
@@ -533,12 +549,8 @@ export class ApiAuthorizationIamParser {
 				ApiAuthorizationIamParser.fail(scope, keyProperty, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.NOT_SUPPORTED_YET, `Condition key "${key}" is not supported yet`);
 			}
 
-			if (operator?.qualifier !== undefined && entry) {
-				if (entry.isMultiValued) {
-					ApiAuthorizationIamParser.fail(scope, keyProperty, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.NOT_SUPPORTED_YET, `Condition qualifier "${operator.qualifier}" is not supported yet`);
-				} else {
-					ApiAuthorizationIamParser.fail(scope, keyProperty, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_QUALIFIER_UNSUPPORTED, `Condition qualifier "${operator.qualifier}" does not apply to "${key}", which holds one value`);
-				}
+			if (operator?.qualifier !== undefined && entry && !entry.isMultiValued) {
+				ApiAuthorizationIamParser.fail(scope, keyProperty, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_QUALIFIER_UNSUPPORTED, `Condition qualifier "${operator.qualifier}" does not apply to "${key}", which holds one value`);
 			}
 
 			if (!operator) {
@@ -848,10 +860,6 @@ export class ApiAuthorizationIamParser {
 			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.CONDITION_VALUE_TOO_MANY, `Condition key must have at most ${AUTHORIZATION_POLICY_CONDITION_OPERATOR_CONSTANT.MAX_VALUES} values`);
 
 			return [];
-		}
-
-		if (input.length > 1) {
-			ApiAuthorizationIamParser.fail(scope, property, AUTHORIZATION_POLICY_DOCUMENT_FAILURE_CONSTANT.NOT_SUPPORTED_YET, "Several values for one condition key are not supported yet");
 		}
 
 		const values: Array<IApiAuthorizationIamConditionValue> = [];
