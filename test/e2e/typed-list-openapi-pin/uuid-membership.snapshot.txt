@@ -532,6 +532,7 @@
 						"readOnly": true
 					},
 					"details": {
+						"type": "object",
 						"description": "Error details",
 						"nullable": false,
 						"oneOf": [

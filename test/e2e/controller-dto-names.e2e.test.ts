@@ -241,7 +241,7 @@ describe("generated DTO names with one controller on an entity (E2E)", () => {
 	});
 
 	it("matches the previous document apart from the generated component names", () => {
-		// Captured on dev at 4a38d328, before the schema prefix rule, with run-dependent examples normalized, the UUID pattern that accepts v1-v8, nil and max, and its error responses and Exception schemas refreshed when they changed. The controller is E2eDtoNameRecordController, so its prefix is E2eDtoNameRecord, and the GET_LIST wrapper is named GetListPageDTO. Its filter [values] arrays then took at least two items; they now take at least one, as in and notin do. Array items of string, UUID and date properties later gained `type: "string"`.
+		// Captured on dev at 4a38d328, before the schema prefix rule, with run-dependent examples normalized, the UUID pattern that accepts v1-v8, nil and max, and its error responses and Exception schemas refreshed when they changed. The controller is E2eDtoNameRecordController, so its prefix is E2eDtoNameRecord, and the GET_LIST wrapper is named GetListPageDTO. Its filter [values] arrays then took at least two items; they now take at least one, as in and notin do. Array items of string, UUID and date properties later gained `type: "string"`. With @nestjs/swagger 12.1.1, a property that declares `type: "object"` beside `oneOf` keeps it, and query array items carry the minLength and maxLength of their property.
 		const previousDocument: unknown = JSON.parse(readFileSync(new URL("controller-dto-names/record.dev-openapi.json", import.meta.url), "utf8"));
 		const renameGenerated = (name: string): string => name.replace(/^E2eDtoNameRecordEntity/, "E2eDtoNameRecord").replace(/GetListResponseItemsDTO$/, "GetListPageDTO");
 

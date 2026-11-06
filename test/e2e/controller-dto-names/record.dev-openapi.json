@@ -181,7 +181,9 @@
 							"items": {
 								"format": "string",
 								"pattern": "^.+$",
-								"type": "string"
+								"type": "string",
+								"maxLength": 64,
+								"minLength": 1
 							}
 						}
 					},
@@ -227,7 +229,9 @@
 							"items": {
 								"format": "string",
 								"pattern": "^.+$",
-								"type": "string"
+								"type": "string",
+								"maxLength": 64,
+								"minLength": 1
 							}
 						}
 					},
@@ -273,7 +277,9 @@
 							"items": {
 								"format": "string",
 								"pattern": "^.+$",
-								"type": "string"
+								"type": "string",
+								"maxLength": 64,
+								"minLength": 1
 							}
 						}
 					}
@@ -818,7 +824,8 @@
 								"Variant": "#/components/schemas/E2eDtoNameRecordEntityCreateBodyDetailsVariantDTO"
 							},
 							"propertyName": "kind"
-						}
+						},
+						"type": "object"
 					},
 					"owner": {
 						"type": "string",
@@ -954,7 +961,8 @@
 							},
 							"propertyName": "kind"
 						},
-						"readOnly": true
+						"readOnly": true,
+						"type": "object"
 					},
 					"owner": {
 						"description": "E2eDtoNameRecordEntity owner",
@@ -1122,7 +1130,8 @@
 							},
 							"propertyName": "kind"
 						},
-						"readOnly": true
+						"readOnly": true,
+						"type": "object"
 					},
 					"owner": {
 						"description": "E2eDtoNameRecordEntity owner",
@@ -1397,7 +1406,8 @@
 							},
 							"propertyName": "kind"
 						},
-						"readOnly": true
+						"readOnly": true,
+						"type": "object"
 					},
 					"owner": {
 						"description": "E2eDtoNameRecordEntity owner",
@@ -1573,7 +1583,8 @@
 								"Variant": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateBodyDetailsVariantDTO"
 							},
 							"propertyName": "kind"
-						}
+						},
+						"type": "object"
 					},
 					"owner": {
 						"type": "string",
@@ -1708,7 +1719,8 @@
 							},
 							"propertyName": "kind"
 						},
-						"readOnly": true
+						"readOnly": true,
+						"type": "object"
 					},
 					"owner": {
 						"description": "E2eDtoNameRecordEntity owner",
@@ -1827,7 +1839,8 @@
 								"Variant": "#/components/schemas/E2eDtoNameRecordEntityUpdateBodyDetailsVariantDTO"
 							},
 							"propertyName": "kind"
-						}
+						},
+						"type": "object"
 					},
 					"owner": {
 						"type": "string",
@@ -1963,7 +1976,8 @@
 							},
 							"propertyName": "kind"
 						},
-						"readOnly": true
+						"readOnly": true,
+						"type": "object"
 					},
 					"owner": {
 						"description": "E2eDtoNameRecordEntity owner",
@@ -2036,7 +2050,8 @@
 								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
 							}
 						],
-						"readOnly": true
+						"readOnly": true,
+						"type": "object"
 					},
 					"error": {
 						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
@@ -2234,7 +2249,8 @@
 								"$ref": "#/components/schemas/ExceptionDetailsToManyUpdateKeyDTO"
 							}
 						],
-						"readOnly": true
+						"readOnly": true,
+						"type": "object"
 					},
 					"error": {
 						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
