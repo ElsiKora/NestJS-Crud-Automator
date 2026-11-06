@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { TRowPathDriver } from "./row-path/fixture";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
+import { ExpectBodyParameterRefusal, WatchBodyParameterRefusals } from "./body-parameter-refusal";
 import { ROW_PATH_SINGLE_DATE_FIXTURES } from "./row-path/single-date-relation.fixture";
 import { ROW_PATH_SINGLE_ENTITIES, RowPathSingleModule, SINGLE_TENANT_OTHER, SINGLE_TENANT_PINNED } from "./row-path/single-relation.fixture";
 
@@ -40,6 +41,8 @@ const PIPES: Record<TPipe, Array<Provider>> = {
 };
 
 describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one column of the entity's own column on %s (E2E)", (driver: TRowPathDriver) => {
+	WatchBodyParameterRefusals();
+
 	let container: StartedPostgreSqlContainer | undefined;
 
 	beforeAll(async () => {
@@ -112,7 +115,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 			expect(response.statusCode).toBe(400);
 
 			if (pipe === "none" && reason) {
-				expect(response.json()).toMatchObject({ details: { propertyName: "tenant", reason }, message: "PARAMETERS_NOT_VALID" });
+				ExpectBodyParameterRefusal(response.json(), "tenant", reason);
 			}
 		};
 
@@ -283,7 +286,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toMatchObject({ details: { propertyName: "slot", reason: CONFLICT_REASON } });
+					ExpectBodyParameterRefusal(response.json(), "slot", CONFLICT_REASON);
 				}
 
 				expect(await dateRows("row_path_single_date_events", "eventAt")).toEqual([]);
@@ -329,7 +332,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toMatchObject({ details: { propertyName: "slot", reason: COMPONENT_REASON } });
+					ExpectBodyParameterRefusal(response.json(), "slot", COMPONENT_REASON);
 				}
 
 				expect(await dateRows("row_path_single_date_events", "eventAt")).toEqual([]);
@@ -396,7 +399,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toMatchObject({ details: { propertyName: "tenantId", reason: PATH_MISMATCH_REASON } });
+					ExpectBodyParameterRefusal(response.json(), "tenantId", PATH_MISMATCH_REASON);
 				}
 
 				expect(await rows("row_path_single_key_children")).toEqual(seeded);

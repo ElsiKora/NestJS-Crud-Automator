@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { TRowPathDriver, TRowPathFixture } from "./row-path/fixture";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
+import { BODY_PARAMETER_REFUSAL_BODY, ExpectBodyParameterRefusal, WatchBodyParameterRefusals } from "./body-parameter-refusal";
 import { ROW_PATH_KEY_FIXTURES, RowPathKeyItemRouteSubscriber } from "./row-path/keys.fixture";
 
 type TPipe = "forbid" | "none" | "transform" | "whitelist";
@@ -35,6 +36,8 @@ const PIPES: Record<TPipe, Array<Provider>> = {
 
 describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and the reload on %s (E2E)", (driver: TRowPathDriver) => {
 	let container: StartedPostgreSqlContainer | undefined;
+
+	WatchBodyParameterRefusals();
 
 	beforeAll(async () => {
 		container = driver === "postgres" ? await new PostgreSqlContainer("postgres:17-alpine").start() : undefined;
@@ -236,7 +239,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toEqual({ details: { propertyName: "parent", reason: "a relation over several columns must be sent as an object naming its join columns; clear it with parentId: null" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+					ExpectBodyParameterRefusal(response.json(), "parent", "a relation over several columns must be sent as an object naming its join columns; clear it with parentId: null");
 				}
 
 				expect(await children()).toEqual(unchanged);
@@ -257,15 +260,19 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 
 			// A number reaches the key column, and the create checks it there as it checks the column itself; an array names no single value of the column, so the split refuses it first.
 			it.each([
-				[Date.parse(SLOT), { error: "Bad Request", message: ["at must be a valid ISO 8601 date-time"], statusCode: 400 }],
-				[[SLOT], { details: { propertyName: "slot", reason: "a relation must name each of its join columns by a single value" }, message: "PARAMETERS_NOT_VALID" }],
-			])("CREATE with the relation instant %j answers 400 and adds no row", async (at: unknown, refusal: object) => {
+				[Date.parse(SLOT), { error: "Bad Request", message: ["at must be a valid ISO 8601 date-time"], statusCode: 400 }, undefined],
+				[[SLOT], BODY_PARAMETER_REFUSAL_BODY, "a relation must name each of its join columns by a single value"],
+			])("CREATE with the relation instant %j answers 400 and adds no row", async (at: unknown, refusal: object, reason: string | undefined) => {
 				const response: TResponse = await send("POST", "/tenant/T1/booking", { id: "B1", slot: { at } });
 
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toMatchObject(refusal);
+					if (reason === undefined) {
+						expect(response.json()).toEqual(refusal);
+					} else {
+						ExpectBodyParameterRefusal(response.json(), "slot", reason);
+					}
 				}
 
 				expect(await bookings()).toEqual([]);
@@ -315,7 +322,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toEqual({ details: { propertyName: "slot", reason: "a relation over several columns must be sent as an object naming its join columns; it cannot be cleared, because its columns are in the primary key" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+					ExpectBodyParameterRefusal(response.json(), "slot", "a relation over several columns must be sent as an object naming its join columns; it cannot be cleared, because its columns are in the primary key");
 				}
 
 				expect(await bookings()).toEqual(["B1"]);
@@ -356,7 +363,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toEqual({ details: { propertyName: "parent", reason: "relation must name the same value as the entity's own column" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+					ExpectBodyParameterRefusal(response.json(), "parent", "relation must name the same value as the entity's own column");
 				}
 
 				expect(response.body).not.toContain("T2");
@@ -412,7 +419,7 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 				expect(response.statusCode).toBe(400);
 
 				if (pipe === "none") {
-					expect(response.json()).toMatchObject({ details: { propertyName: "slot", reason } });
+					ExpectBodyParameterRefusal(response.json(), "slot", reason);
 				}
 
 				expect(await bookings()).toEqual([]);

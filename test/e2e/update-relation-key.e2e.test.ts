@@ -8,6 +8,7 @@ import type { StartedTestContainer } from "testcontainers";
 import type { EntityManager, Relation, Repository } from "typeorm";
 
 import type { IApiPolicyDocumentRecord, IApiPolicyStatement, TApiSubscriberFunctionAfterUpdateContext, TApiSubscriberFunctionBeforeUpdateContext } from "../../src/index";
+import { ExpectBodyParameterRefusal, WatchBodyParameterRefusals } from "./body-parameter-refusal";
 
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
@@ -493,6 +494,8 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 	{ database: "mysql", databaseName: "MySQL 8.4" },
 	{ database: "mariadb", databaseName: "MariaDB 11" },
 ])("Changing a relation through PUT and PATCH on $databaseName (E2E)", ({ database }: { database: TDatabase; databaseName: string }) => {
+	WatchBodyParameterRefusals();
+
 	let app: INestApplication | undefined;
 	let fastify: { inject: (options: { headers?: Record<string, string>; method: string; payload?: object; url: string }) => Promise<{ json: () => Record<string, unknown>; statusCode: number }> };
 	let manager: EntityManager;
@@ -718,7 +721,7 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 			const response = await send("PATCH", ITEMS, body);
 
 			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
-			expect(response.json()).toMatchObject({ details: { propertyName, reason: expect.stringContaining("same value") as string } });
+			ExpectBodyParameterRefusal(response.json(), propertyName, "relation must name the same value as the entity's own column");
 			await expectUnchanged();
 			expect(subscriberState.before).toHaveLength(0);
 		});
@@ -737,7 +740,7 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 			const response = await send("PATCH", ITEMS, body);
 
 			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
-			expect(response.json()).toMatchObject({ details: { type: "FOREIGN_KEY_VIOLATION" } });
+			expect(response.json()).toEqual({ details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Bad Request", message: "RELKEYITEMENTITY_REFERENCE_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
 			await expectUnchanged();
 		});
 

@@ -7,10 +7,11 @@ import { ApiFunctionTransactionScope } from "@class/api/function/transaction/sco
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionCreate } from "@decorator/api/function/create.decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
-import { HttpStatus } from "@nestjs/common";
+import { BadRequestException, HttpStatus } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createTransactionFixture } from "@test/unit/fixture";
+import { LoggerUtility } from "@utility/logger.utility";
 
 class CreateEntity {
 	public id?: string;
@@ -149,17 +150,29 @@ describe("ApiFunctionCreate", () => {
 		await expect(service.create({ name: "dup" } as CreateEntity)).rejects.toMatchObject({ status: HttpStatus.CONFLICT });
 	});
 
-	it("maps foreign key violations to bad request", async () => {
+	it.each([
+		["PostgreSQL", { code: "23503", constraint: "FK_owner", detail: 'Key (ownerId)=(owner-9) is not present in table "owners".', message: 'insert or update on table "items" violates foreign key constraint "FK_owner"', table: "items" }],
+		["MySQL", { code: "ER_NO_REFERENCED_ROW_2", errno: 1452, message: "Cannot add or update a child row: a foreign key constraint fails (`db`.`items`, CONSTRAINT `FK_owner` FOREIGN KEY (`ownerId`) REFERENCES `owners` (`id`))" }],
+		["SQLite", { code: "SQLITE_CONSTRAINT_FOREIGNKEY", message: "FOREIGN KEY constraint failed" }],
+	])("answers a missing reference on %s with the code-only 400 and passes it to the error subscribers", async (_driver: string, driverError: Record<string, unknown>) => {
 		const repository = {
 			save: vi.fn(async () => {
-				throw buildQueryFailedError("23503", "violates foreign key constraint");
+				throw { driverError, message: driverError.message, name: "QueryFailedError" };
 			}),
 		} as unknown as Repository<CreateEntity>;
 		const service = new CreateService(repository);
+		const verbose = vi.spyOn(LoggerUtility.prototype, "verbose").mockImplementation(() => undefined);
 
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
-		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+		const errorSubscribers = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 
-		await expect(service.create({ name: "bad-ref" } as CreateEntity)).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+		const refusal: unknown = await service.create({ name: "bad-ref" } as CreateEntity).catch((error: unknown) => error);
+
+		expect(refusal).toBeInstanceOf(BadRequestException);
+		expect((refusal as BadRequestException).getResponse()).toEqual({ details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Bad Request", message: "CREATEENTITY_REFERENCE_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
+		expect(JSON.stringify((refusal as BadRequestException).getResponse())).not.toMatch(/items|owners|FK_owner|owner-9/u);
+		expect((refusal as BadRequestException).cause).toMatchObject({ driverError });
+		expect(errorSubscribers.mock.calls.at(-1)?.at(-1)).toBe(refusal);
+		expect(verbose.mock.calls.map((call: Array<unknown>) => call[0]).join("\n")).toContain("Foreign key violation (reference not valid) for entity CreateEntity");
 	});
 });

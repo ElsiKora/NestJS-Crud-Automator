@@ -21,12 +21,10 @@ import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiFunctionUpdatePersistenceMode } from "@enum/decorator/api/function/update-persistence-mode.enum";
 import { EErrorStringAction } from "@enum/utility";
-import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.enum";
-import { BadRequestException, HttpException, HttpStatus, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 import { DatabaseTypeOrmAssertRequiredWhere } from "@utility/database/typeorm/assert/required-where.utility";
-import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
@@ -34,6 +32,7 @@ import { DatabaseTypeOrmIsUniqueViolation } from "@utility/database/typeorm/is/u
 import { ErrorDuplicateKeyException } from "@utility/error/duplicate-key-exception.utility";
 import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { ErrorForeignKeyException } from "@utility/error/foreign-key-exception.utility";
 import { ErrorString } from "@utility/error/string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { InstanceChecker, IsNull } from "typeorm";
@@ -363,10 +362,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 		}
 
 		if (DatabaseTypeOrmIsForeignKeyViolation(caughtError)) {
-			const message: string = ErrorString({ entity, type: EErrorStringAction.DATABASE_CONSTRAINT_VIOLATION });
-			const detailsBase: ReturnType<typeof DatabaseTypeOrmGetForeignKeyViolationDetails> = DatabaseTypeOrmGetForeignKeyViolationDetails(caughtError);
-			const details: object = detailsBase ? { ...detailsBase, type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION } : { type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION };
-			error = new BadRequestException({ details, error: "Bad Request", message, statusCode: HttpStatus.BAD_REQUEST }, { cause: caughtError });
+			error = ErrorForeignKeyException(entity, EApiFunctionType.UPDATE, caughtError);
 		}
 
 		// SQLite reports a foreign key failure under the constraint code the unique check also reads, so the foreign key answer has to come first.

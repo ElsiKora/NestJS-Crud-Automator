@@ -67,6 +67,7 @@ const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<number, Readonly<Record<string, T
 	[
 		HttpStatus.CONFLICT,
 		{
+			[EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: ExceptionDetailsForeignKeyViolationDTO,
 			[EApiExceptionDetailsType.UNIQUE_VIOLATION]: ExceptionDetailsUniqueViolationDTO,
 		},
 	],

@@ -45,7 +45,7 @@ import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.co
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
-import { BadRequestException, ForbiddenException, HttpStatus, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, InternalServerErrorException } from "@nestjs/common";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListIsHiddenColumn } from "@utility/api/controller/get-list/is-hidden-column.utility";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
@@ -78,6 +78,7 @@ import { DatabaseTypeOrmAssertBackslashEscapes } from "@utility/database/typeorm
 import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeorm/assert/service-repository.utility";
 import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { LoggerUtility } from "@utility/logger.utility";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { Repository } from "typeorm";
@@ -340,13 +341,15 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Builds the refusal of a body field that the path decides. It names the field and the rule, not the value, because the value is the client's.
-	 * @param {string} propertyName - Body property the refusal names.
-	 * @param {string} reason - Rule the property breaks.
+	 * Builds the refusal of a body field that the path decides. The body carries the code only, like `FILTER_NOT_VALID`; the log names the field and the rule, not the value, because the value is the client's.
+	 * @param {string} propertyName - Body property the refusal names in the log.
+	 * @param {string} reason - Rule the property breaks, named in the log.
 	 * @returns {BadRequestException} The refusal.
 	 */
 	private static createBodyParameterException(propertyName: string, reason: string): BadRequestException {
-		return new BadRequestException({ details: { propertyName, reason }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
+		LoggerUtility.getLogger("ApiRouteRuntime").verbose(`Body parameter refused: propertyName=${propertyName} reason=${reason}`);
+
+		return new BadRequestException("PARAMETERS_NOT_VALID");
 	}
 
 	private static async executeCustomErrorSubscribers<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, entityInstance: E, contextData: IApiRouteRuntimeContextData<E>, onType: EApiSubscriberOnType, error: unknown): Promise<void> {

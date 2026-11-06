@@ -152,7 +152,7 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 		expect(() => reject({ [propertyName]: value, title: "changed" })).toThrow(
 			expect.objectContaining({
 				response: {
-					details: { propertyName, reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY },
+					details: { propertyName, type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY },
 					error: "Bad Request",
 					message: "REJECTTOMANYPOST_REFERENCE_NOT_VALID",
 					statusCode: 400,
@@ -166,7 +166,7 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 		["null for an embedded ManyToMany", { meta: { extras: null } }, "meta.extras"],
 		["a ManyToMany in a nested embedded", { meta: { inner: { deepTags: [] } } }, "meta.inner.deepTags"],
 	])("rejects %s by its dotted path", (_name: string, body: Record<string, unknown>, propertyName: string) => {
-		expect(() => reject(body)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName, reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
+		expect(() => reject(body)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName, type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
 	});
 
 	it("accepts embedded columns and embedded objects without a to-many key", () => {
@@ -175,12 +175,12 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 	});
 
 	it.each([null, "tag-1"])("rejects a child entity's to-many key on a table inheritance root route from TypeORM metadata alone (%s)", (value: null | string) => {
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyDetail, { cardTags: value, label: "changed" })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyDetail, { cardTags: value, label: "changed" })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
 	});
 
 	it("rejects its own to-many key on a child entity route and accepts its columns", () => {
 		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { label: "changed" })).not.toThrow();
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { cardTags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { cardTags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
 	});
 
 	it("accepts columns, to-one references, undefined to-many keys and no body", () => {
@@ -193,13 +193,13 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 		const filterRelations = vi.spyOn(storage, "filterRelations");
 		const filterEmbeddeds = vi.spyOn(storage, "filterEmbeddeds");
 
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
 		expect(filterRelations).toHaveBeenCalled();
 
 		filterRelations.mockClear();
 		filterEmbeddeds.mockClear();
 
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
 		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { id: "post-1" })).not.toThrow();
 		expect(filterRelations).not.toHaveBeenCalled();
 		expect(filterEmbeddeds).not.toHaveBeenCalled();
@@ -216,11 +216,11 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 		}
 
 		expect(RejectToManyLateCard.name).toBe("RejectToManyLateCard");
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateDetail, { lateTags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "lateTags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateDetail, { lateTags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "lateTags", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
 	});
 
 	const expectRejected = (entity: Parameters<typeof ApiControllerRejectToManyUpdateKeys>[0], body: Record<string, unknown>, propertyName: string): void => {
-		expect(() => ApiControllerRejectToManyUpdateKeys(entity, body)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName, reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(entity, body)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName, type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY } }) }));
 	};
 
 	it("reads TypeORM metadata again when a late child entity reaches a to-many only through an embedded column", () => {

@@ -27,7 +27,7 @@ export function ApiControllerGetCustomErrorStatuses<E extends IApiBaseEntity>(pr
 /**
  * Resolves every error status a generated route can return with its configuration.
  * Every route can answer `400` (request DTO validation and package checks) and `500`. Row routes answer `404`, and CREATE does when it loads request relations; GET_LIST never does.
- * CREATE and both updates can answer `409`. `ApiMethod` adds the statuses of guards, throttling, and the body parser from the route metadata, and a securable controller adds `403` and the `404` of a CREATE outside its policy scope.
+ * CREATE, both updates and DELETE can answer `409`: a duplicate key on a write, and a row still referenced by another row. `ApiMethod` adds the statuses of guards, throttling, and the body parser from the route metadata, and a securable controller adds `403` and the `404` of a CREATE outside its policy scope.
  * Each request validator the route runs adds the status of its exception.
  * @param {EApiRouteType} routeType - Generated route type.
  * @param {TApiControllerPropertiesRoute<E, EApiRouteType>} routeConfig - Route configuration.
@@ -42,7 +42,7 @@ export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, route
 		statuses.add(HttpStatus.NOT_FOUND);
 	}
 
-	if (routeType === EApiRouteType.CREATE || routeType === EApiRouteType.PARTIAL_UPDATE || routeType === EApiRouteType.UPDATE) {
+	if (routeType === EApiRouteType.CREATE || routeType === EApiRouteType.DELETE || routeType === EApiRouteType.PARTIAL_UPDATE || routeType === EApiRouteType.UPDATE) {
 		statuses.add(HttpStatus.CONFLICT);
 	}
 

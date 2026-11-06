@@ -7,9 +7,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { ApiAuthorizationCacheInvalidationService, AUTHORIZATION_POLICY_REGISTRY_TOKEN, CorrelationIDResponseBodyInterceptor, EApiFunctionTransactionOwnerKind, EApiFunctionTransactionTraceType, EApiFunctionType, EApiRouteType, type IApiAuthorizationPolicyRegistry } from "../../../src/index";
 import { E2E_OWNER_ID, E2E_OWNER_ID_OTHER } from "../app/constants";
+import { ExpectBodyParameterRefusal, WatchBodyParameterRefusals } from "../body-parameter-refusal";
 import { E2eAppModule, E2eCustomRouteSubscriber, E2eEntity, E2eFunctionSubscriber, E2eOwnerService, E2ePolicySubscriber, E2eRouteSubscriber, E2eService } from "../app";
 
 describe("CRUD routes (E2E)", () => {
+	WatchBodyParameterRefusals();
+
 	let app: INestApplication;
 	let cacheInvalidationService: ApiAuthorizationCacheInvalidationService;
 	let policyRegistry: IApiAuthorizationPolicyRegistry;
@@ -1293,7 +1296,7 @@ describe("CRUD routes (E2E)", () => {
 		expect(updateResponse.statusCode).toBe(409);
 	});
 
-	it("returns bad request when deleting owners with relations", async () => {
+	it("returns a code-only conflict when deleting owners with relations", async () => {
 		await createItem({ count: 1, id: "owner-rel-1", name: "OwnerRel" });
 
 		const deleteResponse = await fastify.inject({
@@ -1301,8 +1304,11 @@ describe("CRUD routes (E2E)", () => {
 			method: "DELETE",
 			url: `/owners/${E2E_OWNER_ID}`,
 		});
+		const { correlationID: _correlationID, timestamp: _timestamp, ...codes } = deleteResponse.json() as Record<string, unknown>;
 
-		expect(deleteResponse.statusCode).toBe(400);
+		expect(deleteResponse.statusCode).toBe(409);
+		expect(codes).toEqual({ details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Conflict", message: "E2EOWNERENTITY_REFERENCED", statusCode: 409 });
+		expect(JSON.stringify(deleteResponse.json())).not.toContain(E2E_OWNER_ID);
 	});
 
 	it("adds correlation IDs to error responses", async () => {
@@ -2098,11 +2104,7 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(createResponse.statusCode).toBe(400);
-		expect(createResponse.json()).toMatchObject({
-			details: { propertyName: "owner", reason: "relation must name the same value as the entity's own column" },
-			message: "PARAMETERS_NOT_VALID",
-			statusCode: 400,
-		});
+		ExpectBodyParameterRefusal(createResponse.json(), "owner", "relation must name the same value as the entity's own column");
 	});
 
 	it("fails when signature header is missing", async () => {

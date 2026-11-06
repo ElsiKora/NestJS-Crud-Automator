@@ -7,8 +7,9 @@ import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionUpdate } from "@decorator/api/function/update.decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiFunctionUpdatePersistenceMode } from "@enum/decorator/api/function/update-persistence-mode.enum";
-import { HttpStatus } from "@nestjs/common";
+import { HttpException, HttpStatus } from "@nestjs/common";
 import { createTransactionFixture } from "@test/unit/fixture";
+import { LoggerUtility } from "@utility/logger.utility";
 import { And, Equal, In, IsNull } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -496,19 +497,30 @@ describe("ApiFunctionUpdate", () => {
 		expect(updateErrorProperties).toEqual({ name: "dup" });
 	});
 
-	it("maps foreign key violations to bad request", async () => {
+	it.each([
+		["a missing reference on PostgreSQL", { code: "23503", detail: 'Key (ownerId)=(owner-9) is not present in table "owners".', message: 'insert or update on table "items" violates foreign key constraint "FK_owner"' }, { details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Bad Request", message: "UPDATEENTITY_REFERENCE_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST }],
+		["a missing reference on SQLite", { code: "SQLITE_CONSTRAINT_FOREIGNKEY", message: "FOREIGN KEY constraint failed" }, { details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Bad Request", message: "UPDATEENTITY_REFERENCE_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST }],
+		["a row still referenced on PostgreSQL", { code: "23503", detail: 'Key (id)=(id-1) is still referenced from table "items".', message: 'update or delete on table "owners" violates foreign key constraint "FK_owner" on table "items"' }, { details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Conflict", message: "UPDATEENTITY_REFERENCED", statusCode: HttpStatus.CONFLICT }],
+		["a row still referenced on MySQL", { code: "ER_ROW_IS_REFERENCED_2", errno: 1451, message: "Cannot delete or update a parent row: a foreign key constraint fails" }, { details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Conflict", message: "UPDATEENTITY_REFERENCED", statusCode: HttpStatus.CONFLICT }],
+	])("answers %s with the code-only body and passes it to the error subscribers", async (_name: string, driverError: Record<string, unknown>, body: Record<string, unknown>) => {
 		const repository = {
 			findOne: vi.fn(async () => ({ id: "id-1", name: "old" })),
 			save: vi.fn(async () => {
-				throw buildQueryFailedError("23503", "violates foreign key constraint");
+				throw { driverError, message: driverError.message, name: "QueryFailedError" };
 			}),
 		} as unknown as Repository<UpdateEntity>;
 		const service = buildUpdateService(repository);
 
+		vi.spyOn(LoggerUtility.prototype, "verbose").mockImplementation(() => undefined);
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
-		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+		const errorSubscribers = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 
-		await expect(service.update({ id: "id-1" }, { name: "bad-ref" })).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+		const refusal: unknown = await service.update({ id: "id-1" }, { name: "bad-ref" }).catch((error: unknown) => error);
+
+		expect(refusal).toBeInstanceOf(HttpException);
+		expect((refusal as HttpException).getResponse()).toEqual(body);
+		expect(JSON.stringify((refusal as HttpException).getResponse())).not.toMatch(/items|owners|FK_owner|owner-9|id-1/u);
+		expect(errorSubscribers.mock.calls.at(-1)?.at(-1)).toBe(refusal);
 	});
 });
 

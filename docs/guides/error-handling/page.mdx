@@ -535,16 +535,16 @@ Without the filter, or when a filter of yours handles the failure without `Corre
 
 Generated routes declare exactly the error statuses they can return with their configuration:
 
-| Status | Declared on                         | Returned for                                                                                                                                                         |
-| ------ | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `400`  | every route                         | request DTO validation by your `ValidationPipe`, typed GET_LIST and CURSOR codes, foreign key violations, invalid request relation references, a malformed JSON body |
-| `401`  | routes with a guard                 | your authentication guard                                                                                                                                            |
-| `403`  | routes with a guard that can refuse | `security.authentication` or `execution.guards` returning `false`, and every route of an `@ApiControllerSecurable()` controller with `authorization`                 |
-| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE | a missing row; CREATE declares it too when `relations.request` loads a relation (a missing related row)                                                              |
-| `409`  | CREATE, UPDATE, PARTIAL_UPDATE      | unique violations                                                                                                                                                    |
-| `413`  | every route                         | a body over the body parser limit: 1 MiB by default in Fastify, 100 kB in Express                                                                                    |
-| `415`  | every route                         | a content type Fastify does not accept, or a charset or content encoding Express does not accept                                                                     |
-| `500`  | every route                         | unexpected failures, including a handler, a guard, an authentication guard, or an IAM policy source that throws                                                      |
+| Status | Declared on                            | Returned for                                                                                                                                                               |
+| ------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | every route                            | request DTO validation by your `ValidationPipe`, typed GET_LIST and CURSOR codes, a reference to a missing row, invalid request relation references, a malformed JSON body |
+| `401`  | routes with a guard                    | your authentication guard                                                                                                                                                  |
+| `403`  | routes with a guard that can refuse    | `security.authentication` or `execution.guards` returning `false`, and every route of an `@ApiControllerSecurable()` controller with `authorization`                       |
+| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE    | a missing row; CREATE declares it too when `relations.request` loads a relation (a missing related row)                                                                    |
+| `409`  | CREATE, UPDATE, PARTIAL_UPDATE, DELETE | unique violations, and a row that another row still references                                                                                                             |
+| `413`  | every route                            | a body over the body parser limit: 1 MiB by default in Fastify, 100 kB in Express                                                                                          |
+| `415`  | every route                            | a content type Fastify does not accept, or a charset or content encoding Express does not accept                                                                           |
+| `500`  | every route                            | unexpected failures, including a handler, a guard, an authentication guard, or an IAM policy source that throws                                                            |
 
 GET_LIST never declares `404`. A securable CREATE refuses a body outside the policy scope with `403` and rolls the row back, so it declares no `404` of its own (see [Scoped CREATE](/docs/nestjs-crud-automator/guides/authorization#scoped-create)). Each `request.<target>.validators` entry adds the status of its `exception`, such as `422` for `UnprocessableEntityException`.
 
@@ -573,7 +573,7 @@ Every declared status uses the `Exception<Status>DTO` schema of that status, for
 - `statusCode` and `message` are required on every status;
 - `error` is never required: an object response keeps its own shape, so `throw new NotFoundException()` answers `{ "message": "Not Found", "statusCode": 404 }` plus `correlationID` and `timestamp` when the interceptor or the filter handles it, and a `new HttpException("gone", 404)` from a route subscriber answers `{ "statusCode": 404, "message": "gone" }` without the interceptor;
 - `message` is a string or an array of strings and `error` is a string, with no pattern or length limit;
-- `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `REFERENCE_NOT_VALID`, `TO_MANY_UPDATE_KEY`) and `409` (`UNIQUE_VIOLATION`) and is discriminated by `details.type`: each variant has its own single `type` value, so a body matches exactly one.
+- `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `REFERENCE_NOT_VALID`, `TO_MANY_UPDATE_KEY`) and `409` (`FOREIGN_KEY_VIOLATION`, `UNIQUE_VIOLATION`) and is discriminated by `details.type`: each variant has its own single `type` value, so a body matches exactly one.
 
 ### Fields Without the Exception Filter
 
@@ -626,31 +626,42 @@ Example response:
 
 A create also answers this `409` when it would change a row that already exists, such as a body that names the primary key of an existing row or a cascade that would rename a related row. That refusal comes before any write. A create that loses a race for a new key, and an update that hits a unique column, answer the same body, so a client handles all of them in one place. The original driver error stays in `cause` for your logs: read it with `FormatErrorEvidenceForLog(exception.cause)`. See [Creating with Relations](/docs/nestjs-crud-automator/guides/relations#creating-with-relations).
 
-For other database constraint violations (for example, foreign keys), you can still map `QueryFailedError` to a cleaner HTTP exception in your service:
+### Foreign Key Refusals
 
-```typescript filename="services/user.service.ts" copy
-import type { TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+The built-in create, update and delete functions answer a foreign key violation with one body on every driver. The body holds no driver text, so it names no constraint, table, column or key value. `details` is `{ "type": "FOREIGN_KEY_VIOLATION" }` in both directions, and `message` tells them apart:
 
-import { BadRequestException, Injectable } from "@nestjs/common";
-import { QueryFailedError } from "typeorm";
+| Refusal                                                                             | Status            | `message`                      |
+| ----------------------------------------------------------------------------------- | ----------------- | ------------------------------ |
+| A DELETE of a row that another row still references, such as `onDelete: "RESTRICT"` | `409 Conflict`    | `{ENTITY}_REFERENCED`          |
+| A CREATE or UPDATE that names a related row that does not exist                     | `400 Bad Request` | `{ENTITY}_REFERENCE_NOT_VALID` |
 
-@Injectable()
-export class UserService extends ApiServiceBase<UserEntity> {
-	async create(properties: TApiFunctionCreateProperties<UserEntity>): Promise<UserEntity> {
-		try {
-			return await super.create(properties);
-		} catch (error) {
-			if (error instanceof QueryFailedError) {
-				// PostgreSQL foreign key violation
-				if (error.driverError?.code === "23503") {
-					throw new BadRequestException("Referenced resource does not exist");
-				}
-			}
-			throw error;
-		}
-	}
+A row still referenced:
+
+```json
+{
+	"statusCode": 409,
+	"message": "USER_REFERENCED",
+	"error": "Conflict",
+	"details": { "type": "FOREIGN_KEY_VIOLATION" }
 }
 ```
+
+A missing reference:
+
+```json
+{
+	"statusCode": 400,
+	"message": "POST_REFERENCE_NOT_VALID",
+	"error": "Bad Request",
+	"details": { "type": "FOREIGN_KEY_VIOLATION" }
+}
+```
+
+`CorrelationIDResponseBodyInterceptor` and `CorrelationIDResponseBodyExceptionFilter` add `correlationID` and `timestamp` as on any other error. `{ENTITY}_REFERENCE_NOT_VALID` is also the code of a request relation reference of the wrong shape, so one code means "the reference you sent is not valid".
+
+A DELETE is always "still referenced". A CREATE or UPDATE is a missing reference, unless the driver states the other direction: the PostgreSQL detail `is still referenced from table`, MySQL and MariaDB errno `1451` (`ER_ROW_IS_REFERENCED_2`), or the MSSQL `REFERENCE constraint` conflict. SQLite names no direction, so the operation decides. A composite foreign key and a relation with `eager: true` answer the same bodies.
+
+The driver details go to the server log instead: the function logs the output of `DatabaseTypeOrmGetForeignKeyViolationDetails` (constraint, table, column, key value and the driver detail) with `FormatErrorEvidenceForLog` at the `verbose` level, under `NestJS-Crud-Automator/ApiFunctionCreate`, `ApiFunctionUpdate` or `ApiFunctionDelete`; set `NCD_LOG_LEVEL=verbose` to print it. The driver error stays in `cause`, and `onAfterError` function subscribers receive the `HttpException`.
 
 ## Retry Logic
 
@@ -734,6 +745,19 @@ Update clients and error mappings that match these strings.
 Before 5.0.0, a `409` `UNIQUE_VIOLATION` from create or update copied driver text into `details`: `constraint`, `detail`, `field`, `table` and `value`, and which of them were present depended on the driver. From 5.0.0 those fields are removed, and every duplicate key answers `{ "details": { "type": "UNIQUE_VIOLATION" }, "error": "Conflict", "message": "{ENTITY}_DUPLICATE_KEY", "statusCode": 409 }`, whether the database refused the write or the create refused it first. `ExceptionDetailsUniqueViolationDTO` declares only `type`.
 
 Clients that read the column or the value from `details` must read `message` and `details.type` instead, and tell the user which field clashed from what they sent. Server code that needs the constraint name reads it from `exception.cause` in a filter or a log, never from the response.
+
+### Foreign key and body refusals in 5.3.1
+
+Before 5.3.1, a foreign key violation answered `400` with `message` `{ENTITY}_DATABASE_CONSTRAINT_VIOLATION` and copied driver text into `details`: `constraint`, `detail`, `field`, `referencedField`, `referencedTable`, `table` and `value`. From 5.3.1 these bodies carry codes only:
+
+- a DELETE of a row still referenced answers `409` `{ "details": { "type": "FOREIGN_KEY_VIOLATION" }, "error": "Conflict", "message": "{ENTITY}_REFERENCED", "statusCode": 409 }`;
+- a CREATE or UPDATE that names a missing related row answers `400` `{ "details": { "type": "FOREIGN_KEY_VIOLATION" }, "error": "Bad Request", "message": "{ENTITY}_REFERENCE_NOT_VALID", "statusCode": 400 }`; on SQLite a generated CREATE answered `409` `{ENTITY}_DUPLICATE_KEY` for it before;
+- a body field that the path decides, or a relation that names another row than its key column, answers `400` `{ "error": "Bad Request", "message": "PARAMETERS_NOT_VALID", "statusCode": 400 }`, without `details.propertyName` and `details.reason`; the property and the rule go to the `verbose` log of `NestJS-Crud-Automator/ApiRouteRuntime`;
+- a to-many relation key on an update answers `details: { "propertyName": "tags", "type": "TO_MANY_UPDATE_KEY" }`, without `details.reason`.
+
+The OpenAPI document changes with them: every generated DELETE declares `409`, the `409` details add the `FOREIGN_KEY_VIOLATION` variant, `ExceptionDetailsForeignKeyViolationDTO` declares only `type`, and `ExceptionDetailsToManyUpdateKeyDTO` declares only `propertyName` and `type`. `EErrorStringAction.REFERENCED` is new.
+
+Clients that read the table, the column or the value from `details`, or matched `{ENTITY}_DATABASE_CONSTRAINT_VIOLATION`, must read `message` and `details.type` instead. Server code that needs the constraint name reads it from the log or from `exception.cause`, never from the response.
 
 ### Exception cause
 

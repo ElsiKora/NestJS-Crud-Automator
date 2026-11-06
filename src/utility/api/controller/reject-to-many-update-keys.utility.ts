@@ -11,8 +11,6 @@ import { ErrorString } from "@utility/error/string.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
-const TO_MANY_UPDATE_REJECTION_REASON: string = "to-many reference is not allowed on update";
-
 /** To-many paths per route entity class, split into segments, with the TypeORM table, relation and embedded column counts they were read at. */
 const TO_MANY_PATHS_BY_ENTITY: WeakMap<IApiBaseEntity, { embeddedCount: number; paths: ReadonlyArray<ReadonlyArray<string>>; relationCount: number; tableCount: number }> = new WeakMap<IApiBaseEntity, { embeddedCount: number; paths: ReadonlyArray<ReadonlyArray<string>>; relationCount: number; tableCount: number }>();
 
@@ -38,7 +36,6 @@ export function ApiControllerRejectToManyUpdateKeys<E extends IApiBaseEntity>(en
 		throw new BadRequestException({
 			details: {
 				propertyName: path.join("."),
-				reason: TO_MANY_UPDATE_REJECTION_REASON,
 				type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY,
 			},
 			error: "Bad Request",

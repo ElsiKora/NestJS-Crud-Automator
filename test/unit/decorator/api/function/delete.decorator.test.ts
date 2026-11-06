@@ -6,8 +6,9 @@ import { ApiFunctionTransactionScope } from "@class/api/function/transaction/sco
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionDelete } from "@decorator/api/function/delete.decorator";
 import { EApiFunctionType } from "@enum/decorator/api";
-import { HttpStatus } from "@nestjs/common";
+import { ConflictException, HttpStatus } from "@nestjs/common";
 import { createTransactionFixture } from "@test/unit/fixture";
+import { LoggerUtility } from "@utility/logger.utility";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 const scopeMergeLimit = vi.hoisted((): { branches: number } => ({ branches: Number.POSITIVE_INFINITY }));
@@ -381,18 +382,43 @@ describe("ApiFunctionDelete", () => {
 		expect(errorSpy).toHaveBeenCalled();
 	});
 
-	it("maps foreign key violations to bad request", async () => {
+	it("answers a row still referenced with the code-only 409, logs the driver detail and passes the refusal to the error subscribers", async () => {
+		const driverError = { code: "23503", constraint: "FK_owner_items", detail: 'Key (id)=(id-1) is still referenced from table "items".', message: 'update or delete on table "owners" violates foreign key constraint "FK_owner_items" on table "items"', table: "items" };
 		const repository = {
 			findOne: vi.fn(async () => ({ id: "id-1", name: "old" })),
 			remove: vi.fn(async () => {
-				throw buildQueryFailedError("23503", "violates foreign key constraint");
+				throw { driverError, message: driverError.message, name: "QueryFailedError" };
+			}),
+		} as unknown as Repository<DeleteEntity>;
+		const service = buildDeleteService(repository);
+		const verbose = vi.spyOn(LoggerUtility.prototype, "verbose").mockImplementation(() => undefined);
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+		const errorSubscribers = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+
+		const refusal: unknown = await service.delete({ id: "id-1" }).catch((error: unknown) => error);
+
+		expect(refusal).toBeInstanceOf(ConflictException);
+		expect((refusal as ConflictException).getResponse()).toEqual({ details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Conflict", message: "DELETEENTITY_REFERENCED", statusCode: HttpStatus.CONFLICT });
+		expect(JSON.stringify((refusal as ConflictException).getResponse())).not.toMatch(/items|owners|FK_owner_items|id-1/u);
+		expect((refusal as ConflictException).cause).toMatchObject({ driverError });
+		expect(errorSubscribers.mock.calls.at(-1)?.at(-1)).toBe(refusal);
+		expect(verbose.mock.calls.map((call: Array<unknown>) => call[0]).join("\n")).toMatch(/Foreign key violation \(still referenced\) for entity DeleteEntity: errorType=QueryFailedError sqlState=23503 details=.*FK_owner_items.*is still referenced from table/u);
+	});
+
+	it("answers 409 for a foreign key violation on delete whatever direction the driver names", async () => {
+		const repository = {
+			findOne: vi.fn(async () => ({ id: "id-1", name: "old" })),
+			remove: vi.fn(async () => {
+				throw buildQueryFailedError("SQLITE_CONSTRAINT_FOREIGNKEY", "FOREIGN KEY constraint failed");
 			}),
 		} as unknown as Repository<DeleteEntity>;
 		const service = buildDeleteService(repository);
 
+		vi.spyOn(LoggerUtility.prototype, "verbose").mockImplementation(() => undefined);
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 
-		await expect(service.delete({ id: "id-1" })).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+		await expect(service.delete({ id: "id-1" })).rejects.toMatchObject({ response: { details: { type: "FOREIGN_KEY_VIOLATION" }, error: "Conflict", message: "DELETEENTITY_REFERENCED", statusCode: HttpStatus.CONFLICT }, status: HttpStatus.CONFLICT });
 	});
 });

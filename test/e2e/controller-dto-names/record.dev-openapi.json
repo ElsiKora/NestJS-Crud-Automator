@@ -408,6 +408,16 @@
 							}
 						},
 						"description": "Unsupported Media Type"
+					},
+					"409": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionConflictDTO"
+								}
+							}
+						},
+						"description": "Conflict"
 					}
 				},
 				"summary": "Delete `E2eDtoNameRecord`",
@@ -1970,88 +1980,11 @@
 			},
 			"ExceptionDetailsForeignKeyViolationDTO": {
 				"properties": {
-					"constraint": {
-						"description": "ErrorDetails ",
-						"example": "FK_5bc39ec0540f37ff97f5aba36e1",
-						"format": "string",
-						"maxLength": 128,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true,
-						"type": "string"
-					},
-					"detail": {
-						"description": "ErrorDetails ",
-						"example": "Key (user_id)=(123) is not present in table \"user\".",
-						"format": "string",
-						"maxLength": 1024,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true,
-						"type": "string"
-					},
-					"field": {
-						"description": "ErrorDetails ",
-						"example": "user_id",
-						"format": "string",
-						"maxLength": 128,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true,
-						"type": "string"
-					},
-					"referencedField": {
-						"description": "ErrorDetails ",
-						"example": "id",
-						"format": "string",
-						"maxLength": 128,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true,
-						"type": "string"
-					},
-					"referencedTable": {
-						"description": "ErrorDetails ",
-						"example": "user",
-						"format": "string",
-						"maxLength": 128,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true,
-						"type": "string"
-					},
-					"table": {
-						"description": "ErrorDetails ",
-						"example": "user_balance",
-						"format": "string",
-						"maxLength": 128,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true,
-						"type": "string"
-					},
 					"type": {
 						"description": "ErrorDetails ",
 						"enum": ["FOREIGN_KEY_VIOLATION"],
 						"example": "FOREIGN_KEY_VIOLATION",
 						"nullable": false,
-						"readOnly": true,
-						"type": "string"
-					},
-					"value": {
-						"description": "ErrorDetails ",
-						"example": "123",
-						"format": "string",
-						"maxLength": 1024,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,1024}$",
 						"readOnly": true,
 						"type": "string"
 					}
@@ -2089,12 +2022,16 @@
 						"description": "Error details",
 						"discriminator": {
 							"mapping": {
+								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
 								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
 							},
 							"propertyName": "type"
 						},
 						"nullable": false,
 						"oneOf": [
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
+							},
 							{
 								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
 							}
@@ -2402,17 +2339,6 @@
 						"readOnly": true,
 						"type": "string"
 					},
-					"reason": {
-						"description": "ErrorDetails ",
-						"example": "to-many reference is not allowed on update",
-						"format": "string",
-						"maxLength": 1024,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true,
-						"type": "string"
-					},
 					"type": {
 						"description": "ErrorDetails ",
 						"enum": ["TO_MANY_UPDATE_KEY"],
@@ -2422,7 +2348,7 @@
 						"type": "string"
 					}
 				},
-				"required": ["propertyName", "reason", "type"],
+				"required": ["propertyName", "type"],
 				"type": "object"
 			},
 			"ExceptionPayloadTooLargeDTO": {

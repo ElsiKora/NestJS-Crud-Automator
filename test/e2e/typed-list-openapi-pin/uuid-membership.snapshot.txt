@@ -419,72 +419,6 @@
 			"ExceptionDetailsForeignKeyViolationDTO": {
 				"type": "object",
 				"properties": {
-					"constraint": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
-						"example": "FK_5bc39ec0540f37ff97f5aba36e1",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
-					},
-					"detail": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 1024,
-						"minLength": 0,
-						"example": "Key (user_id)=(123) is not present in table \"user\".",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true
-					},
-					"field": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
-						"example": "user_id",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
-					},
-					"referencedField": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
-						"example": "id",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
-					},
-					"referencedTable": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
-						"example": "user",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
-					},
-					"table": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
-						"example": "user_balance",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
-					},
 					"type": {
 						"type": "string",
 						"description": "ErrorDetails ",
@@ -493,17 +427,6 @@
 						"enum": [
 							"FOREIGN_KEY_VIOLATION"
 						],
-						"readOnly": true
-					},
-					"value": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 1024,
-						"minLength": 0,
-						"example": "123",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,1024}$",
 						"readOnly": true
 					}
 				},
@@ -579,17 +502,6 @@
 						"pattern": "^[\\s\\S]{0,1024}$",
 						"readOnly": true
 					},
-					"reason": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 1024,
-						"minLength": 0,
-						"example": "to-many reference is not allowed on update",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true
-					},
 					"type": {
 						"type": "string",
 						"description": "ErrorDetails ",
@@ -603,7 +515,6 @@
 				},
 				"required": [
 					"propertyName",
-					"reason",
 					"type"
 				]
 			},

@@ -25,18 +25,6 @@ export class ExceptionDetailsToManyUpdateKeyDTO {
 	})
 	propertyName!: string;
 
-	@ApiPropertyString({
-		entity: DETAILS_ENTITY,
-		exampleValue: "to-many reference is not allowed on update",
-		format: EApiPropertyStringType.STRING,
-		isRequired: true,
-		isResponse: true,
-		maxLength: DETAILS_MAX_LENGTH_DETAIL,
-		minLength: DETAILS_MIN_LENGTH,
-		pattern: DETAILS_PATTERN_DETAIL,
-	})
-	reason!: string;
-
 	@ApiPropertyEnum({
 		entity: DETAILS_ENTITY,
 		enum: { TO_MANY_UPDATE_KEY: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY },

@@ -15,7 +15,7 @@ import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Ajv } from "ajv";
 import addFormats from "ajv-formats";
-import { Column, Entity, JoinColumn, LessThan, ManyToOne, PrimaryColumn } from "typeorm";
+import { Column, DataSource, Entity, JoinColumn, LessThan, ManyToOne, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IApiAuthenticationRequest, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
@@ -133,6 +133,27 @@ class OpenApiErrorSecuredItemEntity {
 	@Column({ type: "int", unique: true })
 	@ApiPropertyDescribe({ description: "rank", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 100, minimum: 0, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
 	public rank!: number;
+}
+
+/** Keeps an item and a secured item referenced, so a DELETE of either answers the `409` of a row still referenced. */
+@Entity("openapi_error_item_links")
+class OpenApiErrorItemLinkEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@ManyToOne(() => OpenApiErrorItemEntity, { onDelete: "RESTRICT" })
+	@JoinColumn({ name: "itemId" })
+	public item!: OpenApiErrorItemEntity;
+
+	@Column({ type: "varchar" })
+	public itemId!: string;
+
+	@ManyToOne(() => OpenApiErrorSecuredItemEntity, { onDelete: "RESTRICT" })
+	@JoinColumn({ name: "securedItemId" })
+	public securedItem!: OpenApiErrorSecuredItemEntity;
+
+	@Column({ type: "uuid" })
+	public securedItemId!: string;
 }
 
 @Entity("openapi_error_iam_items")
@@ -548,7 +569,7 @@ class OpenApiErrorIamItemController {
 	public readonly service!: OpenApiErrorIamItemService;
 }
 
-const ENTITIES: Array<new () => object> = [OpenApiErrorOwnerEntity, OpenApiErrorItemEntity, OpenApiErrorSecuredItemEntity, OpenApiErrorIamItemEntity];
+const ENTITIES: Array<new () => object> = [OpenApiErrorOwnerEntity, OpenApiErrorItemEntity, OpenApiErrorSecuredItemEntity, OpenApiErrorIamItemEntity, OpenApiErrorItemLinkEntity];
 
 const ITEMS: string = "/openapi-error-items";
 const ITEM: string = "/openapi-error-items/{id}";
@@ -624,6 +645,7 @@ const WIRE_CASES: Array<IWireCase> = [
 	wireCase("patch", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${ITEMS}/item-1`, { headers: EXPLODE, payload: { name: "Changed" } }),
 	wireCase("delete", ITEM, HttpStatus.BAD_REQUEST, "path DTO validation", `${ITEMS}/${LONG_ID}`),
 	wireCase("delete", ITEM, HttpStatus.NOT_FOUND, "row not found", `${ITEMS}/item-missing`),
+	wireCase("delete", ITEM, HttpStatus.CONFLICT, "row still referenced", `${ITEMS}/item-other`),
 	wireCase("delete", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${ITEMS}/item-1`, { headers: EXPLODE }),
 	wireCase("post", SECURED_ITEMS, HttpStatus.BAD_REQUEST, "body DTO validation", SECURED_ITEMS, { headers: ADMIN_HEADERS, payload: { id: SECURED_MISSING_ID, rank: "first" } }),
 	wireCase("post", SECURED_ITEMS, HttpStatus.FORBIDDEN, "body outside the policy scope", SECURED_ITEMS, { headers: ADMIN_HEADERS, payload: { id: SECURED_MISSING_ID, rank: 100 } }),
@@ -644,6 +666,7 @@ const WIRE_CASES: Array<IWireCase> = [
 	wireCase("patch", SECURED_ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${SECURED_ITEMS}/${SECURED_ID}`, { headers: ADMIN_EXPLODE, payload: { rank: 7 } }),
 	wireCase("delete", SECURED_ITEM, HttpStatus.BAD_REQUEST, "path DTO validation", `${SECURED_ITEMS}/not-a-uuid`, { headers: ADMIN_HEADERS }),
 	wireCase("delete", SECURED_ITEM, HttpStatus.NOT_FOUND, "row not found", `${SECURED_ITEMS}/${SECURED_MISSING_ID}`, { headers: ADMIN_HEADERS }),
+	wireCase("delete", SECURED_ITEM, HttpStatus.CONFLICT, "row still referenced", `${SECURED_ITEMS}/${SECURED_OTHER_ID}`, { headers: ADMIN_HEADERS }),
 	wireCase("delete", SECURED_ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${SECURED_ITEMS}/${SECURED_ID}`, { headers: ADMIN_EXPLODE }),
 	wireCase("get", IAM_ITEM, HttpStatus.BAD_REQUEST, "path DTO validation", `${IAM_ITEMS}/${LONG_ID}`, { headers: IAM_ALLOWED_HEADERS }),
 	wireCase("get", IAM_ITEM, HttpStatus.NOT_FOUND, "row not found", `${IAM_ITEMS}/iam-missing`, { headers: IAM_ALLOWED_HEADERS }),
@@ -803,6 +826,7 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 		const securedService: OpenApiErrorSecuredItemService = app.get(OpenApiErrorSecuredItemService);
 		const iamService: OpenApiErrorIamItemService = app.get(OpenApiErrorIamItemService);
 
+		await app.get(DataSource).getRepository(OpenApiErrorItemLinkEntity).clear();
 		await itemService.repository.createQueryBuilder().delete().execute();
 		await ownerService.repository.createQueryBuilder().delete().execute();
 		await securedService.repository.createQueryBuilder().delete().execute();
@@ -817,6 +841,7 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 			{ id: SECURED_OTHER_ID, rank: 2 },
 		]);
 		await iamService.repository.save({ id: "iam-1", name: "One" });
+		await app.get(DataSource).getRepository(OpenApiErrorItemLinkEntity).save({ id: "link-1", itemId: "item-other", securedItemId: SECURED_OTHER_ID });
 	});
 
 	afterAll(async () => {
@@ -830,14 +855,14 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 		expect(declaredStatuses(ITEM, "get")).toEqual([400, 401, 403, 404, 413, 415, 500]);
 		expect(declaredStatuses(ITEM, "put")).toEqual([400, 404, 409, 413, 415, 500]);
 		expect(declaredStatuses(ITEM, "patch")).toEqual([400, 404, 409, 413, 415, 500]);
-		expect(declaredStatuses(ITEM, "delete")).toEqual([400, 404, 413, 415, 500]);
+		expect(declaredStatuses(ITEM, "delete")).toEqual([400, 404, 409, 413, 415, 500]);
 
 		expect(declaredStatuses(SECURED_ITEMS, "post")).toEqual([400, 401, 403, 409, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEMS, "get")).toEqual([400, 401, 403, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "get")).toEqual([400, 401, 403, 404, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "put")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "patch")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);
-		expect(declaredStatuses(SECURED_ITEM, "delete")).toEqual([400, 401, 403, 404, 413, 415, 500]);
+		expect(declaredStatuses(SECURED_ITEM, "delete")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);
 
 		expect(declaredStatuses(IAM_ITEM, "get")).toEqual([400, 401, 403, 404, 413, 415, 500]);
 	});

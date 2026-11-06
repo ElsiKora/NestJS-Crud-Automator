@@ -61,7 +61,9 @@ describe("DtoGenerateException", () => {
 		const reference = (dto: { name: string }): string => `#/components/schemas/${dto.name}`;
 
 		expect(getProperty(HttpStatus.BAD_REQUEST, "details")).toMatchObject({ discriminator: { mapping: { [EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: reference(ExceptionDetailsForeignKeyViolationDTO), [EApiExceptionDetailsType.REFERENCE_NOT_VALID]: reference(ExceptionDetailsReferenceNotValidDTO), [EApiExceptionDetailsType.TO_MANY_UPDATE_KEY]: reference(ExceptionDetailsToManyUpdateKeyDTO) }, propertyName: "type" }, required: false });
-		expect(getProperty(HttpStatus.CONFLICT, "details")).toMatchObject({ discriminator: { mapping: { [EApiExceptionDetailsType.UNIQUE_VIOLATION]: reference(ExceptionDetailsUniqueViolationDTO) }, propertyName: "type" }, required: false });
+		expect(getProperty(HttpStatus.CONFLICT, "details")).toMatchObject({ discriminator: { propertyName: "type" }, required: false });
+		expect((getProperty(HttpStatus.BAD_REQUEST, "details") as { discriminator: { mapping: unknown } }).discriminator.mapping).toEqual({ [EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: reference(ExceptionDetailsForeignKeyViolationDTO), [EApiExceptionDetailsType.REFERENCE_NOT_VALID]: reference(ExceptionDetailsReferenceNotValidDTO), [EApiExceptionDetailsType.TO_MANY_UPDATE_KEY]: reference(ExceptionDetailsToManyUpdateKeyDTO) });
+		expect((getProperty(HttpStatus.CONFLICT, "details") as { discriminator: { mapping: unknown } }).discriminator.mapping).toEqual({ [EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: reference(ExceptionDetailsForeignKeyViolationDTO), [EApiExceptionDetailsType.UNIQUE_VIOLATION]: reference(ExceptionDetailsUniqueViolationDTO) });
 
 		for (const status of [HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR]) {
 			expect(getProperty(status, "details"), String(status)).toBeUndefined();

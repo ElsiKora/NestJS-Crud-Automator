@@ -21,7 +21,7 @@ const authentication = { guard: ErrorStatusesGuard, type: EApiAuthenticationType
 describe("ApiControllerGetErrorStatuses", () => {
 	it.each([
 		[EApiRouteType.CREATE, [HttpStatus.BAD_REQUEST, HttpStatus.CONFLICT, HttpStatus.INTERNAL_SERVER_ERROR]],
-		[EApiRouteType.DELETE, [HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR]],
+		[EApiRouteType.DELETE, [HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT, HttpStatus.INTERNAL_SERVER_ERROR]],
 		[EApiRouteType.GET, [HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR]],
 		[EApiRouteType.GET_LIST, [HttpStatus.BAD_REQUEST, HttpStatus.INTERNAL_SERVER_ERROR]],
 		[EApiRouteType.PARTIAL_UPDATE, [HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT, HttpStatus.INTERNAL_SERVER_ERROR]],

@@ -5,4 +5,5 @@ export { DatabaseTypeOrmGetUniqueViolationDetails } from "./get/unique-violation
 export { DatabaseTypeOrmIsEntityMetadataNotFound } from "./is/entity/metadata-not-found.utility";
 export { DatabaseTypeOrmIsEntityNotFound } from "./is/entity/not-found.utility";
 export { DatabaseTypeOrmIsForeignKeyViolation } from "./is/foreign-key-violation.utility";
+export { DatabaseTypeOrmIsParentRowReferenced } from "./is/parent-row-referenced.utility";
 export { DatabaseTypeOrmIsUniqueViolation } from "./is/unique-violation.utility";
