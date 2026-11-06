@@ -1,3 +1,13 @@
+# [5.3.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.2.1...v5.3.0) (2026-11-06)
+
+### Bug Fixes
+
+- **controller:** give each relation filter its own parameter names ([6ddc867](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/6ddc8678febb41bbdb84e87f4726cf99bcf71c49))
+
+### Features
+
+- **controller:** declare relation filters on typed list plans ([6181d2f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/6181d2fa9a85c7827ed524c9d7d1afb03b128bac))
+
 ## [5.2.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.2.0...v5.2.1) (2026-11-05)
 
 ### Bug Fixes
