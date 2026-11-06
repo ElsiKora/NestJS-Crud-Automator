@@ -1,3 +1,10 @@
+## [5.3.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.3.0...v5.3.1) (2026-11-06)
+
+### Bug Fixes
+
+- **database:** read foreign key direction and kind from driver codes ([74e536f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/74e536f588ffc0aae8384224089f8eb7812a43ff))
+- **function:** answer every refusal body with codes only ([886cf59](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/886cf593dc7159686ffd793661b788ba25ff42ac))
+
 # [5.3.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.2.1...v5.3.0) (2026-11-06)
 
 ### Bug Fixes
