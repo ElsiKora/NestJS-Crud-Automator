@@ -7,7 +7,7 @@ import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionUpdate } from "@decorator/api/function/update.decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiFunctionUpdatePersistenceMode } from "@enum/decorator/api/function/update-persistence-mode.enum";
-import { HttpException, HttpStatus } from "@nestjs/common";
+import { ConflictException, HttpException, HttpStatus } from "@nestjs/common";
 import { createTransactionFixture } from "@test/unit/fixture";
 import { LoggerUtility } from "@utility/logger.utility";
 import { And, Equal, In, IsNull } from "typeorm";
@@ -521,6 +521,29 @@ describe("ApiFunctionUpdate", () => {
 		expect((refusal as HttpException).getResponse()).toEqual(body);
 		expect(JSON.stringify((refusal as HttpException).getResponse())).not.toMatch(/items|owners|FK_owner|owner-9|id-1/u);
 		expect(errorSubscribers.mock.calls.at(-1)?.at(-1)).toBe(refusal);
+	});
+
+	it.each([
+		["MySQL", { code: "ER_DUP_ENTRY", errno: 1062, message: "Duplicate entry 'a foreign key constraint fails; cannot add or update a child row; FOREIGN KEY constraint failed; conflicted with the FOREIGN KEY constraint' for key 'items.name'" }],
+		["MSSQL", { code: "EREQUEST", message: "Violation of UNIQUE KEY constraint 'UQ_name'. Cannot insert duplicate key in object 'dbo.items'. The duplicate key value is (a foreign key constraint fails; cannot add or update a child row; FOREIGN KEY constraint failed; conflicted with the FOREIGN KEY constraint).", number: 2627 }],
+		["SQLite", { code: "SQLITE_CONSTRAINT_UNIQUE", message: "UNIQUE constraint failed: items.name" }],
+	])("answers a %s duplicate whose value quotes foreign key wording with 409 DUPLICATE_KEY", async (_driver: string, driverError: Record<string, unknown>) => {
+		const repository = {
+			findOne: vi.fn(async () => ({ id: "id-1", name: "old" })),
+			save: vi.fn(async () => {
+				throw { driverError, message: driverError.message, name: "QueryFailedError" };
+			}),
+		} as unknown as Repository<UpdateEntity>;
+		const service = buildUpdateService(repository);
+
+		vi.spyOn(LoggerUtility.prototype, "verbose").mockImplementation(() => undefined);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+
+		const refusal: unknown = await service.update({ id: "id-1" }, { name: "dup" }).catch((error: unknown) => error);
+
+		expect(refusal).toBeInstanceOf(ConflictException);
+		expect((refusal as ConflictException).getResponse()).toMatchObject({ message: "UPDATEENTITY_DUPLICATE_KEY", statusCode: HttpStatus.CONFLICT });
 	});
 });
 

@@ -45,14 +45,15 @@ describe("ErrorForeignKeyException", () => {
 		expect(refusal.cause).toBe(cause);
 	});
 
-	it("keeps the driver text out of the body and puts it in the log of the function", () => {
+	it("keeps the driver text out of the body and logs only the schema names under the function", () => {
 		const verbose = vi.spyOn(LoggerUtility.prototype, "verbose").mockImplementation(() => undefined);
 
 		const refusal: BadRequestException | ConflictException = ErrorForeignKeyException(OwnerEntity, EApiFunctionType.CREATE, POSTGRES_MISSING);
 
 		expect(JSON.stringify(refusal.getResponse())).not.toMatch(/FK_owner|items|owners|ownerId|7/u);
 		expect(verbose).toHaveBeenCalledTimes(1);
-		expect(verbose.mock.calls[0]?.[0]).toMatch(/^Foreign key violation \(reference not valid\) for entity OwnerEntity: errorType=QueryFailedError sqlState=23503 details=\{.*"constraint":"FK_owner".*is not present in table.*\}$/u);
+		// Schema names only: the key value 7 and the driver detail stay out of the log
+		expect(verbose.mock.calls[0]?.[0]).toBe('Foreign key violation (reference not valid) for entity OwnerEntity: errorType=QueryFailedError sqlState=23503 details={"constraint":"FK_owner","field":"ownerId","referencedTable":"owners","table":"items"}');
 		expect(verbose.mock.contexts[0]).toMatchObject({ context: "NestJS-Crud-Automator/ApiFunctionCreate" });
 	});
 });

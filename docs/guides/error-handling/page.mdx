@@ -661,7 +661,7 @@ A missing reference:
 
 A DELETE is always "still referenced". A CREATE or UPDATE is a missing reference, unless the driver states the other direction: the PostgreSQL detail `is still referenced from table`, MySQL and MariaDB errno `1451` (`ER_ROW_IS_REFERENCED_2`), or the MSSQL `REFERENCE constraint` conflict. SQLite names no direction, so the operation decides. A composite foreign key and a relation with `eager: true` answer the same bodies.
 
-The driver details go to the server log instead: the function logs the output of `DatabaseTypeOrmGetForeignKeyViolationDetails` (constraint, table, column, key value and the driver detail) with `FormatErrorEvidenceForLog` at the `verbose` level, under `NestJS-Crud-Automator/ApiFunctionCreate`, `ApiFunctionUpdate` or `ApiFunctionDelete`; set `NCD_LOG_LEVEL=verbose` to print it. The driver error stays in `cause`, and `onAfterError` function subscribers receive the `HttpException`.
+The schema names go to the server log instead: the function logs the constraint, table, column, referenced table and referenced column that `DatabaseTypeOrmGetForeignKeyViolationDetails` reads, never the key value or the driver detail, with `FormatErrorEvidenceForLog` at the `verbose` level, under `NestJS-Crud-Automator/ApiFunctionCreate`, `ApiFunctionUpdate` or `ApiFunctionDelete`; set `NCD_LOG_LEVEL=verbose` to print it. The driver error stays in `cause`, and `onAfterError` function subscribers receive the `HttpException`.
 
 ## Retry Logic
 

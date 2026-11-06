@@ -5,7 +5,7 @@ import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.e
 
 const DETAILS_ENTITY: IApiBaseEntity = { name: "ErrorDetails" };
 
-// A foreign key refusal answers one body on every driver, so it carries no driver text such as the constraint, table, column or key value; the log carries those.
+// A foreign key refusal answers one body on every driver, so it carries no driver text such as the constraint, table, column or key value; the log carries the schema names only.
 export class ExceptionDetailsForeignKeyViolationDTO {
 	@ApiPropertyEnum({
 		entity: DETAILS_ENTITY,

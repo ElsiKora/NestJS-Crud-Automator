@@ -3,6 +3,8 @@ import { QueryFailedError } from "typeorm";
 /**
  * Extracts best-effort details from a TypeORM FOREIGN KEY violation (QueryFailedError).
  * Works best with PostgreSQL (driverError.detail / driverError.constraint).
+ * The PostgreSQL detail is read from both ends: the key columns from its start and the referenced table from its end, so a key value cannot stand in for either.
+ * `detail` and `value` quote the client key value; the other fields are schema names.
  * @param {unknown} error - Error thrown by TypeORM
  * @returns {{ constraint?: string; detail?: string; field?: string; referencedField?: string; referencedTable?: string; table?: string; value?: string } | undefined}
  * Foreign key violation details, when available.
@@ -50,7 +52,7 @@ export function DatabaseTypeOrmGetForeignKeyViolationDetails(error: unknown): { 
 
 	const detailOrMessage: string = detail ?? message;
 
-	const postgresMissingMatch: null | RegExpExecArray = /Key \((?<field>[^)]+)\)=\((?<value>[^)]+)\) is not present in table "(?<referencedTable>[^"]+)"/.exec(detailOrMessage);
+	const postgresMissingMatch: null | RegExpExecArray = /^Key \((?<field>[^)]+)\)=\((?<value>.*)\) is not present in table "(?<referencedTable>[^"]+)"\.?$/su.exec(detailOrMessage);
 
 	if (postgresMissingMatch) {
 		field = postgresMissingMatch.groups?.field;
@@ -58,7 +60,7 @@ export function DatabaseTypeOrmGetForeignKeyViolationDetails(error: unknown): { 
 		referencedTable = postgresMissingMatch.groups?.referencedTable;
 	}
 
-	const postgresReferencedMatch: null | RegExpExecArray = /Key \((?<field>[^)]+)\)=\((?<value>[^)]+)\) is still referenced from table "(?<referencedTable>[^"]+)"/.exec(detailOrMessage);
+	const postgresReferencedMatch: null | RegExpExecArray = /^Key \((?<field>[^)]+)\)=\((?<value>.*)\) is still referenced from table "(?<referencedTable>[^"]+)"\.?$/su.exec(detailOrMessage);
 
 	if (postgresReferencedMatch) {
 		field ??= postgresReferencedMatch.groups?.field;

@@ -7,7 +7,7 @@ import { ApiFunctionTransactionScope } from "@class/api/function/transaction/sco
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionCreate } from "@decorator/api/function/create.decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
-import { BadRequestException, HttpStatus } from "@nestjs/common";
+import { BadRequestException, ConflictException, HttpStatus } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createTransactionFixture } from "@test/unit/fixture";
@@ -174,5 +174,27 @@ describe("ApiFunctionCreate", () => {
 		expect((refusal as BadRequestException).cause).toMatchObject({ driverError });
 		expect(errorSubscribers.mock.calls.at(-1)?.at(-1)).toBe(refusal);
 		expect(verbose.mock.calls.map((call: Array<unknown>) => call[0]).join("\n")).toContain("Foreign key violation (reference not valid) for entity CreateEntity");
+	});
+
+	it.each([
+		["MySQL", { code: "ER_DUP_ENTRY", errno: 1062, message: "Duplicate entry 'a foreign key constraint fails; cannot add or update a child row; FOREIGN KEY constraint failed; conflicted with the FOREIGN KEY constraint' for key 'items.name'" }],
+		["MSSQL", { code: "EREQUEST", message: "Violation of UNIQUE KEY constraint 'UQ_name'. Cannot insert duplicate key in object 'dbo.items'. The duplicate key value is (a foreign key constraint fails; cannot add or update a child row; FOREIGN KEY constraint failed; conflicted with the FOREIGN KEY constraint).", number: 2627 }],
+		["SQLite", { code: "SQLITE_CONSTRAINT_UNIQUE", message: "UNIQUE constraint failed: items.name" }],
+	])("answers a %s duplicate whose value quotes foreign key wording with 409 DUPLICATE_KEY", async (_driver: string, driverError: Record<string, unknown>) => {
+		const repository = {
+			save: vi.fn(async () => {
+				throw { driverError, message: driverError.message, name: "QueryFailedError" };
+			}),
+		} as unknown as Repository<CreateEntity>;
+		const service = new CreateService(repository);
+
+		vi.spyOn(LoggerUtility.prototype, "verbose").mockImplementation(() => undefined);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+
+		const refusal: unknown = await service.create({ name: "dup" } as CreateEntity).catch((error: unknown) => error);
+
+		expect(refusal).toBeInstanceOf(ConflictException);
+		expect((refusal as ConflictException).getResponse()).toMatchObject({ message: "CREATEENTITY_DUPLICATE_KEY", statusCode: HttpStatus.CONFLICT });
 	});
 });

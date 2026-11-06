@@ -365,8 +365,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			error = ErrorForeignKeyException(entity, EApiFunctionType.UPDATE, caughtError);
 		}
 
-		// SQLite reports a foreign key failure under the constraint code the unique check also reads, so the foreign key answer has to come first.
-		if (DatabaseTypeOrmIsUniqueViolation(caughtError) && !DatabaseTypeOrmIsForeignKeyViolation(caughtError)) {
+		if (DatabaseTypeOrmIsUniqueViolation(caughtError)) {
 			error = ErrorDuplicateKeyException(entity, caughtError);
 		}
 

@@ -162,7 +162,7 @@ throw ErrorException("Invalid entity configuration: UserEntity.id");
 
 ### ErrorForeignKeyException
 
-Creates the one refusal a built-in function answers for a foreign key violation. A DELETE, or a write the driver states hits a row that is still referenced, answers `409` with `{ENTITY}_REFERENCED`; any other write answers `400` with `{ENTITY}_REFERENCE_NOT_VALID`. Both bodies are `{ "details": { "type": "FOREIGN_KEY_VIOLATION" }, "error", "message", "statusCode" }` with no driver text. It logs the output of `DatabaseTypeOrmGetForeignKeyViolationDetails` with `FormatErrorEvidenceForLog` at the `verbose` level and keeps the driver error in `cause`. See [Foreign Key Refusals](/docs/nestjs-crud-automator/guides/error-handling#foreign-key-refusals).
+Creates the one refusal a built-in function answers for a foreign key violation. A DELETE, or a write the driver states hits a row that is still referenced, answers `409` with `{ENTITY}_REFERENCED`; any other write answers `400` with `{ENTITY}_REFERENCE_NOT_VALID`. Both bodies are `{ "details": { "type": "FOREIGN_KEY_VIOLATION" }, "error", "message", "statusCode" }` with no driver text. It logs the schema names `DatabaseTypeOrmGetForeignKeyViolationDetails` reads (constraint, table, column, referenced table and referenced column, never the key value or the driver detail) with `FormatErrorEvidenceForLog` at the `verbose` level and keeps the driver error in `cause`. See [Foreign Key Refusals](/docs/nestjs-crud-automator/guides/error-handling#foreign-key-refusals).
 
 **Location:** `src/utility/error/foreign-key-exception.utility.ts`
 
@@ -472,7 +472,7 @@ TypeORM helpers detect and explain common database errors:
 - `DatabaseTypeOrmIsForeignKeyViolation`
 - `DatabaseTypeOrmIsParentRowReferenced` tells whether a foreign key violation states that the row is still referenced by another row: the PostgreSQL detail `is still referenced from table`, MySQL and MariaDB errno `1451` (`ER_ROW_IS_REFERENCED_2`), or the MSSQL `REFERENCE constraint` conflict. SQLite names no direction, so it answers `false` there.
 - `DatabaseTypeOrmGetUniqueViolationDetails` reads the constraint, table, column and value from a driver error, for logs and your own code. The built-in create and update functions do not put them in a response: their `409` holds only `details: { type: "UNIQUE_VIOLATION" }`.
-- `DatabaseTypeOrmGetForeignKeyViolationDetails` reads the constraint, table, column, referenced table and value from a driver error, for logs and your own code. The built-in functions log it and do not put it in a response: their refusal holds only `details: { type: "FOREIGN_KEY_VIOLATION" }`.
+- `DatabaseTypeOrmGetForeignKeyViolationDetails` reads the constraint, table, column, referenced table and value from a driver error, for your own code. `value` and `detail` quote what the client sent, so keep them out of logs. The built-in functions log only the schema names and put none of it in a response: their refusal holds only `details: { type: "FOREIGN_KEY_VIOLATION" }`.
 - `DatabaseTypeOrmIsEntityNotFound`
 - `DatabaseTypeOrmIsEntityMetadataNotFound`
 

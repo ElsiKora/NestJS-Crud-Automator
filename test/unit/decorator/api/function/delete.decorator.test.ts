@@ -382,7 +382,7 @@ describe("ApiFunctionDelete", () => {
 		expect(errorSpy).toHaveBeenCalled();
 	});
 
-	it("answers a row still referenced with the code-only 409, logs the driver detail and passes the refusal to the error subscribers", async () => {
+	it("answers a row still referenced with the code-only 409, logs the schema names and passes the refusal to the error subscribers", async () => {
 		const driverError = { code: "23503", constraint: "FK_owner_items", detail: 'Key (id)=(id-1) is still referenced from table "items".', message: 'update or delete on table "owners" violates foreign key constraint "FK_owner_items" on table "items"', table: "items" };
 		const repository = {
 			findOne: vi.fn(async () => ({ id: "id-1", name: "old" })),
@@ -403,7 +403,7 @@ describe("ApiFunctionDelete", () => {
 		expect(JSON.stringify((refusal as ConflictException).getResponse())).not.toMatch(/items|owners|FK_owner_items|id-1/u);
 		expect((refusal as ConflictException).cause).toMatchObject({ driverError });
 		expect(errorSubscribers.mock.calls.at(-1)?.at(-1)).toBe(refusal);
-		expect(verbose.mock.calls.map((call: Array<unknown>) => call[0]).join("\n")).toMatch(/Foreign key violation \(still referenced\) for entity DeleteEntity: errorType=QueryFailedError sqlState=23503 details=.*FK_owner_items.*is still referenced from table/u);
+		expect(verbose.mock.calls.map((call: Array<unknown>) => call[0])).toContain('Foreign key violation (still referenced) for entity DeleteEntity: errorType=QueryFailedError sqlState=23503 details={"constraint":"FK_owner_items","field":"id","referencedTable":"items","table":"items"}');
 	});
 
 	it("answers 409 for a foreign key violation on delete whatever direction the driver names", async () => {

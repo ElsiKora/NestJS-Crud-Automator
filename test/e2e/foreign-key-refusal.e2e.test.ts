@@ -207,13 +207,16 @@ const CASES: ReadonlyArray<IRefusalCase> = [
 // Driver text the body must not carry: table and constraint names, column names and every key value the cases use
 const LEAK_PATTERN: RegExp = /fk_|FK_|ownerId|regionCode|siteCode|owner-|item-|note-|r1|s1|r9|s9|referenced from|not present|foreign key constraint/u;
 
-// The driver details each driver gives to the log: SQLite names no constraint, table or key
+// The schema names each driver gives to the log: SQLite names no constraint, table or column
 const LOG_EVIDENCE: Record<TDatabase, RegExp> = {
-	mariadb: /errorType=QueryFailedError details=\{.*"constraint":"FK_/u,
-	mysql: /errorType=QueryFailedError details=\{.*"constraint":"FK_/u,
-	postgres: /errorType=QueryFailedError sqlState=23503 details=\{.*"constraint":"FK_.*"detail":"Key \(.*\)=\(.*\) is (still referenced from|not present in) table/u,
+	mariadb: /errorType=QueryFailedError details=\{"constraint":"FK_[^"]+"(?:,"(?:field|referencedField|referencedTable)":"[^"]+")*\}$/u,
+	mysql: /errorType=QueryFailedError details=\{"constraint":"FK_[^"]+"(?:,"(?:field|referencedField|referencedTable)":"[^"]+")*\}$/u,
+	postgres: /errorType=QueryFailedError sqlState=23503 details=\{"constraint":"FK_[^"]+","field":"[^"]+","referencedTable":"[^"]+","table":"[^"]+"\}$/u,
 	sqlite: /errorType=QueryFailedError details=\{\}$/u,
 };
+
+// Key values the cases send or store, which the log must not quote
+const LOG_VALUE_PATTERN: RegExp = /owner-|item-|note-|"r1|"s1|r9|s9|"detail"|"value"/u;
 
 interface ISetup {
 	createFilters: (application: INestApplication) => Array<ExceptionFilter>;
@@ -393,7 +396,7 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 				}
 			});
 
-			it.each(CASES.map((refusalCase: IRefusalCase): [string, IRefusalCase] => [refusalCase.name, refusalCase]))("%s answers the code-only body the route declares and logs the driver details", async (_name: string, refusalCase: IRefusalCase) => {
+			it.each(CASES.map((refusalCase: IRefusalCase): [string, IRefusalCase] => [refusalCase.name, refusalCase]))("%s answers the code-only body the route declares and logs only schema names", async (_name: string, refusalCase: IRefusalCase) => {
 				const url: string = Object.entries(refusalCase.pathValues ?? {}).reduce((path: string, [key, value]: [string, string]): string => path.replace(`{${key}}`, encodeURIComponent(value)), refusalCase.path);
 				const response: Response = await fetch(`${baseUrl}${url}`, { ...(refusalCase.body === undefined ? {} : { body: JSON.stringify(refusalCase.body), headers: { "content-type": "application/json" } }), method: refusalCase.method });
 				const text: string = await response.text();
@@ -422,6 +425,7 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 				expect(logged).toHaveLength(1);
 				expect(logged[0]).toContain(`Foreign key violation (${isConflict ? "still referenced" : "reference not valid"}) for entity ${refusalCase.entityName}: `);
 				expect(logged[0]).toMatch(LOG_EVIDENCE[database]);
+				expect(logged[0]).not.toMatch(LOG_VALUE_PATTERN);
 				expect(await readStored()).toEqual(STORED);
 			});
 		});
