@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import type { INestApplication } from "@nestjs/common";
+import type { CanActivate, INestApplication } from "@nestjs/common";
 import type { OpenAPIObject } from "@nestjs/swagger";
 import type { Repository } from "typeorm";
 
@@ -164,7 +164,12 @@ class SwaggerNestedDiscriminatorBodyDto {
 	public payload!: SwaggerNestedEmailPayloadDto | SwaggerNestedPhonePayloadDto;
 }
 
-class SwaggerAuthenticationGuard {}
+// The documentation requests never reach a guarded handler; @nestjs/core 12.5 refuses a guard without canActivate when it binds the routes.
+class SwaggerAuthenticationGuard implements CanActivate {
+	public canActivate(): boolean {
+		return true;
+	}
+}
 
 // The documentation app never queries; its controllers use a repository of an in-memory DataSource.
 const swaggerDataSource: DataSource = new DataSource({ database: ":memory:", entities: [SwaggerAutoDtoEntity], type: "better-sqlite3" });
