@@ -246,6 +246,32 @@ const SwaggerGeneratedOverrideController = ApiController<SwaggerAutoDtoEntity>({
 	},
 })(SwaggerGeneratedOverrideControllerBase);
 
+function createStreamRouteOptions(path: string, mediaTypes: Array<string> | undefined, type: typeof SwaggerSessionResponseDto | undefined): Parameters<typeof ApiRouteCustom<SwaggerEntity>>[0] {
+	return {
+		documentation: mediaTypes ? { response: { mediaTypes } } : undefined,
+		resource: {
+			action: `swagger.${path}`,
+			entity: SwaggerEntity,
+		},
+		response: {
+			errors: { hasNotFound: true },
+			status: HttpStatus.OK,
+			type,
+		},
+		route: {
+			method: RequestMethod.GET,
+			path,
+		},
+		security: {
+			authentication: {
+				guard: SwaggerAuthenticationGuard as never,
+				type: EApiAuthenticationType.USER,
+			},
+		},
+		throttling: { default: { limit: 1, ttl: 60_000 } },
+	};
+}
+
 @Controller("swagger")
 class SwaggerDocumentationController {
 	@Post("plain")
@@ -418,6 +444,21 @@ class SwaggerDocumentationController {
 					mode: "session",
 					sessionToken: body.username,
 				};
+	}
+
+	@ApiRouteCustom<SwaggerEntity>(createStreamRouteOptions("stream", ["text/event-stream"], SwaggerSessionResponseDto))
+	public stream(): SwaggerSessionResponseDto {
+		return { mode: "session", sessionToken: "token" };
+	}
+
+	@ApiRouteCustom<SwaggerEntity>(createStreamRouteOptions("stream-json", undefined, SwaggerSessionResponseDto))
+	public streamJson(): SwaggerSessionResponseDto {
+		return { mode: "session", sessionToken: "token" };
+	}
+
+	@ApiRouteCustom<SwaggerEntity>(createStreamRouteOptions("stream-untyped", ["text/event-stream", "application/x-ndjson"], undefined))
+	public streamUntyped(): string {
+		return "";
 	}
 
 	@ApiRouteCustom<SwaggerEntity>({
@@ -611,6 +652,26 @@ describe("Swagger request DTO documentation (E2E)", () => {
 			},
 			propertyName: "channel",
 		});
+	});
+
+	it("documents configured response media types on the success response only, and every error response as JSON", () => {
+		const streamResponses: Record<string, unknown> = getOperation("/swagger/stream", "get").responses as Record<string, unknown>;
+		const jsonResponses: Record<string, unknown> = getOperation("/swagger/stream-json", "get").responses as Record<string, unknown>;
+		const untypedResponses: Record<string, unknown> = getOperation("/swagger/stream-untyped", "get").responses as Record<string, unknown>;
+		const errorStatuses: Array<string> = ["400", "401", "403", "404", "413", "415", "429", "500"];
+
+		expect(streamResponses["200"]).toEqual({ content: { "text/event-stream": { schema: { $ref: "#/components/schemas/SwaggerSessionResponseDto" } } }, description: "Success" });
+		expect(untypedResponses["200"]).toEqual({ content: { "application/x-ndjson": {}, "text/event-stream": {} }, description: "Success" });
+		expect(jsonResponses["200"]).toEqual({ content: { "application/json": { schema: { $ref: "#/components/schemas/SwaggerSessionResponseDto" } } }, description: "Success" });
+
+		for (const responses of [streamResponses, untypedResponses, jsonResponses]) {
+			expect(Object.keys(responses).toSorted()).toEqual(["200", ...errorStatuses]);
+
+			for (const status of errorStatuses) {
+				expect(responses[status], status).toEqual({ content: { "application/json": { schema: { $ref: expect.stringMatching(/^#\/components\/schemas\/Exception/u) } } }, description: expect.any(String) });
+				expect(responses[status], status).toEqual(jsonResponses[status]);
+			}
+		}
 	});
 
 	it("generates pluralized documentation for generated CRUD routes", () => {

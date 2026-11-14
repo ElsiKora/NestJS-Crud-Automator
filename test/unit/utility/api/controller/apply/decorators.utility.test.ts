@@ -159,7 +159,7 @@ describe("ApiControllerApplyDecorators", () => {
 		expect(Reflect.getMetadata(GUARDS_METADATA, targetMethod)).toEqual([DecoratorExecutionGuard, ApiAuthorizationGuard]);
 		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, targetMethod)).toEqual([RequestBodyShapeInterceptor, FormBodyInterceptor, UuidCanonicalInterceptor, DecoratorExecutionInterceptor]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, targetMethod)).toEqual(["application/vnd.generated+json"]);
-		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, targetMethod)).toEqual(["application/vnd.generated+json"]);
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, targetMethod)).toBeUndefined();
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS, targetMethod)).toEqual([expect.objectContaining({ in: "header", name: "X-Route-Proof", required: true })]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, targetMethod)?.[HttpStatus.PAYLOAD_TOO_LARGE]).toEqual({ description: "Generated request is too large." });
 	});

@@ -194,7 +194,10 @@ describe("ApiMethod", () => {
 		expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([ExecutionGuard, ApiAuthorizationGuard]);
 		expect(readHandlerMetadata<Array<unknown>>(INTERCEPTORS_METADATA)).toEqual([RequestBodyShapeInterceptor, FormBodyInterceptor, UuidCanonicalInterceptor, ExecutionInterceptor]);
 		expect(readHandlerMetadata<Array<string>>(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES)).toEqual(["application/vnd.test+json"]);
-		expect(readHandlerMetadata<Array<string>>(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES)).toEqual(["application/vnd.test+json"]);
+		// The response media types describe the success response only, so no operation-wide produces reaches the error responses.
+		expect(readHandlerMetadata<Array<string>>(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES)).toBeUndefined();
+		expect(readApiResponses()[HttpStatus.CREATED]).toEqual(expect.objectContaining({ content: { "application/vnd.test+json": {} }, description: "Success" }));
+		expect(readApiResponses()[HttpStatus.CONFLICT]).not.toHaveProperty("content");
 		expect(readHandlerMetadata<Array<Record<string, unknown>>>(SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS)).toEqual([
 			expect.objectContaining({
 				in: "header",

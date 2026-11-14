@@ -340,7 +340,7 @@ describe("ApiRouteCustom", () => {
 		expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([ExistingGuard, ExecutionGuard, ApiAuthorizationGuard]);
 		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, handler)).toEqual([ExistingInterceptor, RequestBodyShapeInterceptor, FormBodyInterceptor, UuidCanonicalInterceptor, ExecutionInterceptor, ApiRouteRuntimeInterceptor]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, handler)).toEqual(["application/vnd.test+json"]);
-		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, handler)).toEqual(["application/vnd.test+json"]);
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, handler)).toBeUndefined();
 		expect(parameters).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({

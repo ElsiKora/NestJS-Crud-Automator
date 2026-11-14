@@ -2,7 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiMethodProperties } from "@interface/decorator/api";
 import type { IApiRouteSecurityRequirement } from "@interface/decorator/api/route";
 import type { CanActivate, Type } from "@nestjs/common";
-import type { TSwaggerSecurityRequirementObject } from "@type/swagger";
+import type { TSwaggerReferenceObject, TSwaggerSchemaObject, TSwaggerSecurityRequirementObject } from "@type/swagger";
 
 import { STATUS_CODES } from "node:http";
 
@@ -13,7 +13,7 @@ import { FormBodyInterceptor } from "@interceptor/form-body.interceptor";
 import { RequestBodyShapeInterceptor } from "@interceptor/request-body-shape.interceptor";
 import { UuidCanonicalInterceptor } from "@interceptor/uuid-canonical.interceptor";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
-import { ApiConsumes, ApiExtraModels, ApiHeaders, ApiOperation, ApiProduces, ApiResponse, ApiSecurity } from "@nestjs/swagger";
+import { ApiConsumes, ApiExtraModels, ApiHeaders, ApiOperation, ApiResponse, ApiSecurity, getSchemaPath } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
@@ -71,6 +71,9 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	const successResponseDecorators: Array<MethodDecorator> = [];
+	const successMediaTypes: Array<string> = metadata.documentation?.response?.mediaTypes ?? [];
+	let successSchema: TSwaggerReferenceObject | TSwaggerSchemaObject | undefined;
+	let successType: Type<unknown> | undefined;
 
 	if (metadata.response && metadata.response.status !== HttpStatus.NO_CONTENT && Array.isArray(metadata.response.type)) {
 		if (!metadata.response.discriminator) {
@@ -80,30 +83,51 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 		const responseDtos: Array<Type<unknown>> = [];
 		ApiRouteCollectDtoWithRegisteredChildren(responseDtos, metadata.response.type);
 
+		successResponseDecorators.push(ApiExtraModels(...responseDtos));
+		successSchema = ApiRouteBuildDiscriminatedDtoOpenApiSchema(
+			{
+				discriminator: metadata.response.discriminator,
+				type: metadata.response.type,
+			},
+			"ApiMethod response",
+		);
+	} else if (!Array.isArray(metadata.response?.type)) {
+		successType = metadata.response?.type;
+	}
+
+	if (successMediaTypes.length > 0) {
+		// Swagger applies `ApiProduces` to every response of the operation, so the configured media types describe the success response through its own content, and the error responses keep the JSON the package sends.
+		if (successType) {
+			successResponseDecorators.push(ApiExtraModels(successType));
+			successSchema = { $ref: getSchemaPath(successType) };
+		}
+
+		const mediaTypeObject: { schema?: TSwaggerReferenceObject | TSwaggerSchemaObject } = successSchema && metadata.response?.status !== HttpStatus.NO_CONTENT ? { schema: successSchema } : {};
+
 		successResponseDecorators.push(
-			ApiExtraModels(...responseDtos),
+			ApiResponse({
+				content: Object.fromEntries(successMediaTypes.map((mediaType: string): [string, { schema?: TSwaggerReferenceObject | TSwaggerSchemaObject }] => [mediaType, mediaTypeObject])),
+				description: "Success",
+				headers: metadata.response?.headers,
+				status: metadata.response?.status,
+			}),
+		);
+	} else if (successSchema) {
+		successResponseDecorators.push(
 			ApiResponse({
 				description: "Success",
-				headers: metadata.response.headers,
-				schema: ApiRouteBuildDiscriminatedDtoOpenApiSchema(
-					{
-						discriminator: metadata.response.discriminator,
-						type: metadata.response.type,
-					},
-					"ApiMethod response",
-				),
-				status: metadata.response.status,
+				headers: metadata.response?.headers,
+				schema: successSchema,
+				status: metadata.response?.status,
 			}),
 		);
 	} else {
-		const responseType: Type<unknown> | undefined = Array.isArray(metadata.response?.type) ? undefined : metadata.response?.type;
-
 		successResponseDecorators.push(
 			ApiResponse({
 				description: "Success",
 				headers: metadata.response?.headers,
 				status: metadata.response?.status,
-				type: responseType,
+				type: successType,
 			}),
 		);
 	}
@@ -125,10 +149,6 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 
 	if (metadata.documentation?.request?.mediaTypes?.length) {
 		decorators.push(ApiConsumes(...metadata.documentation.request.mediaTypes));
-	}
-
-	if (metadata.documentation?.response?.mediaTypes?.length) {
-		decorators.push(ApiProduces(...metadata.documentation.response.mediaTypes));
 	}
 
 	for (const response of metadata.documentation?.response?.statuses ?? []) {
