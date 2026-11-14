@@ -342,6 +342,41 @@ describe.each(DATABASES)("Generated update in PATCH persistence on $databaseName
 			expect(response.statusCode).toBe(200);
 			expect(await readStored(OWN_ID)).toEqual({ name: "Changed", operatorId: OPERATOR_FIRST });
 		});
+
+		it("clears a nullable single-column relation sent as null and keeps the other columns", async () => {
+			const response = await fastify.inject({ method: "PATCH", payload: { operator: null }, url: `/${path}/${OWN_ID}` });
+
+			expect(response.statusCode).toBe(200);
+			expect(await readStored(OWN_ID)).toEqual({ name: "Original", operatorId: null });
+		});
+
+		it("clears the relation together with another column, through PUT too", async () => {
+			const response = await fastify.inject({ method: "PUT", payload: { name: "Changed", operator: null }, url: `/${path}/${OWN_ID}` });
+
+			expect(response.statusCode).toBe(200);
+			expect(await readStored(OWN_ID)).toEqual({ name: "Changed", operatorId: null });
+		});
+
+		it("still moves the relation to another row by its key", async () => {
+			const response = await fastify.inject({ method: "PATCH", payload: { operator: OPERATOR_SECOND }, url: `/${path}/${OWN_ID}` });
+
+			expect(response.statusCode).toBe(200);
+			expect(await readStored(OWN_ID)).toEqual({ name: "Original", operatorId: OPERATOR_SECOND });
+		});
+
+		it("does not clear the relation of a row outside the scope", async () => {
+			const response = await fastify.inject({ method: "PATCH", payload: { operator: null }, url: `/${path}/${OTHER_ID}` });
+
+			expect(response.statusCode).toBe(404);
+			expect(await readStored(OTHER_ID)).toEqual({ name: "Original", operatorId: OPERATOR_FIRST });
+		});
+	});
+
+	it("clears the relation in SAVE persistence as before", async () => {
+		const response = await fastify.inject({ method: "PATCH", payload: { operator: null }, url: `/save-persistence-hooks/${OWN_ID}` });
+
+		expect(response.statusCode).toBe(200);
+		expect(await readStored(OWN_ID)).toEqual({ name: "Original", operatorId: null });
 	});
 
 	it("still refuses direct PATCH criteria without a complete primary equality", async () => {

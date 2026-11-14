@@ -37,6 +37,9 @@ import { ErrorString } from "@utility/error/string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { InstanceChecker, IsNull } from "typeorm";
 
+const PATCH_RELATION_COMPOSITE_CLEAR_REJECTION_REASON: string = "a relation over several join columns cannot be cleared by PATCH";
+const PATCH_RELATION_CONFLICT_REJECTION_REASON: string = "relation must name the same value as the entity's own column";
+
 /**
  * Creates a decorator that adds entity update functionality to a service method
  * @template E The entity type
@@ -223,6 +226,18 @@ function assertPatchDataGraph(value: unknown, isCriteria: boolean = false, visit
 		if (typeof key !== "string" || !descriptor?.enumerable || !("value" in descriptor)) throw new BadRequestException("PATCH data must contain enumerable data properties only");
 		assertPatchDataGraph(descriptor.value, isCriteria, visited);
 	}
+}
+
+/**
+ * Builds the codes-only refusal of a patch field, with the rule it broke in the verbose log.
+ * @param {string} propertyName - Field of the patch.
+ * @param {string} reason - Rule the field broke.
+ * @returns {BadRequestException} The refusal.
+ */
+function createPatchParameterException(propertyName: string, reason: string): BadRequestException {
+	LoggerUtility.getLogger("ApiFunctionUpdate").verbose(`PATCH field refused: propertyName=${propertyName} reason=${reason}`);
+
+	return new BadRequestException("PARAMETERS_NOT_VALID");
 }
 
 /**
@@ -559,6 +574,25 @@ function readOwnedToOneRelations<E extends IApiBaseEntity>(repository: Repositor
 }
 
 /**
+ * Reads the join column a null relation of the patch clears: the one join column of an owned to-one relation the patch names.
+ * A relation over several join columns is refused, because a composite join column often also belongs to the primary key, the scope or another relation, which a cleared column would change too.
+ * @template E Entity type.
+ * @param {Repository<E>} repository - Native metadata owner.
+ * @param {string} key - Field of the patch whose value is null.
+ * @returns {string | undefined} Property name of the join column, undefined when the field names no owned to-one relation.
+ * @throws {BadRequestException} When the relation joins over several columns.
+ */
+function readPatchClearedRelationColumn<E extends IApiBaseEntity>(repository: Repository<E>, key: string): string | undefined {
+	const relation: RelationMetadata | undefined = readOwnedToOneRelations(repository).find((candidate: RelationMetadata): boolean => candidate.propertyPath === key && candidate.propertyName === key && !candidate.embeddedMetadata);
+
+	if (!relation) return undefined;
+
+	if (relation.joinColumns.length !== 1) throw createPatchParameterException(key, PATCH_RELATION_COMPOSITE_CLEAR_REJECTION_REASON);
+
+	return relation.joinColumns[0]?.propertyName;
+}
+
+/**
  * Reads the literal equalities a conjunction holds, through nested conjunctions.
  * @param {unknown} value - Native literal or WHERE operator.
  * @returns {Array<unknown>} The literals, empty for any other predicate.
@@ -688,15 +722,17 @@ function readPatchSelectedColumns<E extends IApiBaseEntity>(repository: Reposito
 
 /**
  * Builds an isolated supplied-column SET without merging the earlier entity.
+ * A null owned to-one relation over one join column clears that column, so it is written as the column set to null.
  * @template E Entity type.
  * @param {Repository<E>} repository - Native metadata owner.
  * @param {ReadonlySet<string>} selected - Actual selected physical columns.
  * @param {TApiFunctionUpdateProperties<E>} properties - Caller or subscriber patch.
  * @returns {TApiFunctionUpdateProperties<E>} Detached writable values, with undefined omitted.
+ * @throws {BadRequestException} When a field is no selected writable physical column, or names its column twice with different values.
  */
 function readPatchValues<E extends IApiBaseEntity>(repository: Repository<E>, selected: ReadonlySet<string>, properties: TApiFunctionUpdateProperties<E>): TApiFunctionUpdateProperties<E> {
 	if (!properties || typeof properties !== "object" || Array.isArray(properties) || utilityTypes.isProxy(properties)) throw new BadRequestException("PATCH must be a data record");
-	const values: Array<[string, unknown]> = [];
+	const values: Map<string, unknown> = new Map<string, unknown>();
 
 	for (const key of Reflect.ownKeys(properties)) {
 		const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(properties, key);
@@ -704,11 +740,15 @@ function readPatchValues<E extends IApiBaseEntity>(repository: Repository<E>, se
 		if (typeof key !== "string" || !descriptor?.enumerable || !("value" in descriptor)) throw new BadRequestException("PATCH must contain enumerable data properties only");
 
 		if (descriptor.value === undefined) continue;
-		const column: TTypeOrmColumnMetadata | undefined = repository.metadata.columns.find((candidate: TTypeOrmColumnMetadata): boolean => candidate.propertyName === key && candidate.propertyPath === key && !candidate.embeddedMetadata && !candidate.isVirtual && !candidate.isVirtualProperty);
+		const columnName: string = descriptor.value === null ? (readPatchClearedRelationColumn(repository, key) ?? key) : key;
+		const column: TTypeOrmColumnMetadata | undefined = repository.metadata.columns.find((candidate: TTypeOrmColumnMetadata): boolean => candidate.propertyName === columnName && candidate.propertyPath === columnName && !candidate.embeddedMetadata && !candidate.isVirtual && !candidate.isVirtualProperty);
 
-		if (!column || !selected.has(key) || !column.isUpdate || column.isGenerated || column.isPrimary || column.isCreateDate || column.isUpdateDate || column.isVersion || column.isDeleteDate) throw new BadRequestException("PATCH can write only selected writable physical columns");
+		if (!column || !selected.has(columnName) || !column.isUpdate || column.isGenerated || column.isPrimary || column.isCreateDate || column.isUpdateDate || column.isVersion || column.isDeleteDate) throw new BadRequestException("PATCH can write only selected writable physical columns");
 		assertPatchDataGraph(descriptor.value);
-		values.push([key, descriptor.value]);
+
+		// A relation and its own join column both in the patch must agree, since one SET receives a single value for the column.
+		if (values.has(columnName) && !isDeepStrictEqual(values.get(columnName), descriptor.value)) throw createPatchParameterException(key, PATCH_RELATION_CONFLICT_REJECTION_REASON);
+		values.set(columnName, descriptor.value);
 	}
 
 	return ApiControllerGeneratedSecuritySnapshot.detach(Object.fromEntries(values)) as TApiFunctionUpdateProperties<E>;

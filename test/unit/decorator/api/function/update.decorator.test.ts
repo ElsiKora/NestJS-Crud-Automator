@@ -548,7 +548,7 @@ describe("ApiFunctionUpdate", () => {
 });
 
 function createPatchFixture() {
-	const columns = ["id", "name", "count", "description", "status", "tenantId", "metadata", "secret", "createdAt", "updatedAt", "version", "deletedAt", "generated", "readOnly"].map((propertyName) => ({
+	const columns = ["id", "name", "count", "description", "status", "tenantId", "metadata", "secret", "createdAt", "updatedAt", "version", "deletedAt", "generated", "readOnly", "operatorId", "regionCode", "regionCountry", "owner"].map((propertyName) => ({
 		embeddedMetadata: undefined as object | undefined,
 		isCreateDate: propertyName === "createdAt",
 		isDeleteDate: propertyName === "deletedAt",
@@ -558,10 +558,15 @@ function createPatchFixture() {
 		isUpdate: propertyName !== "readOnly",
 		isUpdateDate: propertyName === "updatedAt",
 		isVersion: propertyName === "version",
+		// TypeORM names a join column the entity does not declare after its relation and marks it virtual.
+		isVirtual: propertyName === "owner",
 		propertyName,
 		propertyPath: propertyName,
 	}));
-	const metadata = { columns, primaryColumns: columns.filter((column) => column.isPrimary), relations: [] as Array<{ isEager: boolean; isLazy: boolean; propertyName: string }>, deleteDateColumn: undefined as (typeof columns)[number] | undefined };
+	const findColumn = (propertyName: string) => columns.find((column) => column.propertyName === propertyName)!;
+	const createRelation = (propertyName: string, joinColumns: Array<(typeof columns)[number]>) => ({ embeddedMetadata: undefined, isEager: false, isLazy: false, isManyToOne: true, isOneToOneOwner: false, joinColumns, propertyName, propertyPath: propertyName });
+	const relations: Array<ReturnType<typeof createRelation>> = [createRelation("operator", [findColumn("operatorId")]), createRelation("region", [findColumn("regionCode"), findColumn("regionCountry")]), createRelation("owner", [findColumn("owner")])];
+	const metadata = { columns, primaryColumns: columns.filter((column) => column.isPrimary), relations, deleteDateColumn: undefined as (typeof columns)[number] | undefined };
 	const execute = vi.fn(async (): Promise<{ affected: number | undefined }> => ({ affected: 1 }));
 	const builder = { execute, set: vi.fn(), update: vi.fn(), where: vi.fn() };
 	for (const method of ["set", "update", "where"] as const) builder[method].mockReturnValue(builder);
@@ -674,6 +679,31 @@ describe("ApiFunctionUpdate explicit PATCH persistence", () => {
 		await fixture.service.update([{ id: In([]) }, { id: "id-1", tenantId: "b" }] as never, { name: "new" });
 		expect(fixture.builder.set).toHaveBeenCalledExactlyOnceWith({ name: "new" });
 		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1" });
+	});
+
+	it.each([{ operator: null }, { operator: null, operatorId: null }, { operatorId: null }])("writes a null single-column relation as its join column set to null: %j", async (patch) => {
+		const fixture = createPatchFixture();
+		await fixture.service.update({ id: "id-1" }, patch as never);
+		expect(fixture.builder.set).toHaveBeenCalledExactlyOnceWith({ operatorId: null });
+	});
+
+	it("writes a null single-column relation a subscriber returns", async () => {
+		const fixture = createPatchFixture();
+		fixture.before.mockImplementation(async (_constructor, _entity, functionType) => (functionType === EApiFunctionType.UPDATE ? ({ name: "new", operator: null } as never) : undefined));
+		await fixture.service.update({ id: "id-1" }, { name: "incoming" });
+		expect(fixture.builder.set).toHaveBeenCalledExactlyOnceWith({ name: "new", operatorId: null });
+	});
+
+	it.each([
+		["a relation and its column that disagree", { operator: null, operatorId: "operator-2" }, "PARAMETERS_NOT_VALID"],
+		["a null relation over several join columns", { region: null }, "PARAMETERS_NOT_VALID"],
+		["a relation reference", { operator: "operator-2" }, "PATCH can write only selected writable physical columns"],
+		["a null relation whose join column the entity does not declare", { owner: null }, "PATCH can write only selected writable physical columns"],
+	])("rejects %s before any subscriber", async (_label, patch, message) => {
+		const fixture = createPatchFixture();
+		await expect(fixture.service.update({ id: "id-1" }, patch as never)).rejects.toMatchObject({ message, status: 400 });
+		expect(fixture.before.mock.calls.some((call) => call[2] === EApiFunctionType.UPDATE)).toBe(false);
+		expect(fixture.execute).not.toHaveBeenCalled();
 	});
 
 	it("requires and retains every composite primary equality", async () => {
