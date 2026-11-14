@@ -25,6 +25,7 @@ import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeo
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
 import { DatabaseTypeOrmLockRow } from "@utility/database/typeorm/lock-row.utility";
+import { DatabaseTypeOrmIsSoftDeleted } from "@utility/database/typeorm/soft-deleted.utility";
 import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ErrorForeignKeyException } from "@utility/error/foreign-key-exception.utility";
@@ -102,7 +103,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 					const scopedCriteria: TApiAuthorizationScopeWhere<E> = mandatoryWhere ? (ApiControllerGeneratedReadScopeStorage.protect({ where: subscriberCriteria }, mandatoryWhere).where ?? mandatoryWhere) : subscriberCriteria;
 					const protectedCriteria: TApiFunctionDeleteCriteria<E> = writeCondition.hasConditions ? ((writeCondition.apply(scopedCriteria) ?? subscriberCriteria) as TApiFunctionDeleteCriteria<E>) : scopedCriteria;
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria: protectedCriteria, entity, getFunction, repository, writeCondition }, mandatoryWhere ? protectedCriteria : undefined, this);
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria: protectedCriteria, entity, getFunction, repository, scopeCriteria: scopedCriteria, writeCondition }, mandatoryWhere ? protectedCriteria : undefined, this);
 				},
 				entity,
 				functionType: EApiFunctionType.DELETE,
@@ -141,10 +142,12 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
  * @throws {InternalServerErrorException} If the deletion operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>, mandatoryWhere?: TApiAuthorizationScopeWhere<E>, service?: { repository: Repository<E> }): Promise<E> {
-	const { constructor, criteria, entity, getFunction, repository, writeCondition }: IApiFunctionDeleteExecutorProperties<E> = options;
+	const { constructor, criteria, entity, getFunction, repository, scopeCriteria, writeCondition }: IApiFunctionDeleteExecutorProperties<E> = options;
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
+		// A condition must never be what makes the criteria address a row: the criteria and the scope must do that on their own.
+		if (writeCondition.hasConditions) DatabaseTypeOrmAssertRequiredWhere(scopeCriteria);
 		const getProperties: TApiFunctionGetProperties<E> = { where: criteria };
 
 		const currentService: { repository: Repository<E> } = service ?? { repository };
@@ -234,6 +237,6 @@ async function lockDeleteWriteCondition<E extends IApiBaseEntity>(repository: Re
 	const where: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(criteria, keyWhere);
 	DatabaseTypeOrmAssertRequiredWhere(where);
 
-	// The read already decided whether a soft-deleted row is visible; the check adds only the conditions, so it reads by key with deleted rows included.
-	if (!(await DatabaseTypeOrmLockRow(repository, where, true))) throw new NotFoundException(ErrorString({ entity: repository.metadata.target as new () => E, type: EErrorStringAction.NOT_FOUND }));
+	// A row the read saw soft-deleted was read with deleted rows included; otherwise the row must still not be soft-deleted, so a concurrent soft delete is a miss.
+	if (!(await DatabaseTypeOrmLockRow(repository, where, DatabaseTypeOrmIsSoftDeleted(repository.metadata, existingEntity)))) throw new NotFoundException(ErrorString({ entity: repository.metadata.target as new () => E, type: EErrorStringAction.NOT_FOUND }));
 }

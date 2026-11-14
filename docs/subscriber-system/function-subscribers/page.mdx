@@ -113,7 +113,7 @@ export class OrderDraftOnlySubscriber extends ApiFunctionSubscriberBase<OrderEnt
 }
 ```
 
-Every function hook also gets `context.DATA.principal`, the deep-frozen principal of the route request it runs in (generated routes and `@ApiRouteCustom`), inherited by nested service calls; it is `undefined` on direct calls and jobs. See [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context#request-principal).
+Every function hook also gets `context.DATA.principal`, the deep-frozen principal of the route request it runs in (generated routes and `@ApiRouteCustom`), inherited by nested service calls and by async work the request starts; it is `undefined` on direct calls and in work started outside a request. See [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context#request-principal).
 
 #### `onBeforeGet`, `onBeforeGetList`, `onBeforeGetMany`, `onBeforeDelete`
 

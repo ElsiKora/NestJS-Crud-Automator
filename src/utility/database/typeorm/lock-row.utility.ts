@@ -8,7 +8,7 @@ import { DatabaseTypeOrmAssertRequiredWhere } from "@utility/database/typeorm/as
 /**
  * Reads the key of the row a write is about to change through a WHERE that may join, and locks it until the transaction ends.
  * The lock is `FOR UPDATE`, `FOR UPDATE OF` the entity on drivers whose plain lock refuses an outer join, and none on drivers that run every transaction on one connection.
- * Internal: the caller runs inside the transaction of the write, so the row cannot change between this check and the write.
+ * Internal: the caller runs inside the transaction of the write, so the row's own columns cannot change between this check and the write. Related rows the WHERE reads are checked here but not locked where the lock is `FOR UPDATE OF` the entity (PostgreSQL, CockroachDB).
  * @template E Entity type.
  * @param {Repository<E>} repository - Transaction-bound repository of the write.
  * @param {Array<FindOptionsWhere<E>> | FindOptionsWhere<E>} where - Whole WHERE the row must meet, relations included.

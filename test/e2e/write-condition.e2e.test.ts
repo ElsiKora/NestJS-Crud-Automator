@@ -13,7 +13,7 @@ import { Test } from "@nestjs/testing";
 import { getRepositoryToken, InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { MySqlContainer } from "@testcontainers/mysql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
+import { Column, DeleteDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -48,6 +48,9 @@ const NAMESPACE: string = "write-condition:document";
 const POLICY_ID: string = "write-condition-policy";
 const USER: Record<string, unknown> = { id: "user-1", roles: ["editor"] };
 const PRINCIPAL: IApiAuthorizationPrincipal = AuthorizationResolveDefaultPrincipal(USER);
+const SECOND_USER_ID: string = "user-2";
+// A request may name another user to act as.
+const USER_HEADER: string = "x-user";
 const OPERATOR_FIRST: string = "operator-first";
 const OPERATOR_SECOND: string = "operator-second";
 // Open and locked rows of the first operator, an open row of the second, and a spare open row of the first.
@@ -59,7 +62,8 @@ const NOT_FOUND_MESSAGE: string = "WRITECONDITIONDOCUMENTENTITY_NOT_FOUND";
 // The machine running the containers may be loaded, so a request gets more time than the default.
 const TEST_TIMEOUT: number = 60_000;
 
-type TCondition = "capture" | "none" | "relation" | "status";
+// "empty-criteria" adds a condition and returns empty delete criteria; "soft-delete" adds a condition and soft-deletes the row right after the read; "barrier" holds a GET until a second request reaches it.
+type TCondition = "barrier" | "capture" | "empty-criteria" | "none" | "relation" | "soft-delete" | "status";
 
 type TDatabase = "mysql" | "postgres" | "sqlite";
 
@@ -108,6 +112,9 @@ class WriteConditionDocumentEntity {
 
 	@Column({ length: 64, name: "operatorId", nullable: true, type: "varchar" })
 	public operatorId?: null | string;
+
+	@DeleteDateColumn({ name: "deletedAt", nullable: true })
+	public deletedAt?: Date | null;
 
 	@Column({ length: 64, type: "varchar" })
 	@describeString("status", "open")
@@ -163,14 +170,36 @@ class WriteConditionState {
 
 	public static condition: TCondition = "none";
 
+	public static gets: Array<{ phase: "after" | "before"; principalId: string | undefined; row: unknown }> = [];
+
+	// A repository of the DataSource, outside the transaction of the write.
+	public static outsideRepository: Repository<WriteConditionDocumentEntity> | undefined;
+
 	public static principals: Array<{ function: string; principal: Readonly<IApiAuthorizationPrincipal> | undefined }> = [];
 
 	public static reset(): void {
 		WriteConditionState.afterErrors = [];
 		WriteConditionState.captured = undefined;
 		WriteConditionState.condition = "none";
+		WriteConditionState.gets = [];
 		WriteConditionState.principals = [];
+		WriteConditionState.waiting = [];
 	}
+
+	// Lets a request pass once a second one waits too, so both are inside their functions at once; a lone request passes after a timeout.
+	public static async meet(): Promise<void> {
+		await new Promise<void>((resolve: () => void): void => {
+			WriteConditionState.waiting.push(resolve);
+
+			if (WriteConditionState.waiting.length >= 2) {
+				for (const waiting of WriteConditionState.waiting.splice(0)) waiting();
+			} else {
+				setTimeout(resolve, 10_000);
+			}
+		});
+	}
+
+	private static waiting: Array<() => void> = [];
 }
 
 /**
@@ -178,7 +207,7 @@ class WriteConditionState {
  * @param {(where: FindOptionsWhere<WriteConditionDocumentEntity>) => void} addCondition - The context's `addCondition`.
  */
 function addPickedCondition(addCondition: (where: Array<FindOptionsWhere<WriteConditionDocumentEntity>> | FindOptionsWhere<WriteConditionDocumentEntity>) => void): void {
-	if (WriteConditionState.condition === "status") addCondition({ status: "open" });
+	if (WriteConditionState.condition === "status" || WriteConditionState.condition === "empty-criteria" || WriteConditionState.condition === "soft-delete") addCondition({ status: "open" });
 
 	if (WriteConditionState.condition === "relation") addCondition({ operator: { name: "First" } });
 
@@ -200,11 +229,28 @@ class WriteConditionFunctionSubscriber extends ApiFunctionSubscriberBase<WriteCo
 		WriteConditionState.principals.push({ function: "delete", principal: context.DATA.principal });
 		addPickedCondition(context.DATA.addCondition);
 
+		// An empty result replaces the criteria, so only the condition could make the delete address a row.
+		return WriteConditionState.condition === "empty-criteria" ? {} : undefined;
+	}
+
+	// Right after the read of an update or delete, another writer soft-deletes the row and commits.
+	public async onAfterGet(context: IApiSubscriberFunctionExecutionContext<WriteConditionDocumentEntity, WriteConditionDocumentEntity, IApiSubscriberFunctionExecutionContextData<WriteConditionDocumentEntity>>): Promise<WriteConditionDocumentEntity | undefined> {
+		if (WriteConditionState.condition === "soft-delete") await WriteConditionState.outsideRepository?.softDelete({ id: context.result.id });
+
+		// Built after both requests passed the barrier, so its principal is read again from the request it runs in.
+		if (WriteConditionState.condition === "barrier") WriteConditionState.gets.push({ phase: "after", principalId: context.DATA.principal?.id, row: context.result.id });
+
 		return undefined;
 	}
 
 	public async onBeforeGet(context: IApiSubscriberFunctionExecutionContext<WriteConditionDocumentEntity, TApiFunctionGetProperties<WriteConditionDocumentEntity>, IApiSubscriberFunctionExecutionContextData<WriteConditionDocumentEntity>>): Promise<TApiFunctionGetProperties<WriteConditionDocumentEntity> | undefined> {
 		WriteConditionState.principals.push({ function: "get", principal: context.DATA.principal });
+
+		if (WriteConditionState.condition === "barrier") {
+			const row: unknown = (context.result.where as { id?: unknown } | undefined)?.id;
+			WriteConditionState.gets.push({ phase: "before", principalId: context.DATA.principal?.id, row });
+			await WriteConditionState.meet();
+		}
 
 		return undefined;
 	}
@@ -246,7 +292,8 @@ class WriteConditionQueryRecorder implements Logger {
 @Injectable()
 class WriteConditionGuard {
 	public canActivate(context: ExecutionContext): boolean {
-		context.switchToHttp().getRequest<{ user?: unknown }>().user = USER;
+		const request: { headers: Record<string, string | undefined>; user?: unknown } = context.switchToHttp().getRequest<{ headers: Record<string, string | undefined>; user?: unknown }>();
+		request.user = { ...USER, id: request.headers[USER_HEADER] ?? USER.id };
 
 		return true;
 	}
@@ -360,7 +407,7 @@ async function startDatabase(database: TDatabase): Promise<{ options: TypeOrmMod
 
 describe.each(DATABASES)("Write conditions and the request principal of function subscribers on $databaseName (E2E)", ({ database }: { database: TDatabase; databaseName: string }) => {
 	let app: INestApplication;
-	let fastify: { inject: (options: { method: string; payload?: unknown; url: string }) => Promise<{ body: string; json: () => unknown; statusCode: number }> };
+	let fastify: { inject: (options: { headers?: Record<string, string>; method: string; payload?: unknown; url: string }) => Promise<{ body: string; json: () => unknown; statusCode: number }> };
 	let repository: Repository<WriteConditionDocumentEntity>;
 	let statements: Array<IApiPolicyStatement> = ALLOW_ALL;
 	let stop: () => Promise<void> = async () => {};
@@ -376,7 +423,7 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 				TypeOrmModule.forFeature([WriteConditionOperatorEntity, WriteConditionDocumentEntity]),
 				ApiAuthorizationModule.forRoot({
 					iam: {
-						attachmentSources: [{ getAttachments: async () => await Promise.resolve({ attachments: [{ policyId: POLICY_ID, principalId: PRINCIPAL.id, principalType: EApiAuthorizationPrincipalType.USER }], boundaries: [] }) }],
+						attachmentSources: [{ getAttachments: async () => await Promise.resolve({ attachments: [PRINCIPAL.id, SECOND_USER_ID].map((principalId: string) => ({ policyId: POLICY_ID, principalId, principalType: EApiAuthorizationPrincipalType.USER })), boundaries: [] }) }],
 						documentSources: [
 							{
 								getDocumentsByIds: async (ids: ReadonlyArray<string>): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> => await Promise.resolve(ids.includes(POLICY_ID) ? [{ document: { Statement: statements, Version: "2012-10-17" }, id: POLICY_ID, namespace: NAMESPACE, sourceType: EApiPolicySourceType.DATABASE, version: "1" }] : []),
@@ -394,6 +441,7 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 		await app.init();
 		fastify = app.getHttpAdapter().getInstance();
 		repository = app.get(getRepositoryToken(WriteConditionDocumentEntity));
+		WriteConditionState.outsideRepository = repository;
 
 		await app.get<Repository<WriteConditionOperatorEntity>>(getRepositoryToken(WriteConditionOperatorEntity)).save([
 			{ id: OPERATOR_FIRST, name: "First" },
@@ -421,7 +469,7 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 	}, 120_000);
 
 	async function readName(id: string): Promise<string | undefined> {
-		return (await repository.findOneBy({ id }))?.name;
+		return (await repository.findOne({ where: { id }, withDeleted: true }))?.name;
 	}
 
 	async function recordQueries(request: () => Promise<unknown>): Promise<Array<string>> {
@@ -568,6 +616,16 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 		);
 	});
 
+	// On the drivers that lock, the check is a locking read: FOR UPDATE, and FOR UPDATE OF the entity on PostgreSQL.
+	function expectRowLock(queries: Array<string>): void {
+		if (database === "sqlite") return;
+
+		expect(
+			queries.some((query: string) => (database === "postgres" ? /for update of/iu : /for update/iu).test(query)),
+			queries.join("\n"),
+		).toBe(true);
+	}
+
 	describe("cost", () => {
 		// The SAVE write and the remove address the row by its key, so a condition costs one locking read; PATCH puts it in the UPDATE itself.
 		it(
@@ -579,6 +637,7 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 
 				expect(await readName(OPEN_FIRST)).toBe("Second write");
 				expect(withCondition.length, withCondition.join("\n")).toBe(withoutCondition.length + 1);
+				expectRowLock(withCondition);
 				expect(
 					withoutCondition.some((query: string) => /for update/iu.test(query)),
 					withoutCondition.join("\n"),
@@ -613,10 +672,100 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 
 				expect(await repository.existsBy({ id: SPARE_FIRST })).toBe(false);
 				expect(withCondition.length, withCondition.join("\n")).toBe(withoutCondition.length + 1);
+				expectRowLock(withCondition);
 				expect(
 					withoutCondition.some((query: string) => /for update/iu.test(query)),
 					withoutCondition.join("\n"),
 				).toBe(false);
+			},
+			TEST_TIMEOUT,
+		);
+	});
+
+	describe("locking read of a PATCH condition through a relation", () => {
+		it(
+			"locks the row only when a condition reads another table",
+			async () => {
+				const withoutCondition: Array<string> = await recordQueries(async () => await fastify.inject({ method: "PATCH", payload: { name: "First write" }, url: `/write-condition-patch/${OPEN_FIRST}` }));
+				WriteConditionState.condition = "relation";
+				const withCondition: Array<string> = await recordQueries(async () => await fastify.inject({ method: "PATCH", payload: { name: "Second write" }, url: `/write-condition-patch/${OPEN_FIRST}` }));
+
+				expect(await readName(OPEN_FIRST)).toBe("Second write");
+				expect(withoutCondition.some((query: string) => /for update/iu.test(query))).toBe(false);
+				expectRowLock(withCondition);
+			},
+			TEST_TIMEOUT,
+		);
+	});
+
+	describe("criteria a condition must not complete", () => {
+		async function expectNothingChanged(): Promise<void> {
+			const rows: Array<WriteConditionDocumentEntity> = await repository.find({ order: { id: "ASC" }, withDeleted: true });
+
+			expect(rows.map((row: WriteConditionDocumentEntity) => [row.id, row.name, row.deletedAt ?? null])).toEqual([
+				[LOCKED_FIRST, "Original", null],
+				[OPEN_FIRST, "Original", null],
+				[OPEN_SECOND, "Original", null],
+				[SPARE_FIRST, "Original", null],
+			]);
+		}
+
+		it(
+			"refuses a delete with empty criteria although a condition was added",
+			async () => {
+				WriteConditionState.condition = "status";
+
+				await expect(app.get(WriteConditionSaveService).delete({})).rejects.toThrow("WRITECONDITIONDOCUMENTENTITY_DELETING_ERROR");
+				await expectNothingChanged();
+			},
+			TEST_TIMEOUT,
+		);
+
+		it(
+			"refuses a delete whose BEFORE subscriber empties the criteria and adds a condition",
+			async () => {
+				WriteConditionState.condition = "empty-criteria";
+
+				await expect(app.get(WriteConditionSaveService).delete({ id: OPEN_FIRST })).rejects.toThrow("WRITECONDITIONDOCUMENTENTITY_DELETING_ERROR");
+				await expectNothingChanged();
+			},
+			TEST_TIMEOUT,
+		);
+
+		it.each([
+			["SAVE", WriteConditionSaveService],
+			["PATCH", WriteConditionPatchService],
+		])(
+			"refuses a %s update with empty criteria although a condition would be added",
+			async (_persistence: string, service: typeof WriteConditionPatchService | typeof WriteConditionSaveService) => {
+				WriteConditionState.condition = "status";
+
+				await expect(app.get<WriteConditionPatchService | WriteConditionSaveService>(service).update({}, { name: "Changed" })).rejects.toThrow();
+				await expectNothingChanged();
+			},
+			TEST_TIMEOUT,
+		);
+	});
+
+	describe("a soft delete by another writer between the read and the write", () => {
+		it.each(UPDATE_ROUTES)(
+			"answers not found for an update in $persistence persistence, and leaves the row unchanged",
+			async ({ path }: { path: string; persistence: string }) => {
+				WriteConditionState.condition = "soft-delete";
+
+				expectConditionMiss(await fastify.inject({ method: "PATCH", payload: { name: "Changed" }, url: `/${path}/${OPEN_FIRST}` }), "update");
+				expect(await readName(OPEN_FIRST)).toBe("Original");
+			},
+			TEST_TIMEOUT,
+		);
+
+		it(
+			"answers not found for a delete, and keeps the row",
+			async () => {
+				WriteConditionState.condition = "soft-delete";
+
+				expectConditionMiss(await fastify.inject({ method: "DELETE", url: `/write-condition-save/${OPEN_FIRST}` }), "delete");
+				expect(await repository.exists({ where: { id: OPEN_FIRST }, withDeleted: true })).toBe(true);
 			},
 			TEST_TIMEOUT,
 		);
@@ -678,6 +827,25 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 
 				expect(response.statusCode, response.body).toBe(200);
 				expect(principalsOf("get")).toEqual([expect.objectContaining({ id: PRINCIPAL.id })]);
+			},
+			TEST_TIMEOUT,
+		);
+
+		it(
+			"keeps the principals of two concurrent requests apart",
+			async () => {
+				WriteConditionState.condition = "barrier";
+
+				const responses = await Promise.all([fastify.inject({ headers: { [USER_HEADER]: PRINCIPAL.id }, method: "POST", url: `/write-condition-save/inspect/${OPEN_FIRST}` }), fastify.inject({ headers: { [USER_HEADER]: SECOND_USER_ID }, method: "POST", url: `/write-condition-save/inspect/${OPEN_SECOND}` })]);
+
+				expect(responses.map((response: { statusCode: number }) => response.statusCode)).toEqual([200, 200]);
+				// Both requests were inside their functions at once before either went on.
+				expect(WriteConditionState.gets.slice(0, 2).map((entry: { phase: string }) => entry.phase)).toEqual(["before", "before"]);
+				expect(WriteConditionState.gets).toHaveLength(4);
+
+				for (const entry of WriteConditionState.gets) {
+					expect(entry.principalId, JSON.stringify(entry)).toBe(entry.row === OPEN_FIRST ? PRINCIPAL.id : SECOND_USER_ID);
+				}
 			},
 			TEST_TIMEOUT,
 		);

@@ -53,7 +53,7 @@ Route before hooks can use `context.result.body`.
 
 ## Checking Row State in `onBeforeUpdate` Instead of Adding a Condition
 
-Do not throw from `onBeforeUpdate`/`onBeforeDelete` after reading `currentEntity.status` to guard a transition: another writer can change the row between that read and the write. Call `context.DATA.addCondition({ status: "draft" })` on a `REQUIRED` function: the write checks it on the locked row and a miss answers `404 {ENTITY}_NOT_FOUND`. Do not expect `addCondition` on a `SUPPORTS` function outside a transaction (it throws), on other function types (it does not exist), or after the BEFORE chain (it throws). Do not expect `context.DATA.principal` in a queue consumer or a direct call: it exists only inside a route request with authorization.
+Do not throw from `onBeforeUpdate`/`onBeforeDelete` after reading `currentEntity.status` to guard a transition: another writer can change the row between that read and the write. Call `context.DATA.addCondition({ status: "draft" })` on a `REQUIRED` function: the write checks it on the locked row and a miss answers `404 {ENTITY}_NOT_FOUND`. Do not expect `addCondition` on a `SUPPORTS` function outside a transaction (it throws), on other function types (it does not exist), or after the BEFORE chain (it throws). Do not expect `context.DATA.principal` in a direct call or in a consumer started at bootstrap: it exists only inside a route request with authorization. Do not start a long-lived worker (`setInterval`, an emitter listener, a lazily started consumer) inside a request: it keeps that request's principal for its whole life.
 
 ## Treating `currentEntity` as Deeply Immutable
 

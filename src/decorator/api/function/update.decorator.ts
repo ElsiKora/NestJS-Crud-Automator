@@ -32,6 +32,7 @@ import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/en
 import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
 import { DatabaseTypeOrmIsUniqueViolation } from "@utility/database/typeorm/is/unique-violation.utility";
 import { DatabaseTypeOrmLockRow } from "@utility/database/typeorm/lock-row.utility";
+import { DatabaseTypeOrmIsSoftDeleted } from "@utility/database/typeorm/soft-deleted.utility";
 import { ErrorDuplicateKeyException } from "@utility/error/duplicate-key-exception.utility";
 import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -542,7 +543,7 @@ function isRelationKeyMoved<E extends IApiBaseEntity>(relation: RelationMetadata
 }
 
 /**
- * Bounds a PATCH write whose scope reads another table. TypeORM's UPDATE cannot join, so a locking read of the row's key checks the whole WHERE, relations included, in the transaction of the write, and the UPDATE keeps the conditions on the row's own columns. The lock holds the row until the transaction ends, so nothing changes it between the check and the write; the drivers TypeORM locks no row for run every transaction on one connection.
+ * Bounds a PATCH write whose scope reads another table. TypeORM's UPDATE cannot join, so a locking read of the row's key checks the whole WHERE, relations included, in the transaction of the write, and the UPDATE keeps the conditions on the row's own columns. The lock holds the row itself until the transaction ends, so the row's own columns cannot change between the check and the write. Related rows the WHERE reads are checked at the lock point but are not locked on PostgreSQL and CockroachDB, whose lock is `FOR UPDATE OF` the entity (MySQL's `FOR UPDATE` locks the related rows it reads too); the drivers TypeORM locks no row for run every transaction on one connection.
  * @template E Entity type.
  * @param {Repository<E>} repository - Transaction-bound repository of the write.
  * @param {TApiFunctionGetProperties<E>} readProperties - Effective options of the protected read, whose soft delete visibility the check keeps.
@@ -581,8 +582,8 @@ async function lockSaveWriteCondition<E extends IApiBaseEntity>(repository: Repo
 	const where: TApiAuthorizationScopeWhere<E> = writeCondition.apply(AuthorizationScopeMergeWhere(writeScope, keyWhere));
 	DatabaseTypeOrmAssertRequiredWhere(where);
 
-	// The read already decided whether a soft-deleted row is visible; the check adds only the conditions, so it reads by key with deleted rows included.
-	if (!(await DatabaseTypeOrmLockRow(repository, where, true))) throw new NotFoundException(ErrorString({ entity: repository.metadata.target as new () => E, type: EErrorStringAction.NOT_FOUND }));
+	// A row the read saw soft-deleted was read with deleted rows included; otherwise the row must still not be soft-deleted, so a concurrent soft delete is a miss.
+	if (!(await DatabaseTypeOrmLockRow(repository, where, DatabaseTypeOrmIsSoftDeleted(repository.metadata, existingEntity)))) throw new NotFoundException(ErrorString({ entity: repository.metadata.target as new () => E, type: EErrorStringAction.NOT_FOUND }));
 }
 
 /**
