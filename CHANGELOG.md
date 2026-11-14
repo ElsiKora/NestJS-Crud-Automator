@@ -1,3 +1,20 @@
+# [5.4.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.3.2...v5.4.0) (2026-11-14)
+
+### Bug Fixes
+
+- **authorization:** refuse unloaded route-bound denies and column route parameters ([15513a2](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/15513a28641fd601423f25cf85c77c5d689d23f3))
+- **authorization:** say that route parameters do not bind a placeholder the route lacks ([a514f50](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a514f50e6184fc5af3e38cb0c849884d596f3e61))
+- **function:** check operators and literals on a relation in patch mode ([4e476e0](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/4e476e07f0c59900e54b3fea4e03c64bd768916e))
+- **function:** honour a scope through a relation in patch mode ([1d2565a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/1d2565a30b7b4e07c2a0e93013a822da34779331))
+- **function:** refuse empty delete criteria and soft deletes under conditions ([b1f6436](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/b1f64367e484516e71946f50acf8e837c3f5355b))
+- **transaction:** refuse callbacks without depth and drop unrun ones ([6fac147](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/6fac147bf866e363e7d418fb4d7d5b83d8d3c1aa))
+
+### Features
+
+- **authorization:** bind resource path placeholders to route parameters ([9e0476a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/9e0476ab881d749fb96d3d1940e054106615cbb4))
+- **function:** add the request principal and write conditions to function contexts ([860f347](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/860f34711b2e74fe295481f0d3be187392647cc5))
+- **transaction:** add value-carrying after-commit callbacks ([a297f6c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a297f6c7c17ef3303c1dff400fc235d2267d5f0c))
+
 ## [5.3.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.3.1...v5.3.2) (2026-11-14)
 
 ### Bug Fixes
