@@ -1,7 +1,7 @@
 import type { EFilterOrderDirection } from "@enum/filter";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
-import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
+import type { IApiAuthorizationDecision, IApiAuthorizationPrincipal } from "@interface/class/api/authorization";
 import type { IApiControllerGetListQueryAstNode, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanFilterRelation, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRelationFilterContext, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
@@ -108,7 +108,9 @@ export class ApiRouteRuntime {
 		const request: IApiRouteRuntimeHttpRequest<E> = options.executionContext.switchToHttp().getRequest<IApiRouteRuntimeHttpRequest<E>>();
 
 		// The functions the handler calls see the principal the guard resolved, the same one generated routes pass.
-		return await ApiFunctionPrincipalStorage.run(AuthorizationDecisionResolveFromRequest(request as unknown as IApiAuthenticationRequest)?.principal, async (): Promise<R> => await this.executeCustomRequest(options, request));
+		const principal: IApiAuthorizationPrincipal | undefined = AuthorizationDecisionResolveFromRequest(request as unknown as IApiAuthenticationRequest)?.principal;
+
+		return await ApiFunctionPrincipalStorage.run(principal ? ApiControllerGeneratedSecuritySnapshot.freeze(principal) : undefined, async (): Promise<R> => await this.executeCustomRequest(options, request));
 	}
 
 	public static async executeCustomRequestRelations<E extends IApiBaseEntity>(controller: TApiControllerMethod<E>, metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, body: Partial<E> | undefined): Promise<void> {
@@ -152,10 +154,20 @@ export class ApiRouteRuntime {
 
 		const authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = ApiControllerGeneratedSecuritySnapshot.create(AuthorizationDecisionResolveFromRequest(options.targets.authenticationRequest));
 
-		// Every function the request runs, subscribers and transaction callbacks included, sees the principal of this decision.
+		// Every function the request runs, subscribers and transaction callbacks included, sees the principal of this decision, frozen with the snapshot.
 		return await ApiFunctionPrincipalStorage.run(authorizationDecision?.principal, async (): Promise<unknown> => await this.executeGeneratedRequest(options, authorizationDecision));
 	}
 
+	/**
+	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
+	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all. A relation over several columns names such a field only inside its object; any other value is refused by the split.
+	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
+	 * @param {ReadonlyArray<Record<string, unknown>>} bodies - The body as the client sent it and as the route will write it.
+	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
+	 * @param {ReadonlyArray<string>} unaddressedFields - Key columns the path leaves out on a write to one row.
+	 * @param {ReadonlyArray<RelationMetadata>} relations - Relations of the entity.
+	 * @throws {BadRequestException} When the body differs from the path.
+	 */
 	private static assertBodyPathValues(bodies: ReadonlyArray<Record<string, unknown>>, pathValues: Record<string, unknown>, unaddressedFields: ReadonlyArray<string>, relations: ReadonlyArray<RelationMetadata>): void {
 		for (const body of bodies) {
 			for (const field of [...Object.keys(pathValues), ...unaddressedFields]) {
@@ -243,6 +255,14 @@ export class ApiRouteRuntime {
 		await ApiSubscriberExecutor.executeRouteErrorSubscribers(options.executionContext.getClass(), entityInstance, options.metadata.route.type, onType, errorContext, error as Error, action);
 	}
 
+	/**
+	 * Runs one custom route request inside the principal storage the caller opened.
+	 * @template E Entity type.
+	 * @template R Handler result type.
+	 * @param {IApiRouteRuntimeCustomExecutionOptions<E, R>} options - Custom route execution options.
+	 * @param {IApiRouteRuntimeHttpRequest<E>} request - HTTP request of the route.
+	 * @returns {Promise<R>} The handler result.
+	 */
 	private static async executeCustomRequest<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, request: IApiRouteRuntimeHttpRequest<E>): Promise<R> {
 		const action: string = options.metadata.resource.action;
 		const entityInstance: E = new (options.metadata.resource.entity as new () => E)();
@@ -682,6 +702,14 @@ export class ApiRouteRuntime {
 		}
 	}
 
+	/**
+	 * Runs one generated route request inside the principal storage the caller opened.
+	 * @template E Entity type.
+	 * @template R Route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @param {IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined} authorizationDecision - Frozen authorization snapshot of the request.
+	 * @returns {Promise<unknown>} The route response.
+	 */
 	private static async executeGeneratedRequest<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined): Promise<unknown> {
 		const entityInstance: E = new (options.properties.entity as new () => E)();
 		this.keepSentBody(options.targets.authenticationRequest);
@@ -728,17 +756,6 @@ export class ApiRouteRuntime {
 			throw error;
 		}
 	}
-
-	/**
-	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
-	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all. A relation over several columns names such a field only inside its object; any other value is refused by the split.
-	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
-	 * @param {ReadonlyArray<Record<string, unknown>>} bodies - The body as the client sent it and as the route will write it.
-	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
-	 * @param {ReadonlyArray<string>} unaddressedFields - Key columns the path leaves out on a write to one row.
-	 * @param {ReadonlyArray<RelationMetadata>} relations - Relations of the entity.
-	 * @throws {BadRequestException} When the body differs from the path.
-	 */
 
 	private static async executeGeneratedRequestPipeline<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, targetOrder: Array<EApiControllerRequestTarget>): Promise<void> {
 		const routeConfig: TApiControllerPropertiesRoute<E, R> = options.properties.routes[options.method] ?? {};

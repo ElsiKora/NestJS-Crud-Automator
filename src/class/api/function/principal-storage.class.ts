@@ -5,7 +5,7 @@ import type { IApiFunctionPrincipalStorageEntry } from "@interface/class/api/fun
 
 import { AsyncLocalStorage as NodeAsyncLocalStorage } from "node:async_hooks";
 
-import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
+import { ErrorException } from "@utility/error/exception.utility";
 
 /**
  * Carries the principal a route resolved to the functions its request runs.
@@ -25,13 +25,14 @@ export class ApiFunctionPrincipalStorage {
 	/**
 	 * Runs the work of one route request with its principal.
 	 * @template R Result type.
-	 * @param {IApiAuthorizationPrincipal | undefined} principal - Principal of the request's authorization decision; undefined for a route without authorization.
+	 * @param {Readonly<IApiAuthorizationPrincipal> | undefined} principal - Deep-frozen principal of the request's authorization decision, such as the one of a frozen security snapshot; undefined for a route without authorization.
 	 * @param {() => Promise<R>} callback - Work of the request.
 	 * @returns {Promise<R>} The result of the work.
+	 * @throws {Error} When the principal is not frozen, which would let a subscriber change what another one reads.
 	 */
-	public static run<R>(principal: IApiAuthorizationPrincipal | undefined, callback: () => Promise<R>): Promise<R> {
-		// A deep-frozen copy, so no subscriber can change the principal the decision holds or another subscriber reads.
-		const entry: IApiFunctionPrincipalStorageEntry = Object.freeze({ principal: principal ? ApiControllerGeneratedSecuritySnapshot.freeze(principal) : undefined });
+	public static run<R>(principal: Readonly<IApiAuthorizationPrincipal> | undefined, callback: () => Promise<R>): Promise<R> {
+		if (principal !== undefined && !Object.isFrozen(principal)) throw ErrorException("The principal of a route request must be deep-frozen before functions read it");
+		const entry: IApiFunctionPrincipalStorageEntry = Object.freeze({ principal });
 
 		return ApiFunctionPrincipalStorage.STORAGE.run(entry, callback);
 	}
