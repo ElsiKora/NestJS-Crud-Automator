@@ -6,6 +6,7 @@ import type { TypeOrmModuleOptions } from "@nestjs/typeorm";
 import type { StartedMySqlContainer } from "@testcontainers/mysql";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { IApiAuthorizationPolicySubscriberContext, IApiAuthorizationRuleContext, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
+import type { HttpException } from "@nestjs/common";
 import type { Relation, Repository } from "typeorm";
 
 import { BadRequestException, Inject, Injectable, Module } from "@nestjs/common";
@@ -14,7 +15,7 @@ import { Test } from "@nestjs/testing";
 import { getRepositoryToken, InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { MySqlContainer } from "@testcontainers/mysql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
+import { Column, Entity, Equal, In, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -23,9 +24,12 @@ import {
 	ApiAuthorizationPolicyBase,
 	ApiController,
 	ApiControllerSecurable,
+	ApiFunctionSubscriber,
+	ApiFunctionSubscriberBase,
 	ApiPropertyDescribe,
 	ApiService,
 	ApiServiceBase,
+	ApiServiceObservable,
 	ApiSubscriberModule,
 	AuthorizationResolveDefaultPrincipal,
 	EApiAuthenticationType,
@@ -43,10 +47,14 @@ import {
 
 const OWN_ID: string = "user-own";
 const OTHER_ID: string = "user-other";
+const FOREIGN_ID: string = "user-foreign";
+const TENANT_OWN: string = "tenant-own";
+const TENANT_FOREIGN: string = "tenant-foreign";
 const OPERATOR_FIRST: string = "operator-first";
 const OPERATOR_SECOND: string = "operator-second";
 const POLICY_ID: string = "patch-persistence-policy";
 const POLICY_NAMESPACE: string = "patch-persistence:user";
+const SCOPE_FORM_HEADER: string = "x-patch-scope-form";
 
 type TDatabase = "mysql" | "postgres" | "sqlite";
 
@@ -95,9 +103,22 @@ class PatchPersistenceUserEntity {
 
 	@Column({ length: 64, name: "operatorId", nullable: true, type: "varchar" })
 	public operatorId?: null | string;
+
+	@ApiPropertyDescribe({ description: "reviewer", type: EApiPropertyDescribeType.RELATION })
+	@JoinColumn({ name: "reviewer_ref" })
+	@ManyToOne(() => PatchPersistenceOperatorEntity, { nullable: true })
+	public reviewer?: null | Relation<PatchPersistenceOperatorEntity>;
+
+	// The database column name differs from the property name a null relation is written through.
+	@Column({ length: 64, name: "reviewer_ref", nullable: true, type: "varchar" })
+	public reviewerId?: null | string;
+
+	@Column({ default: TENANT_OWN, length: 64, type: "varchar" })
+	public tenantId!: string;
 }
 
 @Injectable()
+@ApiServiceObservable()
 @ApiService({
 	entity: PatchPersistenceUserEntity,
 	functions: { [EApiFunctionType.UPDATE]: { persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH, transaction: { mode: EApiFunctionTransactionMode.REQUIRED } } },
@@ -108,10 +129,23 @@ class PatchPersistenceUserPatchService extends ApiServiceBase<PatchPersistenceUs
 }
 
 @Injectable()
+@ApiServiceObservable()
 @ApiService({ entity: PatchPersistenceUserEntity })
 class PatchPersistenceUserSaveService extends ApiServiceBase<PatchPersistenceUserEntity> {
 	@InjectRepository(PatchPersistenceUserEntity)
 	public readonly repository!: Repository<PatchPersistenceUserEntity>;
+}
+
+@Injectable()
+@ApiFunctionSubscriber({ entity: PatchPersistenceUserEntity })
+class PatchPersistenceUserFunctionSubscriber extends ApiFunctionSubscriberBase<PatchPersistenceUserEntity> {
+	public static readonly updateErrors: Array<{ message: string; status: number | undefined }> = [];
+
+	public async onAfterErrorUpdate(_context: object, error: Error): Promise<void> {
+		PatchPersistenceUserFunctionSubscriber.updateErrors.push({ message: error.message, status: (error as Partial<HttpException>).getStatus?.() });
+
+		return Promise.resolve();
+	}
 }
 
 @Injectable()
@@ -142,17 +176,38 @@ class PatchPersistenceAuthGuard implements IAuthGuard {
 @Injectable()
 @ApiAuthorizationPolicy({ entity: PatchPersistenceUserEntity })
 class PatchPersistenceUserPolicy extends ApiAuthorizationPolicyBase<PatchPersistenceUserEntity> {
-	public onBeforePartialUpdate(_context: IApiAuthorizationPolicySubscriberContext<PatchPersistenceUserEntity>) {
-		return this.allowOwnRow();
+	public onBeforePartialUpdate(context: IApiAuthorizationPolicySubscriberContext<PatchPersistenceUserEntity>) {
+		return this.allowScope(context.headers?.[SCOPE_FORM_HEADER]);
 	}
 
-	public onBeforeUpdate(_context: IApiAuthorizationPolicySubscriberContext<PatchPersistenceUserEntity>) {
-		return this.allowOwnRow();
+	public onBeforeUpdate(context: IApiAuthorizationPolicySubscriberContext<PatchPersistenceUserEntity>) {
+		return this.allowScope(context.headers?.[SCOPE_FORM_HEADER]);
 	}
 
-	private allowOwnRow() {
+	// The request picks the form the scope is written in: a plain own-row value (default), an own-row operator, or an OR of the own row and the own tenant.
+	private allowScope(form: string | undefined) {
 		return this.allow({
-			scope: (ruleContext: IApiAuthorizationRuleContext<PatchPersistenceUserEntity>) => ({ where: { id: String(ruleContext.principal.id) } }),
+			scope: (ruleContext: IApiAuthorizationRuleContext<PatchPersistenceUserEntity>) => {
+				const principalId: string = String(ruleContext.principal.id);
+
+				switch (form) {
+					case "equal": {
+						return { where: { id: Equal(principalId) } };
+					}
+
+					case "in": {
+						return { where: { id: In([principalId]) } };
+					}
+
+					case "tenant": {
+						return { where: [{ id: principalId }, { tenantId: TENANT_OWN }] };
+					}
+
+					default: {
+						return { where: { id: principalId } };
+					}
+				}
+			},
 		});
 	}
 }
@@ -264,7 +319,7 @@ async function startDatabase(database: TDatabase): Promise<{ options: TypeOrmMod
 
 describe.each(DATABASES)("Generated update in PATCH persistence on $databaseName (E2E)", ({ database }: { database: TDatabase; databaseName: string }) => {
 	let app: INestApplication;
-	let fastify: { inject: (options: { method: string; payload?: unknown; url: string }) => Promise<{ json: () => unknown; statusCode: number }> };
+	let fastify: { inject: (options: { headers?: Record<string, string>; method: string; payload?: unknown; url: string }) => Promise<{ json: () => unknown; statusCode: number }> };
 	let repository: Repository<PatchPersistenceUserEntity>;
 	let stop: () => Promise<void> = async () => {};
 
@@ -283,7 +338,7 @@ describe.each(DATABASES)("Generated update in PATCH persistence on $databaseName
 				}),
 				ApiSubscriberModule,
 			],
-			providers: [PatchPersistenceAuthGuard, PatchPersistenceUserPatchService, PatchPersistenceUserPolicy, PatchPersistenceUserSaveService],
+			providers: [PatchPersistenceAuthGuard, PatchPersistenceUserFunctionSubscriber, PatchPersistenceUserPatchService, PatchPersistenceUserPolicy, PatchPersistenceUserSaveService],
 		})
 		class PatchPersistenceAppModule {}
 
@@ -303,9 +358,11 @@ describe.each(DATABASES)("Generated update in PATCH persistence on $databaseName
 	beforeEach(async () => {
 		await repository.createQueryBuilder().delete().execute();
 		await repository.save([
-			{ id: OWN_ID, name: "Original", operatorId: OPERATOR_FIRST },
-			{ id: OTHER_ID, name: "Original", operatorId: OPERATOR_FIRST },
+			{ id: OWN_ID, name: "Original", operatorId: OPERATOR_FIRST, reviewerId: OPERATOR_SECOND, tenantId: TENANT_OWN },
+			{ id: OTHER_ID, name: "Original", operatorId: OPERATOR_FIRST, reviewerId: OPERATOR_SECOND, tenantId: TENANT_OWN },
+			{ id: FOREIGN_ID, name: "Original", operatorId: OPERATOR_FIRST, reviewerId: OPERATOR_SECOND, tenantId: TENANT_FOREIGN },
 		]);
+		PatchPersistenceUserFunctionSubscriber.updateErrors.length = 0;
 	});
 
 	afterAll(async () => {
@@ -370,6 +427,50 @@ describe.each(DATABASES)("Generated update in PATCH persistence on $databaseName
 			expect(response.statusCode).toBe(404);
 			expect(await readStored(OTHER_ID)).toEqual({ name: "Original", operatorId: OPERATOR_FIRST });
 		});
+
+		it("clears a relation whose join column has another database name than its property", async () => {
+			const response = await fastify.inject({ method: "PATCH", payload: { reviewer: null }, url: `/${path}/${OWN_ID}` });
+
+			expect(response.statusCode).toBe(200);
+			expect((await repository.findOneBy({ id: OWN_ID }))?.reviewerId).toBeNull();
+			expect(await readStored(OWN_ID)).toEqual({ name: "Original", operatorId: OPERATOR_FIRST });
+		});
+
+		it("runs the UPDATE after-error subscribers on the not found of a row outside the scope, as SAVE does", async () => {
+			await fastify.inject({ method: "PATCH", payload: { name: "Changed" }, url: `/${path}/${OTHER_ID}` });
+			const patchErrors: Array<{ message: string; status: number | undefined }> = PatchPersistenceUserFunctionSubscriber.updateErrors.splice(0);
+			await fastify.inject({ method: "PATCH", payload: { name: "Changed" }, url: `/${savePath}/${OTHER_ID}` });
+			const saveErrors: Array<{ message: string; status: number | undefined }> = PatchPersistenceUserFunctionSubscriber.updateErrors.splice(0);
+
+			expect(patchErrors).toEqual([{ message: "PATCHPERSISTENCEUSERENTITY_NOT_FOUND", status: 404 }]);
+			expect(patchErrors).toEqual(saveErrors);
+		});
+	});
+
+	it.each([["equal"], ["in"]])("answers PATCH outside an own-row HOOKS scope written with the %s operator with not found, and updates the own row", async (form: string) => {
+		const outsideResponse = await fastify.inject({ headers: { [SCOPE_FORM_HEADER]: form }, method: "PATCH", payload: { name: "Changed" }, url: `/patch-persistence-hooks/${OTHER_ID}` });
+
+		expect(outsideResponse.statusCode).toBe(404);
+		expect(outsideResponse.json()).toEqual(expect.objectContaining({ message: "PATCHPERSISTENCEUSERENTITY_NOT_FOUND", statusCode: 404 }));
+		expect(await readStored(OTHER_ID)).toEqual({ name: "Original", operatorId: OPERATOR_FIRST });
+
+		const ownResponse = await fastify.inject({ headers: { [SCOPE_FORM_HEADER]: form }, method: "PATCH", payload: { name: "Changed" }, url: `/patch-persistence-hooks/${OWN_ID}` });
+
+		expect(ownResponse.statusCode).toBe(200);
+		expect(await readStored(OWN_ID)).toEqual({ name: "Changed", operatorId: OPERATOR_FIRST });
+	});
+
+	it("updates a row the own-tenant branch of an OR scope reaches, and answers not found for a row of another tenant", async () => {
+		const inTenantResponse = await fastify.inject({ headers: { [SCOPE_FORM_HEADER]: "tenant" }, method: "PATCH", payload: { name: "Changed" }, url: `/patch-persistence-hooks/${OTHER_ID}` });
+
+		expect(inTenantResponse.statusCode).toBe(200);
+		expect(await readStored(OTHER_ID)).toEqual({ name: "Changed", operatorId: OPERATOR_FIRST });
+
+		const outOfTenantResponse = await fastify.inject({ headers: { [SCOPE_FORM_HEADER]: "tenant" }, method: "PATCH", payload: { name: "Changed" }, url: `/patch-persistence-hooks/${FOREIGN_ID}` });
+
+		expect(outOfTenantResponse.statusCode).toBe(404);
+		expect(outOfTenantResponse.json()).toEqual(expect.objectContaining({ message: "PATCHPERSISTENCEUSERENTITY_NOT_FOUND", statusCode: 404 }));
+		expect(await readStored(FOREIGN_ID)).toEqual({ name: "Original", operatorId: OPERATOR_FIRST });
 	});
 
 	it("clears the relation in SAVE persistence as before", async () => {
