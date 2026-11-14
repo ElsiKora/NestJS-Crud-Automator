@@ -1,3 +1,12 @@
+## [5.3.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.3.1...v5.3.2) (2026-11-14)
+
+### Bug Fixes
+
+- **function:** answer not found for patch criteria outside the scope ([5dfaa24](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/5dfaa245b03fd2958c1bb505ebac93257211aab5))
+- **function:** clear a single-column relation sent as null in patch mode ([9e99e4f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/9e99e4fd4a74fcdbdec9dcbabcac2f4afa070eec))
+- **openapi:** document a built-in response type inline under response media types ([49da38f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/49da38f4793228313bb31e84ceef5eb52306ac92))
+- **openapi:** document response media types on the success response only ([b00ed31](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/b00ed31b6188033799c93a2989d3ae4ac28c76e6))
+
 ## [5.3.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v5.3.0...v5.3.1) (2026-11-06)
 
 ### Bug Fixes
