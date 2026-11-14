@@ -566,14 +566,24 @@ function createPatchFixture() {
 	const findColumn = (propertyName: string) => columns.find((column) => column.propertyName === propertyName)!;
 	const createRelation = (propertyName: string, joinColumns: Array<(typeof columns)[number]>) => ({ embeddedMetadata: undefined, isEager: false, isLazy: false, isManyToOne: true, isOneToOneOwner: false, joinColumns, propertyName, propertyPath: propertyName });
 	const relations: Array<ReturnType<typeof createRelation>> = [createRelation("operator", [findColumn("operatorId")]), createRelation("region", [findColumn("regionCode"), findColumn("regionCountry")]), createRelation("owner", [findColumn("owner")])];
-	const metadata = { columns, primaryColumns: columns.filter((column) => column.isPrimary), relations, deleteDateColumn: undefined as (typeof columns)[number] | undefined };
+	const metadata = {
+		columns,
+		deleteDateColumn: undefined as (typeof columns)[number] | undefined,
+		hasEmbeddedWithPropertyPath: (_propertyPath: string): boolean => false,
+		hasRelationWithPropertyPath: (propertyPath: string): boolean => relations.some((relation) => relation.propertyPath === propertyPath),
+		primaryColumns: columns.filter((column) => column.isPrimary),
+		relations,
+		target: UpdateEntity,
+	};
 	const execute = vi.fn(async (): Promise<{ affected: number | undefined }> => ({ affected: 1 }));
 	const builder = { execute, set: vi.fn(), update: vi.fn(), where: vi.fn() };
 	for (const method of ["set", "update", "where"] as const) builder[method].mockReturnValue(builder);
 	const repository = {
 		createQueryBuilder: vi.fn(() => builder),
+		find: vi.fn(async (_properties: FindOneOptions<UpdateEntity>): Promise<Array<{ id: string }>> => [{ id: "id-1" }]),
 		findOne: vi.fn(async (_properties: FindOneOptions<UpdateEntity>) => ({ count: 1, id: "id-1", name: "old", status: "INACTIVE" })),
 		findOneOrFail: vi.fn(async (_properties: FindOneOptions<UpdateEntity>) => ({ count: 1, id: "id-1", name: "new", status: "ACTIVE" })),
+		manager: { dataSource: { options: { type: "postgres" } } },
 		metadata,
 		save: vi.fn(),
 	};
@@ -793,6 +803,34 @@ describe("ApiFunctionUpdate explicit PATCH persistence", () => {
 		await fixture.service.update({ id: "id-1", status: "INACTIVE" }, { status: "ACTIVE" });
 		expect(fixture.builder.where).toHaveBeenCalledWith({ deletedAt: IsNull(), id: Equal("id-1"), status: Equal("INACTIVE") });
 		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1" });
+	});
+
+	it.each([
+		["IsNull()", IsNull(), IsNull()],
+		["In([...])", In(["operator-1"]), In(["operator-1"])],
+		["Equal(literal)", Equal("operator-1"), Equal("operator-1")],
+		// The scope merge writes a literal as its equality.
+		["a plain literal", "operator-1", Equal("operator-1")],
+	])("checks %s on a relation through the locking key read and leaves it out of the UPDATE", async (_label: string, value: unknown, readValue: unknown) => {
+		const fixture = createPatchFixture();
+		await fixture.service.update({ id: "id-1", operator: value } as never, { name: "new" });
+		expect(fixture.repository.find).toHaveBeenCalledOnce();
+		expect(fixture.repository.find.mock.calls[0]?.[0]).toMatchObject({ lock: { mode: "pessimistic_write" }, where: { id: Equal("id-1"), operator: readValue } });
+		expect(fixture.builder.where).toHaveBeenCalledExactlyOnceWith({ id: Equal("id-1") });
+	});
+
+	it("answers not found when the locking key read finds no row for a literal on a relation, and runs no UPDATE", async () => {
+		const fixture = createPatchFixture();
+		fixture.repository.find.mockResolvedValue([]);
+		await expect(fixture.service.update({ id: "id-1", operator: "operator-1" } as never, { name: "new" })).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+		expect(fixture.execute).not.toHaveBeenCalled();
+	});
+
+	it("keeps a condition on the row's own columns in one UPDATE without the key read", async () => {
+		const fixture = createPatchFixture();
+		await fixture.service.update({ id: "id-1", operatorId: "operator-1" } as never, { name: "new" });
+		expect(fixture.repository.find).not.toHaveBeenCalled();
+		expect(fixture.builder.where).toHaveBeenCalledExactlyOnceWith({ id: Equal("id-1"), operatorId: Equal("operator-1") });
 	});
 
 	it("fresh-reads an empty patch under its complete scope without UPDATE or version advancement", async () => {
