@@ -7,7 +7,7 @@ import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/
 import type { TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/subscriber/function/before/update-context.type";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
-import type { DeepPartial, EntityManager, EntityMetadata, ObjectLiteral, QueryDeepPartialEntity, RelationMetadata, Repository, UpdateResult } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsSelect, FindOptionsWhere, ObjectLiteral, QueryDeepPartialEntity, RelationMetadata, Repository, UpdateResult } from "typeorm";
 
 import { isDeepStrictEqual, types as utilityTypes } from "node:util";
 
@@ -17,6 +17,7 @@ import { ApiControllerGeneratedScopeWhereContract } from "@class/api/controller/
 import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
+import { DATABASE_DRIVER_TYPE_CONSTANT } from "@constant/database-driver-type.constant";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiFunctionUpdatePersistenceMode } from "@enum/decorator/api/function/update-persistence-mode.enum";
@@ -300,11 +301,13 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			const hasValues: boolean = Object.keys(values).length > 0;
 
 			if (hasValues) {
+				const writeWhere: Array<FindOptionsWhere<E>> | FindOptionsWhere<E> = await lockPatchRelationScope(repository, patch.readProperties, where);
+
 				const updateResult: UpdateResult = await repository
 					.createQueryBuilder()
 					.update()
 					.set(values as QueryDeepPartialEntity<E>)
-					.where(where)
+					.where(writeWhere)
 					.execute();
 
 				if (updateResult.affected === 0) throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
@@ -471,6 +474,21 @@ function isPatchCriteriaMatchingNothing<E extends IApiBaseEntity>(repository: Re
 }
 
 /**
+ * Tells whether a WHERE entry reads another table: a relation, or an embedded column that holds one, compared through a nested condition. TypeORM's UPDATE cannot join, so it cannot compile such an entry; an operator or a literal on a relation compares its join columns and stays.
+ * @param {EntityMetadata} metadata - Metadata of the written entity.
+ * @param {string} propertyPath - Property path of the entry.
+ * @param {unknown} value - Condition of the entry.
+ * @returns {boolean} Whether the entry needs a join.
+ */
+function isPatchJoinCondition(metadata: EntityMetadata, propertyPath: string, value: unknown): boolean {
+	if (value === null || typeof value !== "object" || value instanceof Date || ArrayBuffer.isView(value) || InstanceChecker.isFindOperator(value)) return false;
+
+	if (metadata.hasRelationWithPropertyPath(propertyPath)) return true;
+
+	return metadata.hasEmbeddedWithPropertyPath(propertyPath) && Object.entries(value).some(([key, item]: [string, unknown]): boolean => isPatchJoinCondition(metadata, `${propertyPath}.${key}`, item));
+}
+
+/**
  * Tells whether a predicate matches no value: an empty `In`, or a conjunction, nested ones included, that holds one or names two different literal equalities, as the scope merge reads two different values of one column.
  * @param {unknown} value - Native literal or WHERE operator.
  * @returns {boolean} Whether no value satisfies the predicate.
@@ -506,6 +524,42 @@ function isRelationKeyMoved<E extends IApiBaseEntity>(relation: RelationMetadata
 	});
 
 	return movedColumns.length > 0 && movedColumns.every((column: TTypeOrmColumnMetadata): boolean => !column.isPrimary && column.isUpdate);
+}
+
+/**
+ * Bounds a PATCH write whose scope reads another table. TypeORM's UPDATE cannot join, so a locking read of the row's key checks the whole WHERE, relations included, in the transaction of the write, and the UPDATE keeps the conditions on the row's own columns. The lock holds the row until the transaction ends, so nothing changes it between the check and the write; the drivers TypeORM locks no row for run every transaction on one connection.
+ * @template E Entity type.
+ * @param {Repository<E>} repository - Transaction-bound repository of the write.
+ * @param {TApiFunctionGetProperties<E>} readProperties - Effective options of the protected read, whose soft delete visibility the check keeps.
+ * @param {Array<FindOptionsWhere<E>> | FindOptionsWhere<E>} where - Whole WHERE of the write: the effective read scope and the primary identity.
+ * @returns {Promise<Array<FindOptionsWhere<E>> | FindOptionsWhere<E>>} The WHERE the UPDATE takes: the given one when it reads no other table, otherwise its conditions on the row's own columns.
+ * @throws {NotFoundException} When the locking read finds no row inside the WHERE.
+ */
+async function lockPatchRelationScope<E extends IApiBaseEntity>(repository: Repository<E>, readProperties: TApiFunctionGetProperties<E>, where: Array<FindOptionsWhere<E>> | FindOptionsWhere<E>): Promise<Array<FindOptionsWhere<E>> | FindOptionsWhere<E>> {
+	const metadata: EntityMetadata = repository.metadata;
+	const branches: Array<FindOptionsWhere<E>> = Array.isArray(where) ? where : [where];
+	const hasJoinCondition: boolean = branches.some((branch: FindOptionsWhere<E>): boolean => Object.entries(branch).some(([key, value]: [string, unknown]): boolean => isPatchJoinCondition(metadata, key, value)));
+
+	// Every branch keeps its own conditions and the primary identity, so the UPDATE never addresses more than the locked row.
+	const readOwnBranch: (branch: FindOptionsWhere<E>) => FindOptionsWhere<E> = (branch: FindOptionsWhere<E>): FindOptionsWhere<E> => Object.fromEntries(Object.entries(branch).filter(([key, value]: [string, unknown]): boolean => !isPatchJoinCondition(metadata, key, value))) as FindOptionsWhere<E>;
+
+	if (!hasJoinCondition) return where;
+	const driverType: string = repository.manager.dataSource.options.type;
+
+	const lockedRows: Array<E> = await repository.find({
+		// eslint-disable-next-line @elsikora/typescript/naming-convention -- TypeORM owns this fixed FindManyOptions field.
+		cache: false,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention -- TypeORM owns this fixed FindManyOptions field.
+		loadEagerRelations: false,
+		lock: DATABASE_DRIVER_TYPE_CONSTANT.ROW_LOCK_UNSUPPORTED.has(driverType) ? undefined : { mode: "pessimistic_write", tables: DATABASE_DRIVER_TYPE_CONSTANT.ROW_LOCK_NAMES_TABLE.has(driverType) ? [metadata.tableNameWithoutPrefix] : undefined },
+		select: Object.fromEntries(metadata.primaryColumns.map((column: TTypeOrmColumnMetadata): [string, boolean] => [column.propertyName, true])) as FindOptionsSelect<E>,
+		where,
+		withDeleted: readProperties.withDeleted === true,
+	});
+
+	if (lockedRows.length === 0) throw new NotFoundException(ErrorString({ entity: metadata.target as new () => E, type: EErrorStringAction.NOT_FOUND }));
+
+	return Array.isArray(where) ? where.map((branch: FindOptionsWhere<E>): FindOptionsWhere<E> => readOwnBranch(branch)) : readOwnBranch(where);
 }
 
 /**
