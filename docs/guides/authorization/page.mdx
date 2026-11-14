@@ -1011,6 +1011,56 @@ Actions are never widened: a Deny on `read` does not hide rows from `list`, and 
 
 A value that holds `/`, or another character other than a letter or a digit that the `resourcePath` writes between or after its placeholders, names no resource, since it would move where the next placeholder starts: `/tenants/t-1%2Fitem%2Fx/items` is not a list of tenant `t-1`. Such a value, in the path or in a create or update body, makes an Allow grant nothing and a Deny deny the request with `403`. A loaded row, as the simulator or custom code passes it, is matched by its text as its list reads it, separators and all.
 
+### Route-bound placeholders
+
+Some controllers serve rows that are no TypeORM entity of the application, such as the rows a configuration package keeps for itself. Such a controller still names an entity, its anchor, which maps the condition keys of its own columns, but the anchor has no column for the `{id}` of its resource path. List the placeholder in `resourceDefinition.routeParameters`: it then reads the route parameter of the same name and is compared as the canonical text of the path value, with no column.
+
+```typescript filename="controllers/config-data.controller.ts" copy
+@ApiControllerSecurable()
+@ApiController<ConfigSectionRevisionEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.IAM,
+		policyNamespace: "internal",
+		resourceDefinition: {
+			entity: ConfigSectionRevisionEntity,
+			// The anchor's own column still maps a condition key.
+			fields: [{ isFilterable: true, path: "resource.section.name", queryPath: "sectionName" }],
+			namespace: "internal",
+			resourcePath: "internal:config-data/{id}",
+			resourceType: "internal:config-data",
+			// `{id}` is the `:id` route parameter, not a column of the anchor.
+			routeParameters: ["id"],
+		},
+	},
+	entity: ConfigSectionRevisionEntity,
+	path: "config/data",
+	routes: {},
+})
+export class ConfigDataController {
+	// Custom routes `GET :id`, `PATCH :id` and `GET ""`, each reading its rows from the package.
+}
+```
+
+On a route that carries the route parameter, such as `GET /config/data/:id` or `PATCH /config/data/:id`, a pattern compares the path text:
+
+| Policy                                                           | `:id` = `a` | `:id` = `b` |
+| ---------------------------------------------------------------- | ----------- | ----------- |
+| Allow `internal:config-data/a`                                   | allowed     | `403`       |
+| Allow `internal:config-data/*` and Deny `internal:config-data/a` | `403`       | allowed     |
+| Allow `internal:config-data/*`                                   | allowed     | allowed     |
+| Allow `internal:config-data/a*`                                  | allowed     | `403`       |
+
+The comparison is exact, letter case included, so the PARAMETERS DTO must give the path value one canonical text, as on every IAM route: `ApiPropertyUUID` refuses an upper-case UUID with `400` before IAM, so it cannot name the denied row in another spelling. The handler must read the row by exactly that text.
+
+A list or a create carries no such route parameter, and no column holds the placeholder, so no scope can narrow the rows by it:
+
+- an Allow whose `Resource` constrains the placeholder, such as `internal:config-data/a`, does not apply to a list or a create; another Allow, such as `internal:config-data/*`, still allows them;
+- a Deny whose `Resource` constrains the placeholder refuses the whole list or create with `403`, because there is no column to exclude the named row by. Allow `internal:config-data/*` with Deny `internal:config-data/a` therefore allows `GET :id` for every id but `a`, and refuses `GET ""`. Give the Deny the row actions only, such as `internal:read` and `internal:update`, when the list must stay allowed;
+- a `NotResource` that constrains the placeholder grants nothing as an Allow and refuses the request as a Deny;
+- `internal:config-data/*` is unchanged, and the condition keys of the anchor's fields compile into `decision.scope.where` as on any resource.
+
+A route-bound placeholder is not a field: no `resource.id` key reads it, and it never enters `decision.scope.where`. A loaded row passed to the simulator without the route parameter leaves it unknown, so a pattern that constrains it grants nothing and a Deny of it refuses. Startup checks the declaration (see [Bootstrap Validation](#bootstrap-validation)).
+
 ### Custom routes
 
 Custom `@ApiMethod(...)` routes receive the same contract through `decision.scope`: Allow scopes and Deny exclusions are already merged into `decision.scope.where`, so applying it to the route's own query enforces both. A Deny with `resource.*` keys that cannot compile denies the custom route with `403` before the handler runs.
@@ -1156,6 +1206,8 @@ The authorization module validates configuration during bootstrap. Common failur
 - `resourceDefinition.namespace` not matching `policyNamespace`
 - `resourceDefinition.entity` not matching the controller entity
 - invalid `resourceDefinition.fields` entries or duplicate `path` / `queryPath` mappings
+- a `resourcePath` placeholder that reads neither a route parameter nor a column: not listed in `routeParameters`, and its field mapping, its `pathScope` binding or the entity property of its name ends on no column, so every statement that names one resource would fail closed. The error names the controller, the resource, the placeholder and the three fixes: map it to a column with a `resource.<name>` field, bind the path parameter to a column in `pathScope`, or list it in `routeParameters` (see [Route-bound placeholders](#route-bound-placeholders))
+- a `resourceDefinition.routeParameters` entry that is not a placeholder of `resourcePath` or is listed twice, or a route-bound placeholder that a `resource.<name>` field or a `pathScope` binding also maps, since one placeholder reads one value
 - a generated controller, with or without authorization, on a MySQL, MariaDB or Aurora MySQL DataSource whose global or session `sql_mode` holds `NO_BACKSLASH_ESCAPES`. The MySQL driver escapes a quote in a bound value with a backslash, which that mode reads as text, so a client value could end the string. Remove the mode from the server's global `sql_mode` and from the `sql_mode` each connection sets; the Automator does not change session modes. A request-scoped or manually initialized controller checks on its first generated request and answers `500`
 
 IAM policy documents are validated whenever a document source returns them, with the grammar and the codes of [Policy document validation](#policy-document-validation): a document that fails throws instead of being evaluated. Bootstrap also registers each IAM `resourceDefinition` in `ApiAuthorizationIamResourceDefinitionRegistry`, which that validation reads.
@@ -1345,5 +1397,10 @@ In 5.0.2, generated `UPDATE` and `PARTIAL_UPDATE` check the row after the write 
 - A state change that leaves the scope is refused the same way. A Deny on `resource.status = "archived"` for `update` now also refuses `PATCH { "status": "archived" }` on an active row with `403`. Move such changes to a custom action, such as `update.archive`, with a statement of its own.
 - A scoped `UPDATE` or `PARTIAL_UPDATE` under omitted config or `SUPPORTS` now runs in a `ROUTE` transaction. Its function subscribers receive `eventManager`, `onAfterCommit` and `onAfterRollback` now run, and an `UPDATE` function configured as `REQUIRED` joins this transaction. Non-scoped updates are unchanged.
 - A scoped `UPDATE` or `PARTIAL_UPDATE` on a route configured as `NONE`, or with an `UPDATE` or `GET` function configured as `NONE`, now answers `500` and writes nothing. Use `SUPPORTS` or `REQUIRED` for routes that carry a scope.
+
+In 5.4.0 a `resourcePath` placeholder can bind to a route parameter (see [Route-bound placeholders](#route-bound-placeholders)):
+
+- A placeholder that reads neither a route parameter nor a column now fails at startup, naming the controller, the resource, the placeholder and the three fixes. Before, such a controller started and every statement that named one resource failed closed: an Allow of `<type>/<id>` admitted nothing, and a Deny of `<type>/<id>` beside an Allow of `<type>/*` refused every request. A controller whose rows are no entity of the application lists the placeholder in `resourceDefinition.routeParameters`, such as `routeParameters: ["id"]`; one whose placeholder names a column under another name maps it with a `resource.<name>` field or a `pathScope` binding.
+- On a list or a create, a Deny that constrains a route-bound placeholder refuses the whole request with `403`, and an Allow that constrains it does not apply.
 
 See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

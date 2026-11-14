@@ -2,6 +2,7 @@ import type { IApiAuthorizationIamQueryField, IApiAuthorizationModuleOptions } f
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiRouteRuntimeProperties } from "@interface/decorator/api";
+import type { IApiControllerPropertiesPathScope, IApiControllerPropertiesPathScopeParameter } from "@interface/decorator/api/controller/properties/path-scope";
 import type { Type } from "@nestjs/common";
 import type { InstanceWrapper } from "@nestjs/core/internal";
 
@@ -30,6 +31,8 @@ import { ApiControllerParametersBuildRouteRule } from "@utility/api/controller/p
 import { ApiControllerParametersAssertValidationPipePackages, ApiControllerParametersReadValidationPipes } from "@utility/api/controller/parameters/validation-pipe.utility";
 import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query-field.utility";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
+import { AuthorizationPlaceholderIsRouteBound } from "@utility/authorization/placeholder-is-route-bound.utility";
+import { AuthorizationPlaceholderResolveQueryPath } from "@utility/authorization/placeholder-resolve-query-path.utility";
 import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
 import { DtoRequestWireBindController } from "@utility/dto/request-wire/bind";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -555,7 +558,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 				throw ErrorException(`Controller "${metatype.name}" resourceDefinition entity must match controller entity`);
 			}
 
-			this.validateResourceDefinition(metatype.name, authorization.resourceDefinition);
+			this.validateResourceDefinition(metatype.name, authorization.resourceDefinition, properties.pathScope);
 			// Policy document validation checks `resource.*` keys against the fields each namespace maps.
 			ApiAuthorizationIamResourceDefinitionRegistry.getInstance().register(authorization.resourceDefinition);
 			this.registerIamDialect(controllerWrapper, authorization.resourceDefinition.entity);
@@ -608,7 +611,19 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		return modes;
 	}
 
-	private validateResourceDefinition(controllerName: string, resourceDefinition: NonNullable<IApiControllerProperties<IApiBaseEntity>["authorization"]>["resourceDefinition"]): void {
+	/**
+	 * Validates the IAM resource definition of a controller: its names, its field mappings, and what each placeholder of
+	 * its resource path reads. A placeholder reads the route parameter of its name when `routeParameters` lists it, and
+	 * otherwise a column: the field that maps it, then the path scope binding of its path parameter, then the entity
+	 * property of its name. A placeholder that reads neither would make every statement that names one resource fail
+	 * closed, so it fails startup.
+	 * @param {string} controllerName - Controller class name, for the error message.
+	 * @param {IApiControllerProperties<IApiBaseEntity>["authorization"]["resourceDefinition"]} resourceDefinition - IAM resource definition of the controller.
+	 * @param {IApiControllerPropertiesPathScope<IApiBaseEntity>} [pathScope] - Path scope of the controller, when it declares one.
+	 * @returns {void}
+	 * @throws {Error} When a name is empty, a field mapping is malformed or duplicated, a `routeParameters` entry is not a placeholder of the resource path or is listed twice, a route-bound placeholder also has a field or a path scope binding, or a placeholder reads neither a route parameter nor a column.
+	 */
+	private validateResourceDefinition(controllerName: string, resourceDefinition: NonNullable<IApiControllerProperties<IApiBaseEntity>["authorization"]>["resourceDefinition"], pathScope?: IApiControllerPropertiesPathScope<IApiBaseEntity>): void {
 		if (!resourceDefinition) {
 			return;
 		}
@@ -672,16 +687,96 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			queryPaths.add(field.queryPath);
 		}
 
-		for (const placeholder of resourceDefinition.resourcePath.matchAll(/\{([\w.-]+)\}/g)) {
-			const name: string | undefined = placeholder[1];
-			const queryPath: string | undefined = resourceDefinition.fields.find((candidate: { path: string }): boolean => candidate.path === `resource.${name ?? ""}`)?.queryPath;
+		const placeholders: Array<string> = [...resourceDefinition.resourcePath.matchAll(/\{([\w.-]+)\}/g)].map((match: RegExpExecArray): string => match[1] ?? "");
+
+		this.validateRouteParameters(controllerName, resourceDefinition, placeholders, pathScope);
+
+		for (const name of placeholders) {
+			if (AuthorizationPlaceholderIsRouteBound(resourceDefinition, name)) {
+				continue;
+			}
+
+			const queryPath: string | undefined = resourceDefinition.fields.find((candidate: { path: string }): boolean => candidate.path === `resource.${name}`)?.queryPath;
 			const collectionPath: string | undefined = queryPath === undefined ? undefined : AuthorizationIamReadQueryField(resourceDefinition.entity, queryPath).collectionPath;
 
 			if (collectionPath !== undefined) {
-				authorizationBootstrapValidationLogger.error(`Controller "${controllerName}" resource path placeholder "${name ?? ""}" reads the to-many relation "${collectionPath}", which holds no one value to render`);
+				authorizationBootstrapValidationLogger.error(`Controller "${controllerName}" resource path placeholder "${name}" reads the to-many relation "${collectionPath}", which holds no one value to render`);
 
-				throw ErrorException(`Controller "${controllerName}" resource path placeholder "${name ?? ""}" reads the to-many relation "${collectionPath}", which holds no one value to render`);
+				throw ErrorException(`Controller "${controllerName}" resource path placeholder "${name}" reads the to-many relation "${collectionPath}", which holds no one value to render`);
+			}
+
+			// The engine compares a path value on the stored row through this column, so without one every statement that names one resource fails closed.
+			const columnPath: string = AuthorizationPlaceholderResolveQueryPath(resourceDefinition, name, pathScope);
+			const columnField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, columnPath);
+
+			if (!columnField.isResolvable || columnField.collectionPath !== undefined || columnField.column === undefined) {
+				const message: string = `Controller "${controllerName}" resource "${resourceDefinition.resourceType}" path placeholder "{${name}}" of "${resourceDefinition.resourcePath}" reads no column of entity "${resourceDefinition.entity.name}" through "${columnPath}", so every statement that names one resource would fail closed: map it to a column with a field "resource.${name}", bind the path parameter "${name}" to a column in pathScope, or list "${name}" in resourceDefinition.routeParameters to compare the text of the route parameter`;
+
+				authorizationBootstrapValidationLogger.error(message);
+
+				throw ErrorException(message);
 			}
 		}
 	}
+
+	/**
+	 * Validates the `routeParameters` of a resource definition: each entry names a placeholder of the resource path once,
+	 * and a route-bound placeholder has no other source, neither a field that maps it nor a path scope binding of its
+	 * path parameter, since one placeholder reads one value.
+	 * @param {string} controllerName - Controller class name, for the error message.
+	 * @param {NonNullable<NonNullable<IApiControllerProperties<IApiBaseEntity>["authorization"]>["resourceDefinition"]>} resourceDefinition - IAM resource definition of the controller.
+	 * @param {ReadonlyArray<string>} placeholders - Placeholders of the resource path.
+	 * @param {IApiControllerPropertiesPathScope<IApiBaseEntity>} [pathScope] - Path scope of the controller, when it declares one.
+	 * @returns {void}
+	 * @throws {Error} When `routeParameters` is not a list, an entry is not a placeholder of the resource path or is listed twice, or a route-bound placeholder also has a field or a path scope binding.
+	 */
+	private validateRouteParameters(controllerName: string, resourceDefinition: NonNullable<NonNullable<IApiControllerProperties<IApiBaseEntity>["authorization"]>["resourceDefinition"]>, placeholders: ReadonlyArray<string>, pathScope?: IApiControllerPropertiesPathScope<IApiBaseEntity>): void {
+		const routeParameters: unknown = resourceDefinition.routeParameters;
+
+		if (routeParameters === undefined) {
+			return;
+		}
+
+		const resource: string = `Controller "${controllerName}" resource "${resourceDefinition.resourceType}"`;
+
+		if (!Array.isArray(routeParameters)) {
+			throw authorizationBootstrapValidationFail(`${resource} resourceDefinition.routeParameters must be a list of placeholders of "${resourceDefinition.resourcePath}"`);
+		}
+
+		const seen: Set<string> = new Set<string>();
+
+		for (const name of routeParameters as Array<unknown>) {
+			if (typeof name !== "string" || !placeholders.includes(name)) {
+				throw authorizationBootstrapValidationFail(`${resource} resourceDefinition.routeParameters names "${String(name)}", which is not a placeholder of "${resourceDefinition.resourcePath}": list only placeholders of the resource path, such as "id" for "{id}"`);
+			}
+
+			if (seen.has(name)) {
+				throw authorizationBootstrapValidationFail(`${resource} resourceDefinition.routeParameters lists "${name}" twice`);
+			}
+
+			seen.add(name);
+
+			const field: { path: string; queryPath: string } | undefined = resourceDefinition.fields.find((candidate: { path: string }): boolean => candidate.path === `resource.${name}`);
+			const binding: IApiControllerPropertiesPathScopeParameter<IApiBaseEntity> | undefined = pathScope?.parameters.find((candidate: IApiControllerPropertiesPathScopeParameter<IApiBaseEntity>): boolean => candidate.parameter === name);
+
+			if (field) {
+				throw authorizationBootstrapValidationFail(`${resource} path placeholder "{${name}}" is listed in resourceDefinition.routeParameters and also mapped by the field "resource.${name}" to "${field.queryPath}", and one placeholder reads one value: remove "${name}" from routeParameters to compare the column, or remove the field to compare the text of the route parameter`);
+			}
+
+			if (binding) {
+				throw authorizationBootstrapValidationFail(`${resource} path placeholder "{${name}}" is listed in resourceDefinition.routeParameters and also bound by pathScope to "${String(binding.field)}", and one placeholder reads one value: remove "${name}" from routeParameters to compare the column, or remove the pathScope binding to compare the text of the route parameter`);
+			}
+		}
+	}
+}
+
+/**
+ * Logs a startup error and builds the error that stops startup.
+ * @param {string} message - Error message.
+ * @returns {Error} The error to throw.
+ */
+function authorizationBootstrapValidationFail(message: string): Error {
+	authorizationBootstrapValidationLogger.error(message);
+
+	return ErrorException(message);
 }

@@ -14,6 +14,7 @@ import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-proper
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
+import { AuthorizationPlaceholderIsRouteBound } from "@utility/authorization/placeholder-is-route-bound.utility";
 import { AuthorizationPlaceholderResolveQueryPath } from "@utility/authorization/placeholder-resolve-query-path.utility";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
@@ -428,7 +429,7 @@ function readDescribedTypes(dto: { prototype: object }, properties: ReadonlyMap<
 }
 
 /**
- * Lists the entity column that each IAM resource path placeholder of a path parameter reads: the field that maps it, then the path scope binding of that parameter, then the entity property of its name. A placeholder that reaches no column of the entity or of a to-one related entity is left out.
+ * Lists the entity column that each IAM resource path placeholder of a path parameter reads: the field that maps it, then the path scope binding of that parameter, then the entity property of its name. A placeholder bound to a route parameter, or that reaches no column of the entity or of a to-one related entity, is left out.
  * @param {IApiAuthorizationResourceDefinition<IApiBaseEntity>} resourceDefinition - IAM resource definition of the controller.
  * @param {IApiControllerPropertiesPathScope<IApiBaseEntity> | undefined} pathScope - Path scope of the controller.
  * @param {ReadonlySet<string>} parameters - Path parameters of the route.
@@ -440,7 +441,8 @@ function readPlaceholderColumns(resourceDefinition: IApiAuthorizationResourceDef
 	for (const match of resourceDefinition.resourcePath.matchAll(/\{([\w.-]+)\}/g)) {
 		const placeholder: string = match[1] ?? "";
 
-		if (!parameters.has(placeholder)) {
+		// A route-bound placeholder reads no column: the PARAMETERS DTO alone gives the text of its path value.
+		if (!parameters.has(placeholder) || AuthorizationPlaceholderIsRouteBound(resourceDefinition, placeholder)) {
 			continue;
 		}
 

@@ -43,6 +43,7 @@ import { AuthorizationScopeMergeWhere } from "@utility/authorization";
 import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query-field.utility";
 import { AuthorizationIsCreateRoute } from "@utility/authorization/is-create-route.utility";
 import { AuthorizationIsListRoute } from "@utility/authorization/is-list-route.utility";
+import { AuthorizationPlaceholderIsRouteBound } from "@utility/authorization/placeholder-is-route-bound.utility";
 import { AuthorizationPlaceholderResolveQueryPath } from "@utility/authorization/placeholder-resolve-query-path.utility";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -313,7 +314,8 @@ export class ApiAuthorizationIamEngine {
 	 * which the create reads back before it commits, so the Deny refuses that row and no other. Any other request names one
 	 * resource or none, so a pattern either covers it, misses it, or says nothing exact about it: an Allow then grants
 	 * nothing by the pattern and a `NotResource` or a loaded resource fails closed. A `Resource` of a Deny that says nothing
-	 * exact about the unloaded row of a row route stays out of the request.
+	 * exact about the unloaded row of a row route stays out of the request. A pattern that constrains a placeholder bound to
+	 * a route parameter the request does not carry says nothing exact either, as no column holds that placeholder.
 	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} tokens - Resolved pattern tokens.
 	 * @param {IApiAuthorizationIamStatement} statement - Statement of the pattern.
 	 * @param {object} options - Matching options.
@@ -328,7 +330,7 @@ export class ApiAuthorizationIamEngine {
 		const isDenyResourceOfUnloadedRow: boolean = statement.effect === EApiPolicyEffect.DENY && !statement.resource.isNegated && options.resource === undefined;
 
 		if (options.resource === undefined && (options.isListRequest || (options.isCreateRequest && isDenyResourceOfUnloadedRow))) {
-			return ApiAuthorizationIamResourcePattern.classify(tokens, segments, options.requestResource.alphabets);
+			return this.excludeUnfilledRouteParameters(ApiAuthorizationIamResourcePattern.classify(tokens, segments, options.requestResource.alphabets), options.requestResource);
 		}
 
 		if (ApiAuthorizationIamGlob.isCovering(tokens, segments)) {
@@ -365,7 +367,7 @@ export class ApiAuthorizationIamEngine {
 			return [text];
 		}
 
-		const row: IApiAuthorizationIamResourceClassification = ApiAuthorizationIamResourcePattern.classify(tokens, rowSegments, options.requestResource.alphabets);
+		const row: IApiAuthorizationIamResourceClassification = this.excludeUnfilledRouteParameters(ApiAuthorizationIamResourcePattern.classify(tokens, rowSegments, options.requestResource.alphabets), options.requestResource);
 		const isGranting: boolean = (statement.effect === EApiPolicyEffect.ALLOW) !== statement.resource.isNegated;
 
 		return isGranting ? [this.intersectClassifications(text, row)] : [text, row];
@@ -589,6 +591,20 @@ export class ApiAuthorizationIamEngine {
 			hasExplicitDeny: false,
 			statementTraces,
 		};
+	}
+
+	/**
+	 * Reads a pattern that constrains a placeholder bound to a route parameter the request does not carry, on a list or a
+	 * create, as one that says nothing exact about the request: no column holds the placeholder, so no row exclusion or
+	 * scope can compare it. An Allow then grants nothing by the pattern, and a Deny or a `NotResource` refuses the request.
+	 * @param {IApiAuthorizationIamResourceClassification} classification - Class of the pattern over the placeholders.
+	 * @param {IApiAuthorizationIamRequestResource} requestResource - Resource string the request names.
+	 * @returns {IApiAuthorizationIamResourceClassification} The class, `AMBIGUOUS` when a constraint names such a placeholder.
+	 */
+	private excludeUnfilledRouteParameters(classification: IApiAuthorizationIamResourceClassification, requestResource: IApiAuthorizationIamRequestResource): IApiAuthorizationIamResourceClassification {
+		const isConstrainingUnfilled: boolean = classification.constraints.some((constraint: IApiAuthorizationIamResourceConstraint): boolean => requestResource.unfilledRouteParameters.has(constraint.placeholder));
+
+		return isConstrainingUnfilled ? { constraints: [], kind: EApiAuthorizationIamResourceClass.AMBIGUOUS } : classification;
 	}
 
 	/**
@@ -869,7 +885,8 @@ export class ApiAuthorizationIamEngine {
 	 * name. A placeholder a path value fills and a filterable column maps is also kept as a placeholder in the row reading,
 	 * which the database compares on the stored row; that placeholder renders no separator of the resource path. A path or
 	 * body value that holds such a separator, `/` or a non-alphanumeric character between or after placeholders, names no
-	 * resource. A loaded row is read as its list reads it, separators and all.
+	 * resource. A loaded row is read as its list reads it, separators and all. A placeholder the resource definition binds
+	 * to a route parameter renders the path value alone, in both readings, and stays unknown without one, even on a loaded row.
 	 * @template E - Entity type.
 	 * @template M - List pagination mode.
 	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
@@ -887,6 +904,7 @@ export class ApiAuthorizationIamEngine {
 		const alphabets: Map<string, RegExp> = new Map<string, RegExp>(this.queryPlanner.readSlotAlphabets(resourceDefinition, dialect));
 		const segments: Array<IApiAuthorizationIamResourceSegment> = [];
 		const rowSegments: Array<IApiAuthorizationIamResourceSegment> = [];
+		const unfilledRouteParameters: Set<string> = new Set<string>();
 		let hasRowPlaceholder: boolean = false;
 		let isNamingNoResource: boolean = false;
 
@@ -910,9 +928,13 @@ export class ApiAuthorizationIamEngine {
 			const placeholder: string = match[1] ?? "";
 			const resourceValue: { isDeclared: boolean; isReadable: boolean; value?: unknown } = this.readResourceValue(resourceDefinition, resource, `resource.${placeholder}`);
 			const isParameter: boolean = Object.prototype.hasOwnProperty.call(parameters, placeholder);
+			const isRouteBound: boolean = AuthorizationPlaceholderIsRouteBound(resourceDefinition, placeholder);
 			let resolvedValue: unknown;
 
-			if (resource !== undefined && resourceValue.isDeclared) {
+			if (isRouteBound) {
+				// A route-bound placeholder reads the path value alone: a loaded row holds no column for it.
+				resolvedValue = isParameter ? parameters[placeholder] : undefined;
+			} else if (resource !== undefined && resourceValue.isDeclared) {
 				resolvedValue = resourceValue.value;
 			} else if (isParameter) {
 				resolvedValue = parameters[placeholder];
@@ -941,7 +963,7 @@ export class ApiAuthorizationIamEngine {
 			if (renderedValue) {
 				appendLiteral(segments, renderedValue);
 
-				const storedRow: { isText: boolean; queryPath?: string } | undefined = resource === undefined && isParameter ? this.resolveStoredRowColumn(resourceDefinition, placeholder, pathScope) : undefined;
+				const storedRow: { isText: boolean; queryPath?: string } | undefined = resource === undefined && isParameter && !isRouteBound ? this.resolveStoredRowColumn(resourceDefinition, placeholder, pathScope) : undefined;
 
 				if (storedRow?.isText === false && storedRow.queryPath !== undefined) {
 					// Only a text column gets the stored-row comparison; any other column keeps the path text.
@@ -953,13 +975,17 @@ export class ApiAuthorizationIamEngine {
 				} else {
 					appendLiteral(rowSegments, renderedValue);
 				}
-			} else if (resource !== undefined && (resolvedValue === undefined || resolvedValue === null || resolvedValue === "")) {
+			} else if (resource !== undefined && !isRouteBound && (resolvedValue === undefined || resolvedValue === null || resolvedValue === "")) {
 				// A loaded resource has no unknown placeholder: a NULL or empty value renders as nothing, as its SQL row does.
 				appendLiteral(segments, "");
 				appendLiteral(rowSegments, "");
 			} else {
 				segments.push({ placeholder, value: "*" });
 				rowSegments.push({ placeholder, value: "*" });
+
+				if (isRouteBound) {
+					unfilledRouteParameters.add(placeholder);
+				}
 			}
 
 			literalStart = match.index + match[0].length;
@@ -968,7 +994,7 @@ export class ApiAuthorizationIamEngine {
 		appendLiteral(segments, resourcePath.slice(literalStart));
 		appendLiteral(rowSegments, resourcePath.slice(literalStart));
 
-		return { alphabets, isNamingNoResource, segments, ...(hasRowPlaceholder ? { rowSegments } : {}) };
+		return { alphabets, isNamingNoResource, segments, ...(hasRowPlaceholder ? { rowSegments } : {}), unfilledRouteParameters };
 	}
 
 	/**

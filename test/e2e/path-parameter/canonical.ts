@@ -153,11 +153,11 @@ export class E2ePathParameterCanonicalGuard {
 const authentication = { guard: E2ePathParameterCanonicalGuard, type: EApiAuthenticationType.USER } as never;
 const security = { authentication } as never;
 
-const buildAuthorization = (namespace: string, entity: new () => unknown, resourcePath: string, fields: Array<string>): never =>
+const buildAuthorization = (namespace: string, entity: new () => unknown, resourcePath: string, fields: Array<string>, routeParameters?: Array<string>): never =>
 	({
 		defaultMode: EApiAuthorizationMode.IAM,
 		policyNamespace: namespace,
-		resourceDefinition: { entity, fields: fields.map((field: string) => ({ isFilterable: true, path: `resource.${field}`, queryPath: field })), namespace, resourcePath, resourceType: namespace },
+		resourceDefinition: { entity, fields: fields.map((field: string) => ({ isFilterable: true, path: `resource.${field}`, queryPath: field })), namespace, resourcePath, resourceType: namespace, ...(routeParameters ? { routeParameters } : {}) },
 	}) as never;
 
 const scopedRead = (): Record<string, unknown> => ({ [EApiRouteType.GET]: { security } });
@@ -425,9 +425,10 @@ export class E2ePathParameterCanonicalInheritedAController extends E2ePathParame
 
 /**
  * Names the controller path parameter `{tenant}` in its resource path, which the inherited PARAMETERS DTO does not describe, so it must fail at startup.
+ * The entity has no tenant column, so the placeholder is bound to its route parameter, and the route check is the one that fails.
  */
 @ApiControllerSecurable()
-@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-inh-b", E2ePathParameterCanonicalIntItemEntity, "ppc-inh-b/{tenant}/{id}", ["id"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalInheritedB", path: "path-parameter/canonical/ppc-inh-b/:tenant", routes: noRoutes })
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-inh-b", E2ePathParameterCanonicalIntItemEntity, "ppc-inh-b/{tenant}/{id}", ["id"], ["tenant"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalInheritedB", path: "path-parameter/canonical/ppc-inh-b/:tenant", routes: noRoutes })
 export class E2ePathParameterCanonicalInheritedBController extends E2ePathParameterCanonicalInheritedIdBaseController {}
 
 /**

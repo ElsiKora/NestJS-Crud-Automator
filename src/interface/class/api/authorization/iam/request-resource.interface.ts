@@ -12,4 +12,6 @@ export interface IApiAuthorizationIamRequestResource {
 	rowSegments?: ReadonlyArray<IApiAuthorizationIamResourceSegment>;
 	// The reading by text: each value the request or a loaded row gives renders as its text.
 	segments: ReadonlyArray<IApiAuthorizationIamResourceSegment>;
+	// Placeholders bound to a route parameter that the request does not carry: no column holds them, so a pattern that constrains one says nothing exact about the request.
+	unfilledRouteParameters: ReadonlySet<string>;
 }

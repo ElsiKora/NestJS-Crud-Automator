@@ -233,6 +233,31 @@ function defineCollectionControllerMetadata(controller: new () => unknown, field
 	);
 }
 
+// An IAM controller over the label entity, which has the columns `id` and `name`, whose only route is the generated GET, so only its resource definition is checked.
+function defineRouteBoundControllerMetadata(controller: new () => unknown, resourceDefinition: { fields?: Array<{ isFilterable: boolean; path: string; queryPath: string }>; resourcePath: string; routeParameters?: unknown }, pathScope?: { parameters: Array<{ field: string; parameter: string }> }): void {
+	Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
+	Reflect.defineMetadata(
+		CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+		{
+			authorization: {
+				defaultMode: EApiAuthorizationMode.IAM,
+				policyNamespace: "validation",
+				resourceDefinition: { entity: ValidationLabelEntity, fields: [], namespace: "validation", resourceType: "validation:setting", ...resourceDefinition },
+			},
+			entity: ValidationLabelEntity,
+			...(pathScope ? { pathScope } : {}),
+			routes: {
+				create: { generation: { isEnabled: false } },
+				delete: { generation: { isEnabled: false } },
+				getList: { generation: { isEnabled: false } },
+				partialUpdate: { generation: { isEnabled: false } },
+				update: { generation: { isEnabled: false } },
+			},
+		},
+		controller,
+	);
+}
+
 function defineIamRouteMetadata(handler: () => void): void {
 	Reflect.defineMetadata(
 		METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
@@ -511,6 +536,98 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 		expect(() => {
 			createIamService([ToOneFieldController], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap();
 		}).not.toThrow();
+	});
+
+	describe("route-bound placeholders", () => {
+		const start = (controller: new () => unknown): void => {
+			createIamService([controller], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap();
+		};
+
+		it("starts a placeholder listed in routeParameters that names no column, beside a field of the entity", () => {
+			class RouteBoundController {}
+
+			defineRouteBoundControllerMetadata(RouteBoundController, { fields: [{ isFilterable: true, path: "resource.name", queryPath: "name" }], resourcePath: "validation:setting/{settingId}", routeParameters: ["settingId"] });
+
+			expect(() => start(RouteBoundController)).not.toThrow();
+		});
+
+		it("starts a route-bound placeholder whose name is also a column of the entity, which it does not read", () => {
+			class RouteBoundColumnNameController {}
+
+			defineRouteBoundControllerMetadata(RouteBoundColumnNameController, { resourcePath: "validation:setting/{id}", routeParameters: ["id"] });
+
+			expect(() => start(RouteBoundColumnNameController)).not.toThrow();
+		});
+
+		it("starts a placeholder that reads a column of the entity, a field or a path scope binding, without routeParameters", () => {
+			class ColumnController {}
+			class FieldController {}
+			class BindingController {}
+
+			defineRouteBoundControllerMetadata(ColumnController, { resourcePath: "validation:setting/{id}" });
+			defineRouteBoundControllerMetadata(FieldController, { fields: [{ isFilterable: true, path: "resource.key", queryPath: "name" }], resourcePath: "validation:setting/{key}" });
+			defineRouteBoundControllerMetadata(BindingController, { resourcePath: "validation:setting/{key}" }, { parameters: [{ field: "name", parameter: "key" }] });
+
+			expect(() => start(ColumnController)).not.toThrow();
+			expect(() => start(FieldController)).not.toThrow();
+			expect(() => start(BindingController)).not.toThrow();
+		});
+
+		it("does not start a placeholder that reads neither a route parameter nor a column, and names the three fixes", () => {
+			class NoColumnController {}
+
+			defineRouteBoundControllerMetadata(NoColumnController, { fields: [{ isFilterable: true, path: "resource.name", queryPath: "name" }], resourcePath: "validation:setting/{settingId}" });
+
+			expect(() => start(NoColumnController)).toThrow(
+				'Controller "NoColumnController" resource "validation:setting" path placeholder "{settingId}" of "validation:setting/{settingId}" reads no column of entity "ValidationLabelEntity" through "settingId", so every statement that names one resource would fail closed: map it to a column with a field "resource.settingId", bind the path parameter "settingId" to a column in pathScope, or list "settingId" in resourceDefinition.routeParameters to compare the text of the route parameter',
+			);
+		});
+
+		it("does not start a placeholder whose field or path scope binding ends on no column", () => {
+			class MissingFieldColumnController {}
+			class MissingBindingColumnController {}
+
+			defineRouteBoundControllerMetadata(MissingFieldColumnController, { fields: [{ isFilterable: true, path: "resource.key", queryPath: "missing" }], resourcePath: "validation:setting/{key}" });
+			defineRouteBoundControllerMetadata(MissingBindingColumnController, { resourcePath: "validation:setting/{key}" }, { parameters: [{ field: "missing", parameter: "key" }] });
+
+			expect(() => start(MissingFieldColumnController)).toThrow('path placeholder "{key}" of "validation:setting/{key}" reads no column of entity "ValidationLabelEntity" through "missing"');
+			expect(() => start(MissingBindingColumnController)).toThrow('path placeholder "{key}" of "validation:setting/{key}" reads no column of entity "ValidationLabelEntity" through "missing"');
+		});
+
+		it("does not start a routeParameters entry that is not a placeholder of the resource path", () => {
+			class UnknownRouteParameterController {}
+
+			defineRouteBoundControllerMetadata(UnknownRouteParameterController, { resourcePath: "validation:setting/{id}", routeParameters: ["settingId"] });
+
+			expect(() => start(UnknownRouteParameterController)).toThrow('Controller "UnknownRouteParameterController" resource "validation:setting" resourceDefinition.routeParameters names "settingId", which is not a placeholder of "validation:setting/{id}": list only placeholders of the resource path, such as "id" for "{id}"');
+		});
+
+		it("does not start a routeParameters entry listed twice, or routeParameters that is not a list", () => {
+			class TwiceController {}
+			class NotListController {}
+
+			defineRouteBoundControllerMetadata(TwiceController, { resourcePath: "validation:setting/{settingId}", routeParameters: ["settingId", "settingId"] });
+			defineRouteBoundControllerMetadata(NotListController, { resourcePath: "validation:setting/{settingId}", routeParameters: "settingId" });
+
+			expect(() => start(TwiceController)).toThrow('Controller "TwiceController" resource "validation:setting" resourceDefinition.routeParameters lists "settingId" twice');
+			expect(() => start(NotListController)).toThrow('Controller "NotListController" resource "validation:setting" resourceDefinition.routeParameters must be a list of placeholders of "validation:setting/{settingId}"');
+		});
+
+		it("does not start a route-bound placeholder that a field also maps", () => {
+			class FieldAndRouteController {}
+
+			defineRouteBoundControllerMetadata(FieldAndRouteController, { fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], resourcePath: "validation:setting/{id}", routeParameters: ["id"] });
+
+			expect(() => start(FieldAndRouteController)).toThrow('Controller "FieldAndRouteController" resource "validation:setting" path placeholder "{id}" is listed in resourceDefinition.routeParameters and also mapped by the field "resource.id" to "id", and one placeholder reads one value: remove "id" from routeParameters to compare the column, or remove the field to compare the text of the route parameter');
+		});
+
+		it("does not start a route-bound placeholder that the path scope also binds", () => {
+			class BindingAndRouteController {}
+
+			defineRouteBoundControllerMetadata(BindingAndRouteController, { resourcePath: "validation:setting/{key}", routeParameters: ["key"] }, { parameters: [{ field: "name", parameter: "key" }] });
+
+			expect(() => start(BindingAndRouteController)).toThrow('Controller "BindingAndRouteController" resource "validation:setting" path placeholder "{key}" is listed in resourceDefinition.routeParameters and also bound by pathScope to "name", and one placeholder reads one value: remove "key" from routeParameters to compare the column, or remove the pathScope binding to compare the text of the route parameter');
+		});
 	});
 
 	it("forgets the path value rules of an earlier start", () => {
