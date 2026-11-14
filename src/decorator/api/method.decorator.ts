@@ -17,6 +17,7 @@ import { ApiConsumes, ApiExtraModels, ApiHeaders, ApiOperation, ApiResponse, Api
 import { Throttle } from "@nestjs/throttler";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
+import { ApiRouteBuildBuiltInResponseOpenApiSchema } from "@utility/api/route/response";
 import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
@@ -97,16 +98,24 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 
 	if (successMediaTypes.length > 0) {
 		// Swagger applies `ApiProduces` to every response of the operation, so the configured media types describe the success response through its own content, and the error responses keep the JSON the package sends.
+		// A built-in type is documented inline as Swagger documents it for `ApiResponse({ type })`; only a class DTO becomes a component reference.
 		if (successType) {
-			successResponseDecorators.push(ApiExtraModels(successType));
-			successSchema = { $ref: getSchemaPath(successType) };
+			const builtInSchema: TSwaggerSchemaObject | undefined = ApiRouteBuildBuiltInResponseOpenApiSchema(successType);
+
+			if (builtInSchema) {
+				successSchema = builtInSchema;
+			} else {
+				successResponseDecorators.push(ApiExtraModels(successType));
+				successSchema = { $ref: getSchemaPath(successType) };
+			}
 		}
 
-		const mediaTypeObject: { schema?: TSwaggerReferenceObject | TSwaggerSchemaObject } = successSchema && metadata.response?.status !== HttpStatus.NO_CONTENT ? { schema: successSchema } : {};
+		const mediaTypeObject: { schema?: TSwaggerReferenceObject | TSwaggerSchemaObject } = successSchema ? { schema: successSchema } : {};
 
+		// A 204 response has no body, so it documents no content.
 		successResponseDecorators.push(
 			ApiResponse({
-				content: Object.fromEntries(successMediaTypes.map((mediaType: string): [string, { schema?: TSwaggerReferenceObject | TSwaggerSchemaObject }] => [mediaType, mediaTypeObject])),
+				...(metadata.response?.status === HttpStatus.NO_CONTENT ? {} : { content: Object.fromEntries(successMediaTypes.map((mediaType: string): [string, { schema?: TSwaggerReferenceObject | TSwaggerSchemaObject }] => [mediaType, mediaTypeObject])) }),
 				description: "Success",
 				headers: metadata.response?.headers,
 				status: metadata.response?.status,

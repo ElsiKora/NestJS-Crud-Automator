@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import type { CanActivate, INestApplication } from "@nestjs/common";
+import type { CanActivate, INestApplication, Type } from "@nestjs/common";
 import type { OpenAPIObject } from "@nestjs/swagger";
 import type { Repository } from "typeorm";
 
@@ -246,7 +246,7 @@ const SwaggerGeneratedOverrideController = ApiController<SwaggerAutoDtoEntity>({
 	},
 })(SwaggerGeneratedOverrideControllerBase);
 
-function createStreamRouteOptions(path: string, mediaTypes: Array<string> | undefined, type: typeof SwaggerSessionResponseDto | undefined): Parameters<typeof ApiRouteCustom<SwaggerEntity>>[0] {
+function createStreamRouteOptions(path: string, mediaTypes: Array<string> | undefined, type: Type<unknown> | undefined, status: HttpStatus = HttpStatus.OK, method: RequestMethod = RequestMethod.GET): Parameters<typeof ApiRouteCustom<SwaggerEntity>>[0] {
 	return {
 		documentation: mediaTypes ? { response: { mediaTypes } } : undefined,
 		resource: {
@@ -255,11 +255,11 @@ function createStreamRouteOptions(path: string, mediaTypes: Array<string> | unde
 		},
 		response: {
 			errors: { hasNotFound: true },
-			status: HttpStatus.OK,
+			status,
 			type,
 		},
 		route: {
-			method: RequestMethod.GET,
+			method,
 			path,
 		},
 		security: {
@@ -458,6 +458,26 @@ class SwaggerDocumentationController {
 
 	@ApiRouteCustom<SwaggerEntity>(createStreamRouteOptions("stream-untyped", ["text/event-stream", "application/x-ndjson"], undefined))
 	public streamUntyped(): string {
+		return "";
+	}
+
+	@ApiRouteCustom<SwaggerEntity>(createStreamRouteOptions("stream-created", ["text/event-stream"], SwaggerSessionResponseDto, HttpStatus.CREATED, RequestMethod.POST))
+	public streamCreated(): SwaggerSessionResponseDto {
+		return { mode: "session", sessionToken: "token" };
+	}
+
+	@ApiRouteCustom<SwaggerEntity>(createStreamRouteOptions("stream-no-content", ["text/event-stream"], undefined, HttpStatus.NO_CONTENT, RequestMethod.POST))
+	public streamNoContent(): void {
+		return undefined;
+	}
+
+	@ApiRouteCustom<SwaggerEntity>(createStreamRouteOptions("stream-string", ["text/event-stream"], String))
+	public streamString(): string {
+		return "";
+	}
+
+	@ApiRouteCustom<SwaggerEntity>(createStreamRouteOptions("stream-string-json", undefined, String))
+	public streamStringJson(): string {
 		return "";
 	}
 
@@ -670,6 +690,31 @@ describe("Swagger request DTO documentation (E2E)", () => {
 			for (const status of errorStatuses) {
 				expect(responses[status], status).toEqual({ content: { "application/json": { schema: { $ref: expect.stringMatching(/^#\/components\/schemas\/Exception/u) } } }, description: expect.any(String) });
 				expect(responses[status], status).toEqual(jsonResponses[status]);
+			}
+		}
+	});
+
+	it("documents configured response media types on created, no-content and built-in success responses", () => {
+		const createdResponses: Record<string, unknown> = getOperation("/swagger/stream-created", "post").responses as Record<string, unknown>;
+		const noContentResponses: Record<string, unknown> = getOperation("/swagger/stream-no-content", "post").responses as Record<string, unknown>;
+		const stringResponses: Record<string, unknown> = getOperation("/swagger/stream-string", "get").responses as Record<string, unknown>;
+		const stringJsonResponses: Record<string, unknown> = getOperation("/swagger/stream-string-json", "get").responses as Record<string, unknown>;
+
+		expect(createdResponses["201"]).toEqual({ content: { "text/event-stream": { schema: { $ref: "#/components/schemas/SwaggerSessionResponseDto" } } }, description: "Success" });
+		// A 204 response has no body, so it documents no content under any media type.
+		expect(noContentResponses["204"]).toEqual({ description: "Success" });
+		// A built-in type stays an inline schema, as without media types, and registers no component of its own.
+		expect(stringResponses["200"]).toEqual({ content: { "text/event-stream": { schema: { type: "string" } } }, description: "Success" });
+		expect(stringJsonResponses["200"]).toEqual({ content: { "application/json": { schema: { type: "string" } } }, description: "Success" });
+		expect(document.components?.schemas).not.toHaveProperty("String");
+
+		for (const responses of [createdResponses, noContentResponses, stringResponses, stringJsonResponses]) {
+			const errorStatuses: Array<string> = Object.keys(responses).filter((status: string): boolean => Number(status) >= HttpStatus.BAD_REQUEST);
+
+			expect(errorStatuses).toContain("404");
+
+			for (const status of errorStatuses) {
+				expect(responses[status], status).toEqual({ content: { "application/json": { schema: { $ref: expect.stringMatching(/^#\/components\/schemas\/Exception/u) } } }, description: expect.any(String) });
 			}
 		}
 	});

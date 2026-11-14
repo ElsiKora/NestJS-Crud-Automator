@@ -245,6 +245,55 @@ describe("ApiMethod", () => {
 		expect(readApiResponses()[HttpStatus.OK]?.type).toBe(MethodEmailResponseDto);
 	});
 
+	it.each<{ expected: Record<string, string>; type: unknown }>([
+		{ expected: { type: "string" }, type: String },
+		{ expected: { type: "number" }, type: Number },
+		{ expected: { type: "boolean" }, type: Boolean },
+		{ expected: { format: "date-time", type: "string" }, type: Date },
+		{ expected: { format: "int64", type: "integer" }, type: BigInt },
+	])("documents the built-in $type.name success type inline under the configured media types", ({ expected, type }: { expected: Record<string, string>; type: unknown }) => {
+		applyDecorator(
+			ApiMethod({
+				metadata: createMetadata({
+					documentation: { response: { mediaTypes: ["text/event-stream"] } },
+					response: { status: HttpStatus.OK, type: type as Type<unknown> },
+				}),
+			}),
+		);
+
+		expect(readApiResponses()[HttpStatus.OK]).toEqual(expect.objectContaining({ content: { "text/event-stream": { schema: expected } }, description: "Success" }));
+		expect(readApiResponses()[HttpStatus.OK]?.type).toBeUndefined();
+		expect(readHandlerMetadata<Array<unknown>>(SWAGGER_TEST_METADATA_CONSTANT.EXTRA_MODELS)).toBeUndefined();
+	});
+
+	it("documents a class success type under the configured media types as a component reference", () => {
+		applyDecorator(
+			ApiMethod({
+				metadata: createMetadata({
+					documentation: { response: { mediaTypes: ["text/event-stream"] } },
+					response: { status: HttpStatus.OK, type: MethodEmailResponseDto },
+				}),
+			}),
+		);
+
+		expect(readApiResponses()[HttpStatus.OK]).toEqual(expect.objectContaining({ content: { "text/event-stream": { schema: { $ref: "#/components/schemas/MethodEmailResponseDto" } } } }));
+		expect(readHandlerMetadata<Array<unknown>>(SWAGGER_TEST_METADATA_CONSTANT.EXTRA_MODELS)).toEqual([MethodEmailResponseDto]);
+	});
+
+	it("documents no content for a no-content success response with configured media types", () => {
+		applyDecorator(
+			ApiMethod({
+				metadata: createMetadata({
+					documentation: { response: { mediaTypes: ["text/event-stream"] } },
+					response: { status: HttpStatus.NO_CONTENT, type: undefined },
+				}),
+			}),
+		);
+
+		expect(readApiResponses()[HttpStatus.NO_CONTENT]).toEqual(expect.objectContaining({ description: "Success" }));
+		expect(readApiResponses()[HttpStatus.NO_CONTENT]).not.toHaveProperty("content");
+	});
+
 	it("writes no-content success response headers into swagger metadata", () => {
 		applyDecorator(
 			ApiMethod({
