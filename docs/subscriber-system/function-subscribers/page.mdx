@@ -98,6 +98,23 @@ async onBeforeUpdate(
 
 Automator loads `currentEntity` with one ordinary decorated GET before invoking `onBeforeUpdate`. Only the snapshot's top-level object is detached and frozen; nested values retain aliases to the internal loaded entity and can affect persistence if mutated. `context.result` remains the mutable update patch. When a transaction is active, both the GET and `context.DATA.repository` use its manager. A missing entity runs GET error hooks, skips `onBeforeUpdate`, and then runs UPDATE error hooks.
 
+`onBeforeUpdate` and `onBeforeDelete` can make the write depend on the row's current state with `context.DATA.addCondition(where)`. Each condition is ANDed into the criteria and the authorization scope (never widening them), under `SAVE`, `PATCH`, and delete, and is checked in the write's transaction on the row the write changes. A row a condition excludes answers `404 {ENTITY}_NOT_FOUND` through the AFTER_ERROR hooks and stays unchanged, exactly like a row outside the scope. The function needs a transaction (`REQUIRED`): otherwise `addCondition` throws, naming the function. Without a condition nothing changes: `SAVE` and delete add their one locking read only when a condition was added.
+
+```typescript
+// OrderService configures UPDATE with `transaction: { mode: EApiFunctionTransactionMode.REQUIRED }`.
+@ApiFunctionSubscriber({ entity: OrderEntity })
+export class OrderDraftOnlySubscriber extends ApiFunctionSubscriberBase<OrderEntity> {
+	async onBeforeUpdate(context: TApiSubscriberFunctionBeforeUpdateContext<OrderEntity>): Promise<undefined> {
+		// Only a draft of the caller's own store may change; a concurrent submit makes this write a 404.
+		context.DATA.addCondition({ status: "draft", store: { ownerId: context.DATA.principal?.id } });
+
+		return undefined;
+	}
+}
+```
+
+Every function hook also gets `context.DATA.principal`, the deep-frozen principal of the route request it runs in (generated routes and `@ApiRouteCustom`), inherited by nested service calls; it is `undefined` on direct calls and jobs. See [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context#request-principal).
+
 #### `onBeforeGet`, `onBeforeGetList`, `onBeforeGetMany`, `onBeforeDelete`
 
 ```typescript

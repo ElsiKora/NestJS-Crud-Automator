@@ -36,6 +36,7 @@ import { ApiControllerGetListCursorDataSourceContract } from "@class/api/control
 import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
+import { ApiFunctionPrincipalStorage } from "@class/api/function/principal-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
 import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
@@ -104,82 +105,10 @@ export class ApiRouteRuntime {
 	private static readonly SENT_BODIES: WeakMap<object, unknown> = new WeakMap<object, unknown>();
 
 	public static async executeCustom<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>): Promise<R> {
-		const action: string = options.metadata.resource.action;
-		const entityInstance: E = new (options.metadata.resource.entity as new () => E)();
 		const request: IApiRouteRuntimeHttpRequest<E> = options.executionContext.switchToHttp().getRequest<IApiRouteRuntimeHttpRequest<E>>();
-		const headers: Record<string, string> = {};
 
-		for (const [key, value] of Object.entries(request.headers ?? {})) {
-			if (typeof value === "string") {
-				headers[key] = value;
-			} else if (Array.isArray(value) && typeof value[0] === "string") {
-				headers[key] = value[0];
-			}
-		}
-
-		const contextData: IApiRouteRuntimeContextData<E> = {
-			authenticationRequest: request as unknown as IApiAuthenticationRequest,
-			headers,
-			ip: request.ip ?? "",
-			metadata: options.metadata,
-			runtimeProperties: options.runtimeProperties,
-		};
-
-		const beforeContext: IApiSubscriberRouteExecutionContext<E, { body?: Partial<E>; parameters?: Partial<E>; query?: Partial<E> }, IApiRouteRuntimeContextData<E>> = {
-			action,
-			DATA: contextData,
-			ENTITY: entityInstance,
-			result: {
-				body: request.body,
-				parameters: request.params,
-				query: request.query,
-			},
-			ROUTE_TYPE: options.metadata.route.type,
-		};
-
-		try {
-			const beforeResult: { body?: Partial<E>; parameters?: Partial<E>; query?: Partial<E> } | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(options.executionContext.getClass(), entityInstance, options.metadata.route.type, EApiSubscriberOnType.BEFORE, beforeContext, action);
-
-			if (beforeResult) {
-				request.body = beforeResult.body;
-				request.params = beforeResult.parameters;
-				// Express 5 serves `query` from a getter on the request prototype, which an assignment cannot replace, so an own property takes its place.
-				Object.defineProperty(request, "query", {
-					// eslint-disable-next-line @elsikora/typescript/naming-convention
-					configurable: true,
-					// eslint-disable-next-line @elsikora/typescript/naming-convention
-					enumerable: true,
-					value: beforeResult.query,
-					// eslint-disable-next-line @elsikora/typescript/naming-convention
-					writable: true,
-				});
-			}
-
-			if (options.metadata.route.type === EApiRouteType.PARTIAL_UPDATE || options.metadata.route.type === EApiRouteType.UPDATE) {
-				ApiControllerRejectToManyUpdateKeys(options.metadata.resource.entity, request.body);
-			}
-
-			if (options.metadata.route.type === EApiRouteType.CREATE) {
-				ApiControllerRejectCreateInverseSideKeys(options.metadata.resource.entity, request.body);
-			}
-
-			await this.executeRequestTargets(options.metadata, options.runtimeProperties, request, contextData);
-		} catch (error) {
-			await this.executeCustomErrorSubscribers(options, entityInstance, contextData, EApiSubscriberOnType.BEFORE_ERROR, error);
-
-			throw error;
-		}
-
-		try {
-			const result: R = await options.operation();
-			const transformedResult: R = await this.executeCustomResponse(options, entityInstance, contextData, result);
-
-			return transformedResult;
-		} catch (error) {
-			await this.executeCustomErrorSubscribers(options, entityInstance, contextData, EApiSubscriberOnType.AFTER_ERROR, error);
-
-			throw error;
-		}
+		// The functions the handler calls see the principal the guard resolved, the same one generated routes pass.
+		return await ApiFunctionPrincipalStorage.run(AuthorizationDecisionResolveFromRequest(request as unknown as IApiAuthenticationRequest)?.principal, async (): Promise<R> => await this.executeCustomRequest(options, request));
 	}
 
 	public static async executeCustomRequestRelations<E extends IApiBaseEntity>(controller: TApiControllerMethod<E>, metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, body: Partial<E> | undefined): Promise<void> {
@@ -221,63 +150,12 @@ export class ApiRouteRuntime {
 		// The same holds for a DataSource the application started after bootstrap; each DataSource is read once.
 		await DatabaseTypeOrmAssertBackslashEscapes((options.controller.service as { repository?: unknown } | undefined)?.repository, options.controller.constructor.name);
 
-		const entityInstance: E = new (options.properties.entity as new () => E)();
 		const authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = ApiControllerGeneratedSecuritySnapshot.create(AuthorizationDecisionResolveFromRequest(options.targets.authenticationRequest));
-		this.keepSentBody(options.targets.authenticationRequest);
 
-		const beforeData: IApiSubscriberRouteExecutionContextData<E> = { authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision), entityMetadata: options.entityMetadata, method: options.method, methodName: options.methodName, properties: options.properties };
-		let typedTargets: IApiRouteRuntimeGeneratedTargets<E>;
-		let beforeResult: IApiRouteRuntimeGeneratedTargets<E> | undefined;
-
-		try {
-			typedTargets = await this.resolveGeneratedTypedTargets(options);
-		} catch (error) {
-			await this.executeGeneratedErrorSubscribers(options, options.targets, entityInstance, beforeData, authorizationDecision, EApiSubscriberOnType.BEFORE_ERROR, error);
-
-			throw error;
-		}
-
-		const beforeContext: IApiSubscriberRouteExecutionContext<E, IApiRouteRuntimeGeneratedTargets<E>, IApiSubscriberRouteExecutionContextData<E>> = {
-			DATA: beforeData,
-			ENTITY: entityInstance,
-			result: typedTargets,
-			ROUTE_TYPE: options.method,
-		};
-
-		try {
-			beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(options.controller.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, options.method, EApiSubscriberOnType.BEFORE, beforeContext);
-		} catch (error) {
-			await this.executeGeneratedErrorSubscribers(options, typedTargets, entityInstance, beforeContext.DATA, authorizationDecision, EApiSubscriberOnType.BEFORE_ERROR, error);
-
-			throw error;
-		}
-		const targets: IApiRouteRuntimeGeneratedTargets<E> = beforeResult ?? typedTargets;
-
-		let errorBoundary: EApiSubscriberOnType.AFTER_ERROR | EApiSubscriberOnType.BEFORE_ERROR = EApiSubscriberOnType.BEFORE_ERROR;
-
-		try {
-			const result: unknown = await this.executeGeneratedOperation(options, targets, authorizationDecision, () => {
-				errorBoundary = EApiSubscriberOnType.AFTER_ERROR;
-			});
-
-			return await this.executeGeneratedResponse(options, targets, entityInstance, beforeContext.DATA, authorizationDecision, result);
-		} catch (error) {
-			await this.executeGeneratedErrorSubscribers(options, targets, entityInstance, beforeContext.DATA, authorizationDecision, errorBoundary, error);
-
-			throw error;
-		}
+		// Every function the request runs, subscribers and transaction callbacks included, sees the principal of this decision.
+		return await ApiFunctionPrincipalStorage.run(authorizationDecision?.principal, async (): Promise<unknown> => await this.executeGeneratedRequest(options, authorizationDecision));
 	}
 
-	/**
-	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
-	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all. A relation over several columns names such a field only inside its object; any other value is refused by the split.
-	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
-	 * @param {ReadonlyArray<Record<string, unknown>>} bodies - The body as the client sent it and as the route will write it.
-	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
-	 * @param {ReadonlyArray<string>} unaddressedFields - Key columns the path leaves out on a write to one row.
-	 * @param {ReadonlyArray<RelationMetadata>} relations - Relations of the entity.
-	 * @throws {BadRequestException} When the body differs from the path.
-	 */
 	private static assertBodyPathValues(bodies: ReadonlyArray<Record<string, unknown>>, pathValues: Record<string, unknown>, unaddressedFields: ReadonlyArray<string>, relations: ReadonlyArray<RelationMetadata>): void {
 		for (const body of bodies) {
 			for (const field of [...Object.keys(pathValues), ...unaddressedFields]) {
@@ -363,6 +241,84 @@ export class ApiRouteRuntime {
 		};
 
 		await ApiSubscriberExecutor.executeRouteErrorSubscribers(options.executionContext.getClass(), entityInstance, options.metadata.route.type, onType, errorContext, error as Error, action);
+	}
+
+	private static async executeCustomRequest<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, request: IApiRouteRuntimeHttpRequest<E>): Promise<R> {
+		const action: string = options.metadata.resource.action;
+		const entityInstance: E = new (options.metadata.resource.entity as new () => E)();
+		const headers: Record<string, string> = {};
+
+		for (const [key, value] of Object.entries(request.headers ?? {})) {
+			if (typeof value === "string") {
+				headers[key] = value;
+			} else if (Array.isArray(value) && typeof value[0] === "string") {
+				headers[key] = value[0];
+			}
+		}
+
+		const contextData: IApiRouteRuntimeContextData<E> = {
+			authenticationRequest: request as unknown as IApiAuthenticationRequest,
+			headers,
+			ip: request.ip ?? "",
+			metadata: options.metadata,
+			runtimeProperties: options.runtimeProperties,
+		};
+
+		const beforeContext: IApiSubscriberRouteExecutionContext<E, { body?: Partial<E>; parameters?: Partial<E>; query?: Partial<E> }, IApiRouteRuntimeContextData<E>> = {
+			action,
+			DATA: contextData,
+			ENTITY: entityInstance,
+			result: {
+				body: request.body,
+				parameters: request.params,
+				query: request.query,
+			},
+			ROUTE_TYPE: options.metadata.route.type,
+		};
+
+		try {
+			const beforeResult: { body?: Partial<E>; parameters?: Partial<E>; query?: Partial<E> } | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(options.executionContext.getClass(), entityInstance, options.metadata.route.type, EApiSubscriberOnType.BEFORE, beforeContext, action);
+
+			if (beforeResult) {
+				request.body = beforeResult.body;
+				request.params = beforeResult.parameters;
+				// Express 5 serves `query` from a getter on the request prototype, which an assignment cannot replace, so an own property takes its place.
+				Object.defineProperty(request, "query", {
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					configurable: true,
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					enumerable: true,
+					value: beforeResult.query,
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					writable: true,
+				});
+			}
+
+			if (options.metadata.route.type === EApiRouteType.PARTIAL_UPDATE || options.metadata.route.type === EApiRouteType.UPDATE) {
+				ApiControllerRejectToManyUpdateKeys(options.metadata.resource.entity, request.body);
+			}
+
+			if (options.metadata.route.type === EApiRouteType.CREATE) {
+				ApiControllerRejectCreateInverseSideKeys(options.metadata.resource.entity, request.body);
+			}
+
+			await this.executeRequestTargets(options.metadata, options.runtimeProperties, request, contextData);
+		} catch (error) {
+			await this.executeCustomErrorSubscribers(options, entityInstance, contextData, EApiSubscriberOnType.BEFORE_ERROR, error);
+
+			throw error;
+		}
+
+		try {
+			const result: R = await options.operation();
+			const transformedResult: R = await this.executeCustomResponse(options, entityInstance, contextData, result);
+
+			return transformedResult;
+		} catch (error) {
+			await this.executeCustomErrorSubscribers(options, entityInstance, contextData, EApiSubscriberOnType.AFTER_ERROR, error);
+
+			throw error;
+		}
 	}
 
 	private static async executeCustomResponse<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, entityInstance: E, contextData: IApiRouteRuntimeContextData<E>, result: R): Promise<R> {
@@ -725,6 +681,64 @@ export class ApiRouteRuntime {
 			}
 		}
 	}
+
+	private static async executeGeneratedRequest<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined): Promise<unknown> {
+		const entityInstance: E = new (options.properties.entity as new () => E)();
+		this.keepSentBody(options.targets.authenticationRequest);
+
+		const beforeData: IApiSubscriberRouteExecutionContextData<E> = { authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision), entityMetadata: options.entityMetadata, method: options.method, methodName: options.methodName, properties: options.properties };
+		let typedTargets: IApiRouteRuntimeGeneratedTargets<E>;
+		let beforeResult: IApiRouteRuntimeGeneratedTargets<E> | undefined;
+
+		try {
+			typedTargets = await this.resolveGeneratedTypedTargets(options);
+		} catch (error) {
+			await this.executeGeneratedErrorSubscribers(options, options.targets, entityInstance, beforeData, authorizationDecision, EApiSubscriberOnType.BEFORE_ERROR, error);
+
+			throw error;
+		}
+
+		const beforeContext: IApiSubscriberRouteExecutionContext<E, IApiRouteRuntimeGeneratedTargets<E>, IApiSubscriberRouteExecutionContextData<E>> = {
+			DATA: beforeData,
+			ENTITY: entityInstance,
+			result: typedTargets,
+			ROUTE_TYPE: options.method,
+		};
+
+		try {
+			beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(options.controller.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, options.method, EApiSubscriberOnType.BEFORE, beforeContext);
+		} catch (error) {
+			await this.executeGeneratedErrorSubscribers(options, typedTargets, entityInstance, beforeContext.DATA, authorizationDecision, EApiSubscriberOnType.BEFORE_ERROR, error);
+
+			throw error;
+		}
+		const targets: IApiRouteRuntimeGeneratedTargets<E> = beforeResult ?? typedTargets;
+
+		let errorBoundary: EApiSubscriberOnType.AFTER_ERROR | EApiSubscriberOnType.BEFORE_ERROR = EApiSubscriberOnType.BEFORE_ERROR;
+
+		try {
+			const result: unknown = await this.executeGeneratedOperation(options, targets, authorizationDecision, () => {
+				errorBoundary = EApiSubscriberOnType.AFTER_ERROR;
+			});
+
+			return await this.executeGeneratedResponse(options, targets, entityInstance, beforeContext.DATA, authorizationDecision, result);
+		} catch (error) {
+			await this.executeGeneratedErrorSubscribers(options, targets, entityInstance, beforeContext.DATA, authorizationDecision, errorBoundary, error);
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
+	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all. A relation over several columns names such a field only inside its object; any other value is refused by the split.
+	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
+	 * @param {ReadonlyArray<Record<string, unknown>>} bodies - The body as the client sent it and as the route will write it.
+	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
+	 * @param {ReadonlyArray<string>} unaddressedFields - Key columns the path leaves out on a write to one row.
+	 * @param {ReadonlyArray<RelationMetadata>} relations - Relations of the entity.
+	 * @throws {BadRequestException} When the body differs from the path.
+	 */
 
 	private static async executeGeneratedRequestPipeline<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, targetOrder: Array<EApiControllerRequestTarget>): Promise<void> {
 		const routeConfig: TApiControllerPropertiesRoute<E, R> = options.properties.routes[options.method] ?? {};

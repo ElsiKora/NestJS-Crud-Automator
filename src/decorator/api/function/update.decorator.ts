@@ -7,7 +7,7 @@ import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/
 import type { TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/subscriber/function/before/update-context.type";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
-import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsSelect, FindOptionsWhere, ObjectLiteral, QueryDeepPartialEntity, RelationMetadata, Repository, UpdateResult } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsWhere, ObjectLiteral, QueryDeepPartialEntity, RelationMetadata, Repository, UpdateResult } from "typeorm";
 
 import { isDeepStrictEqual, types as utilityTypes } from "node:util";
 
@@ -16,8 +16,9 @@ import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/ge
 import { ApiControllerGeneratedScopeWhereContract } from "@class/api/controller/generated/scope-where-contract.class";
 import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
+import { ApiFunctionPrincipalStorage } from "@class/api/function/principal-storage.class";
+import { ApiFunctionWriteCondition } from "@class/api/function/write-condition.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { DATABASE_DRIVER_TYPE_CONSTANT } from "@constant/database-driver-type.constant";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiFunctionUpdatePersistenceMode } from "@enum/decorator/api/function/update-persistence-mode.enum";
@@ -30,6 +31,7 @@ import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeo
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
 import { DatabaseTypeOrmIsUniqueViolation } from "@utility/database/typeorm/is/unique-violation.utility";
+import { DatabaseTypeOrmLockRow } from "@utility/database/typeorm/lock-row.utility";
 import { ErrorDuplicateKeyException } from "@utility/error/duplicate-key-exception.utility";
 import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -67,7 +69,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 
 					if (!repository) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { criteria, eventManager, repository },
+							DATA: { criteria, eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.UPDATE,
 						};
@@ -119,7 +121,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 							EApiFunctionType.UPDATE,
 							EApiSubscriberOnType.BEFORE_ERROR,
 							{
-								DATA: { criteria, eventManager, repository },
+								DATA: { criteria, eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 								ENTITY: entityInstance,
 								FUNCTION_TYPE: EApiFunctionType.UPDATE,
 							},
@@ -141,7 +143,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 						if (patch) readPatchValues(repository, patch.selectedColumns, normalizedUpdateProperties);
 					} catch (caughtError) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { criteria, eventManager, properties: normalizedUpdateProperties, repository },
+							DATA: { criteria, eventManager, principal: ApiFunctionPrincipalStorage.get(), properties: normalizedUpdateProperties, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.UPDATE,
 						};
@@ -152,15 +154,22 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 					}
 
 					const currentEntity: Readonly<E> = Object.freeze({ ...existingEntity });
+					const writeCondition: ApiFunctionWriteCondition<E> = new ApiFunctionWriteCondition<E>(`${this.constructor.name}.${propertyKey}`, eventManager !== undefined);
 
 					const executionContext: TApiSubscriberFunctionBeforeUpdateContext<E> = {
-						DATA: { criteria, currentEntity, eventManager, repository },
+						DATA: { addCondition: writeCondition.add.bind(writeCondition), criteria, currentEntity, eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.UPDATE,
 						result: normalizedUpdateProperties,
 					};
 
-					const result: TApiFunctionUpdateProperties<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, executionContext);
+					let result: TApiFunctionUpdateProperties<E> | undefined;
+
+					try {
+						result = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, executionContext);
+					} finally {
+						writeCondition.close();
+					}
 
 					if (result) {
 						executionContext.result = result;
@@ -168,7 +177,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 
 					const executorProperties: TApiFunctionUpdateProperties<E> = normalizeUpdateProperties(executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>));
 
-					return await executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria, entity, existingEntity, patch, properties: executorProperties, repository });
+					return await executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria, entity, existingEntity, patch, properties: executorProperties, repository, writeCondition, writeScope: ApiControllerGeneratedScopeWhereContract.merge(protectedCriteria, protectedWhere) });
 				},
 				entity,
 				functionType: EApiFunctionType.UPDATE,
@@ -179,7 +188,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { criteria, eventManager, repository },
+						DATA: { criteria, eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.UPDATE,
 					};
@@ -284,7 +293,7 @@ async function executeProtectedGet<E extends IApiBaseEntity>(service: { reposito
  * @throws {InternalServerErrorException} If the update operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExecutorProperties<E>): Promise<E> {
-	const { constructor, criteria, entity, existingEntity, patch, properties, repository }: IApiFunctionUpdateExecutorProperties<E> = options;
+	const { constructor, criteria, entity, existingEntity, patch, properties, repository, writeCondition, writeScope }: IApiFunctionUpdateExecutorProperties<E> = options;
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
@@ -297,6 +306,9 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			if (patch.readProperties.withDeleted !== true && repository.metadata.deleteDateColumn) {
 				where = AuthorizationScopeMergeWhere(where, { [repository.metadata.deleteDateColumn.propertyName]: IsNull() } as TApiFunctionUpdateCriteria<E>);
 			}
+
+			// The conditions BEFORE subscribers added narrow the UPDATE and the reread of an empty patch alike, so a row they exclude is not found.
+			where = writeCondition.apply(where);
 			DatabaseTypeOrmAssertRequiredWhere(where);
 			const hasValues: boolean = Object.keys(values).length > 0;
 
@@ -344,6 +356,9 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 				removeRelationFromSave(relation, mergedEntity);
 			}
 
+			// SAVE writes by the key, so the conditions BEFORE subscribers added are checked on the locked row right before the write; without one no read is added.
+			if (writeCondition.hasConditions) await lockSaveWriteCondition(repository, writeCondition, writeScope, existingEntity);
+
 			result = await repository.save(mergedEntity);
 
 			for (const relation of leavingRelations) {
@@ -352,7 +367,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 		}
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, E> = {
-			DATA: { criteria, eventManager, repository },
+			DATA: { criteria, eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 			ENTITY: result,
 			FUNCTION_TYPE: EApiFunctionType.UPDATE,
 			result: result,
@@ -369,7 +384,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-			DATA: { criteria, eventManager, properties, repository },
+			DATA: { criteria, eventManager, principal: ApiFunctionPrincipalStorage.get(), properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.UPDATE,
 		};
@@ -544,22 +559,30 @@ async function lockPatchRelationScope<E extends IApiBaseEntity>(repository: Repo
 	const readOwnBranch: (branch: FindOptionsWhere<E>) => FindOptionsWhere<E> = (branch: FindOptionsWhere<E>): FindOptionsWhere<E> => Object.fromEntries(Object.entries(branch).filter(([key, value]: [string, unknown]): boolean => !isPatchJoinCondition(metadata, key, value))) as FindOptionsWhere<E>;
 
 	if (!hasJoinCondition) return where;
-	const driverType: string = repository.manager.dataSource.options.type;
 
-	const lockedRows: Array<E> = await repository.find({
-		// eslint-disable-next-line @elsikora/typescript/naming-convention -- TypeORM owns this fixed FindManyOptions field.
-		cache: false,
-		// eslint-disable-next-line @elsikora/typescript/naming-convention -- TypeORM owns this fixed FindManyOptions field.
-		loadEagerRelations: false,
-		lock: DATABASE_DRIVER_TYPE_CONSTANT.ROW_LOCK_UNSUPPORTED.has(driverType) ? undefined : { mode: "pessimistic_write", tables: DATABASE_DRIVER_TYPE_CONSTANT.ROW_LOCK_NAMES_TABLE.has(driverType) ? [metadata.tableNameWithoutPrefix] : undefined },
-		select: Object.fromEntries(metadata.primaryColumns.map((column: TTypeOrmColumnMetadata): [string, boolean] => [column.propertyName, true])) as FindOptionsSelect<E>,
-		where,
-		withDeleted: readProperties.withDeleted === true,
-	});
-
-	if (lockedRows.length === 0) throw new NotFoundException(ErrorString({ entity: metadata.target as new () => E, type: EErrorStringAction.NOT_FOUND }));
+	if (!(await DatabaseTypeOrmLockRow(repository, where, readProperties.withDeleted === true))) throw new NotFoundException(ErrorString({ entity: metadata.target as new () => E, type: EErrorStringAction.NOT_FOUND }));
 
 	return Array.isArray(where) ? where.map((branch: FindOptionsWhere<E>): FindOptionsWhere<E> => readOwnBranch(branch)) : readOwnBranch(where);
+}
+
+/**
+ * Checks the conditions BEFORE subscribers added to a SAVE update on the row it is about to write: a locking read by the row's key, the scope the read addressed it through, and the conditions, in the transaction of the write.
+ * @template E Entity type.
+ * @param {Repository<E>} repository - Transaction-bound repository of the write.
+ * @param {ApiFunctionWriteCondition<E>} writeCondition - Conditions of the BEFORE subscribers.
+ * @param {TApiAuthorizationScopeWhere<E>} writeScope - Criteria and generated route scope of the read.
+ * @param {E} existingEntity - Row the read loaded.
+ * @throws {NotFoundException} When the row no longer meets the scope and the conditions.
+ */
+async function lockSaveWriteCondition<E extends IApiBaseEntity>(repository: Repository<E>, writeCondition: ApiFunctionWriteCondition<E>, writeScope: TApiAuthorizationScopeWhere<E>, existingEntity: E): Promise<void> {
+	const keyWhere: FindOptionsWhere<E> | undefined = repository.metadata.getEntityIdMap(existingEntity) as FindOptionsWhere<E> | undefined;
+
+	if (!keyWhere) throw new InternalServerErrorException("UPDATE read a row without a complete primary key");
+	const where: TApiAuthorizationScopeWhere<E> = writeCondition.apply(AuthorizationScopeMergeWhere(writeScope, keyWhere));
+	DatabaseTypeOrmAssertRequiredWhere(where);
+
+	// The read already decided whether a soft-deleted row is visible; the check adds only the conditions, so it reads by key with deleted rows included.
+	if (!(await DatabaseTypeOrmLockRow(repository, where, true))) throw new NotFoundException(ErrorString({ entity: repository.metadata.target as new () => E, type: EErrorStringAction.NOT_FOUND }));
 }
 
 /**

@@ -4,6 +4,7 @@ import type { IApiFunctionTransactionFailure } from "@interface/class/api/functi
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
 import type { IApiSubscriberFunctionExecutionContextUpdateData } from "@interface/class/api/subscriber/function/execution/context/update-data.interface";
+import type { IApiSubscriberFunctionExecutionContextWriteData } from "@interface/class/api/subscriber/function/execution/context/write-data.interface";
 import type { IApiSubscriberFunctionTransactionContext } from "@interface/class/api/subscriber/function/transaction";
 import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
@@ -47,7 +48,7 @@ export interface IApiSubscriberFunction<
 
 	onBeforeCreate?(context: IApiSubscriberFunctionExecutionContext<E, BeforeCreateResult, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<BeforeCreateResult | undefined>;
 	onBeforeCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<unknown>;
-	onBeforeDelete?(context: IApiSubscriberFunctionExecutionContext<E, BeforeDeleteResult, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<BeforeDeleteResult | undefined>;
+	onBeforeDelete?(context: IApiSubscriberFunctionExecutionContext<E, BeforeDeleteResult, IApiSubscriberFunctionExecutionContextWriteData<E> & TApiSubscriberFunctionTransactionData<TTransactionExpectation>>): Promise<BeforeDeleteResult | undefined>;
 	onBeforeErrorCommit?(context: IApiSubscriberFunctionTransactionContext, failures: ReadonlyArray<Readonly<IApiFunctionTransactionFailure>>): Promise<void>;
 	onBeforeErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>, error: Error): Promise<void>;
 	onBeforeErrorCustom?(context: IApiSubscriberFunctionErrorExecutionContext<E, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>, error: Error): Promise<void>;

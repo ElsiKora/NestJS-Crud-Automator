@@ -12,6 +12,7 @@ import { ApiControllerGeneratedInsertedKeyStorage } from "@class/api/controller/
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionCreateInsertGuard } from "@class/api/function/create-insert-guard.class";
+import { ApiFunctionPrincipalStorage } from "@class/api/function/principal-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind } from "@enum/decorator/api";
 import { EApiFunctionType } from "@enum/decorator/api/function";
@@ -54,7 +55,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 					const repository: Repository<E> = eventManager ? ApiFunctionGetTransactionRepository<E>(eventManager, this.repository, entity) : this.repository;
 
 					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, repository },
+						DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.CREATE,
 						result: createProperties,
@@ -68,7 +69,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 
 					if (!repository) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { eventManager, repository },
+							DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.CREATE,
 						};
@@ -89,7 +90,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 					const repository: Repository<E> = eventManager ? ApiFunctionGetTransactionRepository<E>(eventManager, this.repository, entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, repository },
+						DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.CREATE,
 					};
@@ -123,7 +124,7 @@ async function executeAfterErrorSubscribers<E extends IApiBaseEntity>(options: I
 	if (registry && registry.getTransaction().owner.kind !== EApiFunctionTransactionOwnerKind.SCOPE) {
 		// A failed statement aborts a PostgreSQL transaction, so the hook runs after the rollback and reads through the service repository.
 		registry.deferUntilSettled(async (): Promise<void> => {
-			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, { ...context, DATA: { eventManager: undefined, properties, repository: serviceRepository } }, failure);
+			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, { ...context, DATA: { eventManager: undefined, principal: ApiFunctionPrincipalStorage.get(), properties, repository: serviceRepository } }, failure);
 		});
 
 		return;
@@ -151,7 +152,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 		const entityInstance: E = new entity();
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>> = {
-			DATA: { eventManager, repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.CREATE,
 			result: result,
@@ -168,7 +169,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-			DATA: { eventManager, properties, repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.CREATE,
 		};

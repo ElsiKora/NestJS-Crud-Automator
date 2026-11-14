@@ -15,6 +15,8 @@ Generated service methods expose `delete(criteria: TApiFunctionDeleteCriteria<E>
 ## Behavior
 
 - Executes `onBeforeDelete` subscribers with the provided criteria. Returning criteria replaces the original input.
+- `onBeforeDelete` subscribers can add conditions on the row with `context.DATA.addCondition(where)`. They are ANDed into the criteria and the authorization scope (never widening them; a relation path is allowed) for the read, and checked again right before `remove` by one locking read of the row by its key in the same transaction (`FOR UPDATE`, `FOR UPDATE OF` the entity on PostgreSQL and CockroachDB, no lock on the SQLite family). That read runs only when a condition was added. A row a condition excludes answers `404` `{ENTITY}_NOT_FOUND` through `onAfterErrorDelete` and is kept. The function needs a transaction (`transaction: { mode: EApiFunctionTransactionMode.REQUIRED }`), or `addCondition` throws naming the function. See [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context#write-conditions).
+- Every function context carries `context.DATA.principal`, the deep-frozen principal of the route request, or `undefined` outside a route with authorization.
 - Ensures the service has a repository; otherwise throws and notifies error subscribers.
 - Lazily decorates a helper `get` method using `@ApiFunctionGet` to fetch the entity before deletion, preserving consistent error handling.
 - Removes the entity via `repository.remove` or the active transaction manager repository.

@@ -2,7 +2,7 @@ import "reflect-metadata";
 
 import { createRequire } from "node:module";
 
-import type { EntityManager, Repository } from "typeorm";
+import type { EntityManager, FindOptionsWhere, Repository } from "typeorm";
 
 import type {
 	IApiAuthorizationCacheMemoryOptions,
@@ -347,6 +347,7 @@ describe("public API exports (E2E)", () => {
 		} satisfies TApiSubscriberFunctionBeforeCreateContext<PublicApiUser, Partial<PublicApiUser>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>;
 		const currentEntity: Readonly<PublicApiUser> = Object.freeze(Object.assign(new PublicApiUser(), { id: "user-1", role: "operator-user" }));
 		const subscriberUpdateData = {
+			addCondition: (_where: FindOptionsWhere<PublicApiUser>): void => undefined,
 			currentEntity,
 			eventManager: subscriberRequiredData.eventManager,
 			repository: subscriberRepository,

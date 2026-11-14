@@ -51,6 +51,10 @@ context.result.body.slug = "hello";
 
 Route before hooks can use `context.result.body`.
 
+## Checking Row State in `onBeforeUpdate` Instead of Adding a Condition
+
+Do not throw from `onBeforeUpdate`/`onBeforeDelete` after reading `currentEntity.status` to guard a transition: another writer can change the row between that read and the write. Call `context.DATA.addCondition({ status: "draft" })` on a `REQUIRED` function: the write checks it on the locked row and a miss answers `404 {ENTITY}_NOT_FOUND`. Do not expect `addCondition` on a `SUPPORTS` function outside a transaction (it throws), on other function types (it does not exist), or after the BEFORE chain (it throws). Do not expect `context.DATA.principal` in a queue consumer or a direct call: it exists only inside a route request with authorization.
+
 ## Treating `currentEntity` as Deeply Immutable
 
 UPDATE exposes a detached, top-level frozen shallow `context.DATA.currentEntity`. Nested relations, arrays, JSON values, dates, buffers, and lazy values can still alias the internal loaded entity and affect persistence; do not mutate them. A missing decorated GET skips `onBeforeUpdate` and flows through GET then UPDATE error lifecycle.

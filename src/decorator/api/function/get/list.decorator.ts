@@ -13,6 +13,7 @@ import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/
 import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controller/generated/relation-cache-contract.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
+import { ApiFunctionPrincipalStorage } from "@class/api/function/principal-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
@@ -49,7 +50,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 
 					try {
 						const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetListProperties<E>> = {
-							DATA: { eventManager, getListProperties, repository },
+							DATA: { eventManager, getListProperties, principal: ApiFunctionPrincipalStorage.get(), repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 							result: getListProperties,
@@ -74,7 +75,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 					} catch (caughtError) {
 						if (mandatoryWhere || !repository) {
 							const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-								DATA: { eventManager, getListProperties, repository },
+								DATA: { eventManager, getListProperties, principal: ApiFunctionPrincipalStorage.get(), repository },
 								ENTITY: entityInstance,
 								FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 							};
@@ -96,7 +97,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, getListProperties, repository },
+						DATA: { eventManager, getListProperties, principal: ApiFunctionPrincipalStorage.get(), repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 					};
@@ -157,7 +158,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 		};
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, IApiGetListResponseResult<E>> = {
-			DATA: { eventManager, properties, repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), properties, repository },
 			ENTITY: new entity(),
 			FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 			result: result,
@@ -174,7 +175,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-			DATA: { eventManager, properties, repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 		};

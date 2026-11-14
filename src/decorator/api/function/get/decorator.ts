@@ -13,6 +13,7 @@ import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controll
 import { ApiControllerGeneratedWriteHydrationContract } from "@class/api/controller/generated/write-hydration-contract.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
+import { ApiFunctionPrincipalStorage } from "@class/api/function/principal-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
@@ -51,7 +52,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 
 					try {
 						const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetProperties<E>> = {
-							DATA: { eventManager, getProperties, repository },
+							DATA: { eventManager, getProperties, principal: ApiFunctionPrincipalStorage.get(), repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.GET,
 							result: getProperties,
@@ -78,7 +79,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 					} catch (caughtError) {
 						if (mandatoryWhere || !repository) {
 							const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-								DATA: { eventManager, getProperties, repository },
+								DATA: { eventManager, getProperties, principal: ApiFunctionPrincipalStorage.get(), repository },
 								ENTITY: entityInstance,
 								FUNCTION_TYPE: EApiFunctionType.GET,
 							};
@@ -100,7 +101,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 					const repository: Repository<E> = eventManager ? ApiFunctionGetTransactionRepository<E>(eventManager, this.repository, entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, getProperties, repository },
+						DATA: { eventManager, getProperties, principal: ApiFunctionPrincipalStorage.get(), repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.GET,
 					};
@@ -150,7 +151,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 		const subscriberHydrationSnapshot: E | undefined = isWriteHydration ? ApiControllerGeneratedWriteHydrationContract.createSnapshot(subscriberItem, allowedHydrationAccessors) : undefined;
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, E> = {
-			DATA: { eventManager, properties, repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), properties, repository },
 			ENTITY: subscriberItem,
 			FUNCTION_TYPE: EApiFunctionType.GET,
 			result: subscriberItem,
@@ -173,7 +174,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-			DATA: { eventManager, properties, repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.GET,
 		};

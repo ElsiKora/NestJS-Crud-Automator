@@ -14,6 +14,7 @@ import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controll
 import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
+import { ApiFunctionPrincipalStorage } from "@class/api/function/principal-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
@@ -76,7 +77,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 						}
 
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { eventManager, getManyProperties, repository },
+							DATA: { eventManager, getManyProperties, principal: ApiFunctionPrincipalStorage.get(), repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 						};
@@ -96,7 +97,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 					const entityInstance: E = new entity();
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, getManyProperties, repository: this.repository },
+						DATA: { eventManager, getManyProperties, principal: ApiFunctionPrincipalStorage.get(), repository: this.repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 					};
@@ -126,7 +127,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
  */
 async function executeBeforeSubscribers<E extends IApiBaseEntity>(constructor: new (...arguments_: Array<unknown>) => unknown, entityInstance: E, eventManager: EntityManager | undefined, repository: Repository<E>, getManyProperties: TApiFunctionGetManyProperties<E>): Promise<TApiFunctionGetManyProperties<E>> {
 	const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetManyProperties<E>> = {
-		DATA: { eventManager, getManyProperties, repository },
+		DATA: { eventManager, getManyProperties, principal: ApiFunctionPrincipalStorage.get(), repository },
 		ENTITY: entityInstance,
 		FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 		result: getManyProperties,
@@ -164,7 +165,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 		}
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, Array<E>> = {
-			DATA: { eventManager, properties, repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), properties, repository },
 			ENTITY: new entity(),
 			FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 			result: items,
@@ -187,7 +188,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-			DATA: { eventManager, properties, repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 		};

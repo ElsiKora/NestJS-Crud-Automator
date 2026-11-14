@@ -221,16 +221,54 @@ interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
 	readonly getProperties?: TApiFunctionGetProperties<E>;
 	readonly getListProperties?: TApiFunctionGetListProperties<E>;
 	readonly getManyProperties?: TApiFunctionGetManyProperties<E>;
+	readonly principal?: Readonly<IApiAuthorizationPrincipal>;
 }
 
 type TApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity, TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = IApiSubscriberFunctionExecutionContextData<E> & ([TTransactionExpectation] extends [EApiFunctionSubscriberTransactionExpectation.MANDATORY | EApiFunctionSubscriberTransactionExpectation.REQUIRED] ? { eventManager: EntityManager } : { eventManager?: EntityManager });
 
-interface IApiSubscriberFunctionExecutionContextUpdateData<E extends IApiBaseEntity> extends IApiSubscriberFunctionExecutionContextData<E> {
+interface IApiSubscriberFunctionExecutionContextWriteData<E extends IApiBaseEntity> extends IApiSubscriberFunctionExecutionContextData<E> {
+	addCondition(where: Array<FindOptionsWhere<E>> | FindOptionsWhere<E>): void;
+}
+
+interface IApiSubscriberFunctionExecutionContextUpdateData<E extends IApiBaseEntity> extends IApiSubscriberFunctionExecutionContextWriteData<E> {
 	readonly currentEntity: Readonly<E>;
 }
 ```
 
 `TApiSubscriberFunctionBeforeUpdateContext` uses the update-specific DATA interface. One decorated GET loads `currentEntity` before UPDATE before-hooks. Only its top-level object is detached and frozen; nested values retain aliases to the internal loaded entity, so mutating them can affect persistence. `context.result` remains the update patch, and `repository` is manager-bound whenever the update joins or owns a transaction.
+
+### Request Principal
+
+`context.DATA.principal` is the principal the authorization guard resolved for the route request the function runs in: a deep-frozen copy, the same object for every function of that request. Generated routes and `@ApiRouteCustom` routes with authorization set it; it is `undefined` on a direct service call, in a job, on a route without authorization, and anywhere outside a route. It is in the DATA of every function context (create, get, getList, getMany, update, delete, and `@ApiFunctionCustom`), in BEFORE, AFTER, and error hooks alike.
+
+The principal travels with the request through `AsyncLocalStorage`, so every function the request runs sees it: a function another function or a handler calls (an update's internal GET, a service call inside a custom route handler), and a function called from a callback the request registers, such as a transaction's after-commit hook. A queue consumer or job runner that runs outside the request's async flow sees none, even for work the request enqueued.
+
+```typescript
+async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+	return { ...context.result, authorId: context.DATA.principal?.id };
+}
+```
+
+### Write Conditions
+
+`TApiSubscriberFunctionBeforeUpdateContext` and `TApiSubscriberFunctionBeforeDeleteContext` add `context.DATA.addCondition(where)`, so a BEFORE subscriber can make the write depend on the row's current state:
+
+```typescript
+async onBeforeUpdate(context: TApiSubscriberFunctionBeforeUpdateContext<OrderEntity, TApiFunctionUpdateProperties<OrderEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>): Promise<undefined> {
+	context.DATA.addCondition({ status: "draft" });
+	context.DATA.addCondition({ store: { ownerId: context.DATA.principal?.id } });
+
+	return undefined;
+}
+```
+
+- Every condition is ANDed into the write scope: the criteria and the authorization scope, under `SAVE` and `PATCH` and on delete. A condition only narrows the write; it never widens or replaces the scope. Conditions only accumulate; an array is an OR of branches inside that one condition.
+- A row a condition excludes answers what a row outside the scope answers: `404 {ENTITY}_NOT_FOUND`, through the AFTER_ERROR subscribers, with the row unchanged. Never `403`.
+- A condition may read relations (`{ store: { ownerId } }`), also under `PATCH`.
+- The condition is checked in the write's transaction, on the row the write changes: `PATCH` adds it to its `UPDATE ... WHERE` (with a locking key read first when the WHERE reads another table); `SAVE` update and delete add one locking read of the row by its key, the scope, and the conditions right before the write. That read runs only when a subscriber added a condition; without one, the function issues exactly the queries it issues without this feature.
+- `addCondition` needs a transaction: on a function that runs without one (`SUPPORTS` with no outer transaction, `NONE`), it throws `Function "<Service>.<method>" needs a transaction to add a write condition: configure its transaction mode as REQUIRED`. Configure the function with `REQUIRED` (or call it inside a transaction).
+- `addCondition` works only while the BEFORE subscribers run; a call after the chain (from a stored reference) throws.
+- A condition must be a non-empty WHERE that TypeORM would not drop or widen (an empty object or an `undefined` value throws), checked when it is added.
 
 ### Accessing Function Context Data
 

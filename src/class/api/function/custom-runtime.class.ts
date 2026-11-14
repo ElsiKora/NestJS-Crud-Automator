@@ -5,6 +5,7 @@ import type { IApiFunctionCustomProperties } from "@interface/decorator/api/func
 import type { EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
+import { ApiFunctionPrincipalStorage } from "@class/api/function/principal-storage.class";
 import { ApiFunctionServiceContextFactory } from "@class/api/function/service-context.factory.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { type EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -33,7 +34,7 @@ export class ApiFunctionCustomRuntime {
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 			action: options.properties.action,
-			DATA: { eventManager, repository: options.target.repository },
+			DATA: { eventManager, principal: ApiFunctionPrincipalStorage.get(), repository: options.target.repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.CUSTOM,
 		};
@@ -52,7 +53,7 @@ export class ApiFunctionCustomRuntime {
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, Array<unknown>, IApiSubscriberFunctionExecutionContextData<E>> = {
 			action: options.properties.action,
-			DATA: { eventManager: options.eventManager, repository: options.target.repository },
+			DATA: { eventManager: options.eventManager, principal: ApiFunctionPrincipalStorage.get(), repository: options.target.repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.CUSTOM,
 			result: options.functionArguments,
@@ -65,7 +66,7 @@ export class ApiFunctionCustomRuntime {
 
 			const afterExecutionContext: IApiSubscriberFunctionExecutionContext<E, unknown, IApiSubscriberFunctionExecutionContextData<E>> = {
 				action: options.properties.action,
-				DATA: { eventManager: options.eventManager, repository: options.target.repository },
+				DATA: { eventManager: options.eventManager, principal: ApiFunctionPrincipalStorage.get(), repository: options.target.repository },
 				ENTITY: entityInstance,
 				FUNCTION_TYPE: EApiFunctionType.CUSTOM,
 				result,

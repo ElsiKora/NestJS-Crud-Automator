@@ -35,6 +35,16 @@ export class ApiControllerGeneratedSecuritySnapshot {
 		return cloneValue(value);
 	}
 
+	/**
+	 * Detaches a value and freezes the copy at every depth.
+	 * @template T - Value type.
+	 * @param {T} value - Value to copy.
+	 * @returns {T} The deep-frozen copy.
+	 */
+	public static freeze<T>(value: T): T {
+		return freezeValue(cloneValue(value));
+	}
+
 	public static withResource<E extends IApiBaseEntity, R>(snapshot: IApiAuthorizationDecision<E, R> | undefined, resource: E | undefined): IApiAuthorizationDecision<E, R> | undefined {
 		if (!snapshot || resource === undefined) {
 			return snapshot;

@@ -1,4 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthorizationPrincipal } from "@interface/class/api/authorization/principal/interface";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
 
@@ -53,6 +54,11 @@ export interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEn
 	 */
 	getProperties?: TApiFunctionGetProperties<E>;
 
+	/**
+	 * Principal of the route request the function runs in: the authorization decision's principal, as a deep-frozen copy.
+	 * Undefined for a function called outside a route (a direct call, a job) and on a route without authorization.
+	 */
+	readonly principal?: Readonly<IApiAuthorizationPrincipal>;
 	/**
 	 * Properties used in function executor contexts (create/get/getList/getMany).
 	 */
