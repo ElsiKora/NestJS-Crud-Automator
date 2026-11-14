@@ -10,7 +10,13 @@ describe("ApiControllerParametersAssertResourcePathPlaceholders", () => {
 	});
 
 	it("fails at startup on a route without a type whose action neither lists nor creates, and names the list advice in full", () => {
-		expect(() => ApiControllerParametersAssertResourcePathPlaceholders({ action: "admin:item:export", pathParameters: [], policyNamespace: "admin:item", resourcePath: "item/{id}", route: ROUTE, routeType: undefined })).toThrow('whose handler must apply decision.scope.where to its query and whose IAM action becomes "<policyNamespace>:list", so a separate action such as "export" is granted and denied as list');
+		expect(() => ApiControllerParametersAssertResourcePathPlaceholders({ action: "admin:item:export", pathParameters: [], policyNamespace: "admin:item", resourcePath: "item/{id}", route: ROUTE, routeType: undefined })).toThrow('whose handler must apply decision.scope.where to its query and whose IAM action becomes "<policyNamespace>:list", so a separate action such as "export" is granted and denied as list.');
+	});
+
+	it("tells that routeParameters does not fill a placeholder the route lacks, and what serves a route-bound placeholder", () => {
+		expect(() => ApiControllerParametersAssertResourcePathPlaceholders({ action: "admin:item:read", pathParameters: ["itemId"], policyNamespace: "admin:item", resourcePath: "item/{id}", route: ROUTE, routeType: EApiRouteType.GET })).toThrow(
+			'Listing "id" in resourceDefinition.routeParameters does not fill it: a route-bound placeholder reads the path parameter of its name, so the route must carry "id" all the same, and a generated row route cannot, because its PARAMETERS DTO describes only entity columns; serve a route-bound placeholder with @ApiRouteCustom under the path parameter "id" described with ApiPropertyUUID, an integer ApiPropertyNumber or ApiPropertyString',
+		);
 	});
 
 	it.each([
