@@ -89,6 +89,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 					let protectedCriteria: TApiFunctionUpdateCriteria<E> = criteria;
 					let protectedWhere: TApiAuthorizationScopeWhere<E> | undefined = mandatoryWhere;
 					let identity: TApiFunctionUpdateCriteria<E> | undefined;
+					let isMatchingNothing: boolean = false;
 
 					try {
 						if (persistenceMode !== EApiFunctionUpdatePersistenceMode.SAVE && persistenceMode !== EApiFunctionUpdatePersistenceMode.PATCH) {
@@ -102,7 +103,9 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 
 							assertPatchDataGraph(criteria, true);
 							protectedCriteria = ApiControllerGeneratedSecuritySnapshot.detach(criteria);
-							identity = readPatchIdentity(repository, protectedCriteria);
+							isMatchingNothing = isPatchCriteriaMatchingNothing(repository, protectedCriteria);
+
+							if (!isMatchingNothing) identity = readPatchIdentity(repository, protectedCriteria);
 							protectedWhere = ApiControllerGeneratedScopeWhereContract.merge(protectedCriteria, ApiControllerGeneratedSecuritySnapshot.detach(mandatoryWhere));
 						}
 					} catch (caughtError) {
@@ -123,6 +126,8 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 					}
 
 					try {
+						// Criteria that address no row answer the not found of a row outside the scope, as SAVE and GET do, without a read.
+						if (isMatchingNothing) throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
 						const captures: Array<NonNullable<IApiFunctionUpdateExecutorProperties<E>["patch"]>> = [];
 						existingEntity = await executeProtectedGet(this, getFunction, protectedCriteria, protectedWhere, identity ? createPatchReadCapture(repository, identity, captures) : undefined);
 						patch = captures[0];
@@ -419,6 +424,54 @@ function isOwnedToOneRelation(relation: RelationMetadata): boolean {
 }
 
 /**
+ * Tells whether one OR branch of PATCH criteria addresses no row: it pins a primary column to two different values, which the scope merge writes as the match-nothing `In([])`, or as `And` of both equalities when one side is an operator, when the route path and the authorization scope name different values of one column.
+ * A branch that names no primary column is no such branch, so a route without a complete primary equality still reaches the identity check.
+ * @template E Entity type.
+ * @param {Repository<E>} repository - Native metadata owner.
+ * @param {unknown} branch - One branch of a normalized native WHERE.
+ * @returns {boolean} Whether the branch can match no row.
+ */
+function isPatchBranchMatchingNothing<E extends IApiBaseEntity>(repository: Repository<E>, branch: unknown): boolean {
+	if (!branch || typeof branch !== "object") return false;
+
+	return repository.metadata.primaryColumns.some((column: TTypeOrmColumnMetadata): boolean => {
+		const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(branch, column.propertyName);
+
+		return descriptor !== undefined && "value" in descriptor && isPatchMatchNothingPredicate(descriptor.value);
+	});
+}
+
+/**
+ * Tells whether PATCH criteria address no row, because every OR branch does not.
+ * @template E Entity type.
+ * @param {Repository<E>} repository - Native metadata owner.
+ * @param {TApiAuthorizationScopeWhere<E>} where - Detached native WHERE.
+ * @returns {boolean} Whether the criteria can match no row.
+ */
+function isPatchCriteriaMatchingNothing<E extends IApiBaseEntity>(repository: Repository<E>, where: TApiAuthorizationScopeWhere<E>): boolean {
+	const normalized: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, where);
+	const branches: Array<unknown> = Array.isArray(normalized) ? normalized : [normalized];
+
+	return branches.every((branch: unknown): boolean => isPatchBranchMatchingNothing(repository, branch));
+}
+
+/**
+ * Tells whether a predicate matches no value: an empty `In`, or a conjunction, nested ones included, that holds one or names two different literal equalities, as the scope merge reads two different values of one column.
+ * @param {unknown} value - Native literal or WHERE operator.
+ * @returns {boolean} Whether no value satisfies the predicate.
+ */
+function isPatchMatchNothingPredicate(value: unknown): boolean {
+	if (!InstanceChecker.isFindOperator(value) || !Array.isArray(value.value)) return false;
+
+	if (value.type === "in") return value.value.length === 0;
+
+	if (value.type !== "and") return false;
+	const equalities: Array<unknown> = readPatchConjunctionEqualities(value);
+
+	return (value.value as Array<unknown>).some((item: unknown): boolean => isPatchMatchNothingPredicate(item)) || equalities.some((item: unknown): boolean => !isDeepStrictEqual(item, equalities[0]));
+}
+
+/**
  * Tells whether the update gives the join columns of an owned to-one relation another value than the read loaded. A join column in the primary key does not count, because the save would read it as the key of another row.
  * @template E The entity type
  * @param {RelationMetadata} relation - Owning to-one relation.
@@ -506,6 +559,23 @@ function readOwnedToOneRelations<E extends IApiBaseEntity>(repository: Repositor
 }
 
 /**
+ * Reads the literal equalities a conjunction holds, through nested conjunctions.
+ * @param {unknown} value - Native literal or WHERE operator.
+ * @returns {Array<unknown>} The literals, empty for any other predicate.
+ */
+function readPatchConjunctionEqualities(value: unknown): Array<unknown> {
+	if (!InstanceChecker.isFindOperator(value)) return [];
+
+	if (value.type === "equal") {
+		const literal: unknown = InstanceChecker.isFindOperator(value.value) ? undefined : readPatchLiteral(value.value);
+
+		return literal === undefined ? readPatchConjunctionEqualities(value.value) : [literal];
+	}
+
+	return value.type === "and" && Array.isArray(value.value) ? (value.value as Array<unknown>).flatMap((item: unknown): Array<unknown> => readPatchConjunctionEqualities(item)) : [];
+}
+
+/**
  * Extracts a literal equality implied by a primary-column predicate.
  * @param {unknown} value - Native literal or WHERE operator.
  * @returns {unknown} Exact equality value, or undefined when no equality is proven.
@@ -522,15 +592,11 @@ function readPatchEquality(value: unknown): unknown {
 		return equalities[0];
 	}
 
-	if (value === null || value === undefined) return undefined;
-
-	if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-
-	return ["bigint", "boolean", "string"].includes(typeof value) || value instanceof Date || ArrayBuffer.isView(value) ? value : undefined;
+	return readPatchLiteral(value);
 }
 
 /**
- * Pins one complete direct primary tuple shared by every original OR branch.
+ * Pins one complete direct primary tuple shared by every original OR branch that can match a row.
  * @template E Entity type.
  * @param {Repository<E>} repository - Native transaction-bound repository.
  * @param {TApiAuthorizationScopeWhere<E>} where - Detached native WHERE.
@@ -546,6 +612,9 @@ function readPatchIdentity<E extends IApiBaseEntity>(repository: Repository<E>, 
 	let identity: Record<string, unknown> | undefined;
 
 	for (const branch of branches) {
+		// A branch that addresses no row adds no row to the write, so it names no identity.
+		if (isPatchBranchMatchingNothing(repository, branch)) continue;
+
 		if (!branch || typeof branch !== "object") throw new BadRequestException("PATCH requires a complete primary equality in every branch");
 		const tupleEntries: Array<[string, unknown]> = [];
 
@@ -564,6 +633,19 @@ function readPatchIdentity<E extends IApiBaseEntity>(repository: Repository<E>, 
 	}
 
 	return ApiControllerGeneratedSecuritySnapshot.detach(identity) as TApiFunctionUpdateCriteria<E>;
+}
+
+/**
+ * Reads a literal a primary-column equality can pin.
+ * @param {unknown} value - Candidate literal.
+ * @returns {unknown} The literal, or undefined when the value is no finite number, bigint, boolean, string, date or binary.
+ */
+function readPatchLiteral(value: unknown): unknown {
+	if (value === null || value === undefined) return undefined;
+
+	if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+
+	return ["bigint", "boolean", "string"].includes(typeof value) || value instanceof Date || ArrayBuffer.isView(value) ? value : undefined;
 }
 
 /**

@@ -647,12 +647,33 @@ describe("ApiFunctionUpdate explicit PATCH persistence", () => {
 		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1" });
 	});
 
-	it.each([{}, { id: In(["id-1"]) }, [{ id: "id-1" }, { id: "id-2" }], { id: And(Equal("id-1"), Equal("id-2")) }])("rejects missing, broad or divergent primary equality before GET for %j", async (criteria) => {
+	it.each([{}, { id: In(["id-1"]) }, [{ id: "id-1" }, { id: "id-2" }]])("rejects missing, broad or divergent primary equality before GET for %j", async (criteria) => {
 		const fixture = createPatchFixture();
 		await expect(fixture.service.update(criteria as never, { name: "new" })).rejects.toMatchObject({ status: 400 });
 		expect(fixture.repository.findOne).not.toHaveBeenCalled();
 		expect(fixture.builder.execute).not.toHaveBeenCalled();
 		expect(fixture.error.mock.calls[0]?.[3]).toBe(EApiSubscriberOnType.BEFORE_ERROR);
+	});
+
+	it.each([{ id: In([]) }, { id: And(Equal("id-1"), Equal("id-2")) }, { id: And(Equal("id-2"), And(Equal("id-1"), Equal("id-1"))) }, [{ id: In([]), tenantId: "a" }, { id: And(Equal("id-2"), In([])) }]])("answers the not found of a row outside the scope, without a read, for criteria the scope merge emptied: %j", async (criteria) => {
+		const fixture = createPatchFixture();
+		await expect(fixture.service.update(criteria as never, { name: "new" })).rejects.toMatchObject({ message: "UPDATEENTITY_NOT_FOUND", status: 404 });
+		expect(fixture.repository.findOne).not.toHaveBeenCalled();
+		expect(fixture.execute).not.toHaveBeenCalled();
+		expect(fixture.error.mock.calls[0]?.[3]).toBe(EApiSubscriberOnType.AFTER_ERROR);
+	});
+
+	it.each([{ tenantId: In([]) }, [{ id: In([]) }, { tenantId: "a" }]])("still rejects criteria without a primary equality beside an emptied one: %j", async (criteria) => {
+		const fixture = createPatchFixture();
+		await expect(fixture.service.update(criteria as never, { name: "new" })).rejects.toMatchObject({ message: "PATCH requires a complete primary equality in every branch", status: 400 });
+		expect(fixture.repository.findOne).not.toHaveBeenCalled();
+	});
+
+	it("pins the identity of the branches that can match a row beside a branch the scope merge emptied", async () => {
+		const fixture = createPatchFixture();
+		await fixture.service.update([{ id: In([]) }, { id: "id-1", tenantId: "b" }] as never, { name: "new" });
+		expect(fixture.builder.set).toHaveBeenCalledExactlyOnceWith({ name: "new" });
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1" });
 	});
 
 	it("requires and retains every composite primary equality", async () => {
