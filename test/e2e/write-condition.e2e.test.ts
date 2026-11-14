@@ -13,7 +13,7 @@ import { Test } from "@nestjs/testing";
 import { getRepositoryToken, InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { MySqlContainer } from "@testcontainers/mysql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { Column, DeleteDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
+import { Column, DeleteDateColumn, Entity, Equal, In, IsNull, JoinColumn, ManyToOne, Not, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -62,8 +62,8 @@ const NOT_FOUND_MESSAGE: string = "WRITECONDITIONDOCUMENTENTITY_NOT_FOUND";
 // The machine running the containers may be loaded, so a request gets more time than the default.
 const TEST_TIMEOUT: number = 60_000;
 
-// "empty-criteria" adds a condition and returns empty delete criteria; "soft-delete" adds a condition and soft-deletes the row right after the read; "barrier" holds a GET until a second request reaches it.
-type TCondition = "barrier" | "capture" | "empty-criteria" | "none" | "relation" | "soft-delete" | "status";
+// "empty-criteria" adds a condition and returns empty delete criteria; "soft-delete" adds a condition and soft-deletes the row right after the read; "barrier" holds a GET until a second request reaches it; "relation-value" compares the relation itself with the value the test picked.
+type TCondition = "barrier" | "capture" | "empty-criteria" | "none" | "relation" | "relation-value" | "soft-delete" | "status";
 
 type TDatabase = "mysql" | "postgres" | "sqlite";
 
@@ -177,12 +177,16 @@ class WriteConditionState {
 
 	public static principals: Array<{ function: string; principal: Readonly<IApiAuthorizationPrincipal> | undefined }> = [];
 
+	// Builds the operator or literal a "relation-value" condition compares the relation with.
+	public static relationValue: (() => unknown) | undefined;
+
 	public static reset(): void {
 		WriteConditionState.afterErrors = [];
 		WriteConditionState.captured = undefined;
 		WriteConditionState.condition = "none";
 		WriteConditionState.gets = [];
 		WriteConditionState.principals = [];
+		WriteConditionState.relationValue = undefined;
 		WriteConditionState.waiting = [];
 	}
 
@@ -210,6 +214,8 @@ function addPickedCondition(addCondition: (where: Array<FindOptionsWhere<WriteCo
 	if (WriteConditionState.condition === "status" || WriteConditionState.condition === "empty-criteria" || WriteConditionState.condition === "soft-delete") addCondition({ status: "open" });
 
 	if (WriteConditionState.condition === "relation") addCondition({ operator: { name: "First" } });
+
+	if (WriteConditionState.condition === "relation-value") addCondition({ operator: WriteConditionState.relationValue?.() } as FindOptionsWhere<WriteConditionDocumentEntity>);
 
 	if (WriteConditionState.condition === "capture") WriteConditionState.captured = addCondition;
 }
@@ -384,6 +390,16 @@ const UPDATE_ROUTES: Array<{ path: string; persistence: string }> = [
 	{ path: "write-condition-patch", persistence: "PATCH" },
 ];
 
+// An operator or a literal on the relation itself: its label, the value, whether the second operator's row has its relation cleared first, a row it keeps and a row it excludes.
+const RELATION_VALUE_CASES: Array<[string, () => unknown, boolean, string, string]> = [
+	["IsNull()", () => IsNull(), true, OPEN_SECOND, OPEN_FIRST],
+	["Not(IsNull())", () => Not(IsNull()), true, OPEN_FIRST, OPEN_SECOND],
+	["In([...])", () => In([OPERATOR_FIRST]), false, OPEN_FIRST, OPEN_SECOND],
+	["Not(literal)", () => Not(OPERATOR_FIRST), false, OPEN_SECOND, OPEN_FIRST],
+	["Equal(literal)", () => Equal(OPERATOR_FIRST), false, OPEN_FIRST, OPEN_SECOND],
+	["a plain literal", () => OPERATOR_FIRST, false, OPEN_FIRST, OPEN_SECOND],
+];
+
 /**
  * Starts the database a describe block runs on.
  * @param {TDatabase} database - Database kind.
@@ -555,6 +571,31 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 		);
 	});
 
+	describe("a condition with an operator or a literal on the relation itself", () => {
+		it.each(RELATION_VALUE_CASES)(
+			"answers %s alike under SAVE and PATCH: writes a row it keeps, and answers not found for a row it excludes, leaving it unchanged",
+			async (_label: string, value: () => unknown, isSecondCleared: boolean, keptId: string, excludedId: string) => {
+				if (isSecondCleared) await repository.update({ id: OPEN_SECOND }, { operatorId: null });
+				WriteConditionState.condition = "relation-value";
+				WriteConditionState.relationValue = value;
+
+				for (const { path, persistence } of UPDATE_ROUTES) {
+					WriteConditionState.afterErrors = [];
+					expectConditionMiss(await fastify.inject({ method: "PATCH", payload: { name: `Changed ${persistence}` }, url: `/${path}/${excludedId}` }), "update");
+					expect(await readName(excludedId)).toBe("Original");
+					WriteConditionState.afterErrors = [];
+
+					const kept = await fastify.inject({ method: "PATCH", payload: { name: `Changed ${persistence}` }, url: `/${path}/${keptId}` });
+
+					expect(kept.statusCode, `${persistence}: ${kept.body}`).toBe(200);
+					expect(await readName(keptId)).toBe(`Changed ${persistence}`);
+					expect(WriteConditionState.afterErrors).toEqual([]);
+				}
+			},
+			TEST_TIMEOUT,
+		);
+	});
+
 	describe("delete", () => {
 		const remove = async (id: string): Promise<{ body: string; json: () => unknown; statusCode: number }> => await fastify.inject({ method: "DELETE", url: `/write-condition-save/${id}` });
 
@@ -693,6 +734,31 @@ describe.each(DATABASES)("Write conditions and the request principal of function
 				expect(await readName(OPEN_FIRST)).toBe("Second write");
 				expect(withoutCondition.some((query: string) => /for update/iu.test(query))).toBe(false);
 				expectRowLock(withCondition);
+			},
+			TEST_TIMEOUT,
+		);
+
+		it(
+			"adds the key read for a literal on the relation itself, and none for a condition on the row's own columns",
+			async () => {
+				const write = async (name: string): Promise<Array<string>> => await recordQueries(async () => await fastify.inject({ method: "PATCH", payload: { name }, url: `/write-condition-patch/${OPEN_FIRST}` }));
+				const withoutCondition: Array<string> = await write("First write");
+				WriteConditionState.condition = "status";
+				const ownColumnCondition: Array<string> = await write("Second write");
+				WriteConditionState.condition = "relation-value";
+				WriteConditionState.relationValue = () => OPERATOR_FIRST;
+				const relationCondition: Array<string> = await write("Third write");
+
+				expect(await readName(OPEN_FIRST)).toBe("Third write");
+				expect(ownColumnCondition.length, ownColumnCondition.join("\n")).toBe(withoutCondition.length);
+				expect(
+					ownColumnCondition.some((query: string) => /for update/iu.test(query)),
+					ownColumnCondition.join("\n"),
+				).toBe(false);
+				expect(relationCondition.length, relationCondition.join("\n")).toBe(withoutCondition.length + 1);
+				expectRowLock(relationCondition);
+				// The UPDATE runs by the key and the row's own columns; the relation is left to the key read.
+				expect(relationCondition.find((query: string) => /^\s*update/iu.test(query))).not.toMatch(/operatorId/u);
 			},
 			TEST_TIMEOUT,
 		);

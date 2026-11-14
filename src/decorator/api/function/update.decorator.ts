@@ -490,16 +490,19 @@ function isPatchCriteriaMatchingNothing<E extends IApiBaseEntity>(repository: Re
 }
 
 /**
- * Tells whether a WHERE entry reads another table: a relation, or an embedded column that holds one, compared through a nested condition. TypeORM's UPDATE cannot join, so it cannot compile such an entry; an operator or a literal on a relation compares its join columns and stays.
+ * Tells whether a WHERE entry names a relation, directly or through an embedded column that holds one, with any defined value: a nested condition, an operator, a literal or null. TypeORM's UPDATE cannot join and reads a value on a relation as a related entity, so an operator or a literal there compiles to a comparison with no key, bound to NULL; the locking key read compiles every such entry as the read does, and the entry leaves the UPDATE.
  * @param {EntityMetadata} metadata - Metadata of the written entity.
  * @param {string} propertyPath - Property path of the entry.
  * @param {unknown} value - Condition of the entry.
- * @returns {boolean} Whether the entry needs a join.
+ * @returns {boolean} Whether the entry is checked by the locking key read instead of the UPDATE.
  */
 function isPatchJoinCondition(metadata: EntityMetadata, propertyPath: string, value: unknown): boolean {
-	if (value === null || typeof value !== "object" || value instanceof Date || ArrayBuffer.isView(value) || InstanceChecker.isFindOperator(value)) return false;
+	// TypeORM skips an undefined entry, so it names nothing.
+	if (value === undefined) return false;
 
 	if (metadata.hasRelationWithPropertyPath(propertyPath)) return true;
+
+	if (value === null || typeof value !== "object" || value instanceof Date || ArrayBuffer.isView(value) || InstanceChecker.isFindOperator(value)) return false;
 
 	return metadata.hasEmbeddedWithPropertyPath(propertyPath) && Object.entries(value).some(([key, item]: [string, unknown]): boolean => isPatchJoinCondition(metadata, `${propertyPath}.${key}`, item));
 }
@@ -543,12 +546,12 @@ function isRelationKeyMoved<E extends IApiBaseEntity>(relation: RelationMetadata
 }
 
 /**
- * Bounds a PATCH write whose scope reads another table. TypeORM's UPDATE cannot join, so a locking read of the row's key checks the whole WHERE, relations included, in the transaction of the write, and the UPDATE keeps the conditions on the row's own columns. The lock holds the row itself until the transaction ends, so the row's own columns cannot change between the check and the write. Related rows the WHERE reads are checked at the lock point but are not locked on PostgreSQL and CockroachDB, whose lock is `FOR UPDATE OF` the entity (MySQL's `FOR UPDATE` locks the related rows it reads too); the drivers TypeORM locks no row for run every transaction on one connection.
+ * Bounds a PATCH write whose WHERE names a relation: a nested condition, an operator, a literal or null on it. TypeORM's UPDATE cannot join and reads a value on a relation as a related entity, so a locking read of the row's key checks the whole WHERE, relations included, in the transaction of the write, and the UPDATE keeps the conditions on the row's own columns. The lock holds the row itself until the transaction ends, so the row's own columns cannot change between the check and the write. Related rows the WHERE reads are checked at the lock point but are not locked on PostgreSQL and CockroachDB, whose lock is `FOR UPDATE OF` the entity (MySQL's `FOR UPDATE` locks the related rows it reads too); the drivers TypeORM locks no row for run every transaction on one connection.
  * @template E Entity type.
  * @param {Repository<E>} repository - Transaction-bound repository of the write.
  * @param {TApiFunctionGetProperties<E>} readProperties - Effective options of the protected read, whose soft delete visibility the check keeps.
  * @param {Array<FindOptionsWhere<E>> | FindOptionsWhere<E>} where - Whole WHERE of the write: the effective read scope and the primary identity.
- * @returns {Promise<Array<FindOptionsWhere<E>> | FindOptionsWhere<E>>} The WHERE the UPDATE takes: the given one when it reads no other table, otherwise its conditions on the row's own columns.
+ * @returns {Promise<Array<FindOptionsWhere<E>> | FindOptionsWhere<E>>} The WHERE the UPDATE takes: the given one when it names no relation, otherwise its conditions on the row's own columns.
  * @throws {NotFoundException} When the locking read finds no row inside the WHERE.
  */
 async function lockPatchRelationScope<E extends IApiBaseEntity>(repository: Repository<E>, readProperties: TApiFunctionGetProperties<E>, where: Array<FindOptionsWhere<E>> | FindOptionsWhere<E>): Promise<Array<FindOptionsWhere<E>> | FindOptionsWhere<E>> {

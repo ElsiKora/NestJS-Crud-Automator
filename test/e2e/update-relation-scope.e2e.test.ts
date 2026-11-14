@@ -14,7 +14,7 @@ import { Test } from "@nestjs/testing";
 import { getRepositoryToken, InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { MySqlContainer } from "@testcontainers/mysql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
+import { Column, Entity, Equal, In, IsNull, JoinColumn, ManyToOne, Not, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -54,6 +54,8 @@ const POLICY_ID: string = "relation-scope-policy";
 const POLICY_NAMESPACE: string = "relation-scope:user";
 const SCOPE_FORM_HEADER: string = "x-relation-scope-form";
 const CONCURRENT_MOVE_NAME: string = "concurrent-move";
+// A scope form that compares the relation itself with the operator or literal of the named case.
+const SCOPE_VALUE_FORM_PREFIX: string = "value:";
 // The machine running the containers may be loaded, so a request gets more time than the default.
 const TEST_TIMEOUT: number = 60_000;
 
@@ -63,6 +65,16 @@ const DATABASES: Array<{ database: TDatabase; databaseName: string }> = [
 	{ database: "sqlite", databaseName: "SQLite" },
 	{ database: "postgres", databaseName: "PostgreSQL" },
 	{ database: "mysql", databaseName: "MySQL" },
+];
+
+// An operator or a literal on the relation itself: its label, the value, a row it keeps and a row it excludes.
+const RELATION_VALUE_CASES: Array<[string, () => unknown, string, string]> = [
+	["IsNull()", () => IsNull(), UNASSIGNED_ID, OTHER_ID],
+	["Not(IsNull())", () => Not(IsNull()), OTHER_ID, UNASSIGNED_ID],
+	["In([...])", () => In([OPERATOR_FIRST]), OTHER_ID, FOREIGN_ID],
+	["Not(literal)", () => Not(OPERATOR_FIRST), FOREIGN_ID, OTHER_ID],
+	["Equal(literal)", () => Equal(OPERATOR_FIRST), OTHER_ID, FOREIGN_ID],
+	["a plain literal", () => OPERATOR_FIRST, OTHER_ID, FOREIGN_ID],
 ];
 
 const describeString: (description: string, exampleValue: string) => PropertyDecorator = (description: string, exampleValue: string): PropertyDecorator =>
@@ -177,10 +189,13 @@ class RelationScopeUserPolicy extends ApiAuthorizationPolicyBase<RelationScopeUs
 		return this.allowScope(context.headers?.[SCOPE_FORM_HEADER]);
 	}
 
-	// The request picks the scope: rows whose operator is named "First" (default), or an OR of the own row and those rows.
+	// The request picks the scope: rows whose operator is named "First" (default), an OR of the own row and those rows, or rows whose relation meets the value of a named case.
 	private allowScope(form: string | undefined) {
 		return this.allow({
 			scope: (ruleContext: IApiAuthorizationRuleContext<RelationScopeUserEntity>) => {
+				const valueCase = RELATION_VALUE_CASES.find(([label]: [string, () => unknown, string, string]) => form === `${SCOPE_VALUE_FORM_PREFIX}${label}`);
+
+				if (valueCase) return { where: { operator: valueCase[1]() } };
 				const relationBranch = { operator: { name: "First" } };
 
 				return form === "or" ? { where: [{ id: String(ruleContext.principal.id) }, relationBranch] } : { where: relationBranch };
@@ -459,6 +474,29 @@ describe.each(DATABASES)("Generated update under a scope through a relation on $
 			TEST_TIMEOUT,
 		);
 	});
+
+	it.each(RELATION_VALUE_CASES)(
+		"answers a HOOKS scope of %s on the relation itself alike under SAVE and PATCH: updates a row it keeps, and answers not found for a row it excludes, leaving it unchanged",
+		async (label: string, _value: () => unknown, keptId: string, excludedId: string) => {
+			const headers: Record<string, string> = { [SCOPE_FORM_HEADER]: `${SCOPE_VALUE_FORM_PREFIX}${label}` };
+
+			for (const { path, persistence } of ROUTES.filter((route: IRelationScopeRoute) => route.mode === EApiAuthorizationMode.HOOKS)) {
+				const excludedBefore: { name?: string; operatorId?: null | string } = await readStored(excludedId);
+				const excluded = await fastify.inject({ headers, method: "PATCH", payload: { name: `Changed ${persistence}` }, url: `/${path}/${excludedId}` });
+
+				expect(excluded.statusCode, `${persistence}: ${excluded.body}`).toBe(404);
+				expect(excluded.json()).toEqual(expect.objectContaining({ message: "RELATIONSCOPEUSERENTITY_NOT_FOUND", statusCode: 404 }));
+				expect(await readStored(excludedId)).toEqual(excludedBefore);
+
+				const keptBefore: { name?: string; operatorId?: null | string } = await readStored(keptId);
+				const kept = await fastify.inject({ headers, method: "PATCH", payload: { name: `Changed ${persistence}` }, url: `/${path}/${keptId}` });
+
+				expect(kept.statusCode, `${persistence}: ${kept.body}`).toBe(200);
+				expect(await readStored(keptId)).toEqual({ ...keptBefore, name: `Changed ${persistence}` });
+			}
+		},
+		TEST_TIMEOUT,
+	);
 
 	it.each(ROUTES.filter((route: IRelationScopeRoute) => route.persistence === EApiFunctionUpdatePersistenceMode.PATCH).map((route: IRelationScopeRoute) => [route.path]))(
 		"checks the scope again at the write in PATCH persistence: %s answers not found for a row another writer moved out of the scope after the read",
