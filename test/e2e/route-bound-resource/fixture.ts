@@ -26,8 +26,15 @@ const allowAction: { Action: Array<string> } = { Action: [`${E2E_ROUTE_BOUND_NAM
 const named: string = `${E2E_ROUTE_BOUND_NAMESPACE}/${E2E_ROUTE_BOUND_NAMED_ID}`;
 const everyRow: string = `${E2E_ROUTE_BOUND_NAMESPACE}/*`;
 
-// The statements of each policy; the principal of a request is named after the policy it holds.
+// The IAM namespace and resource type of the settings addressed by a key, a string path value.
+export const E2E_ROUTE_BOUND_KEY_NAMESPACE: string = "rb:config-key";
+
+const keyAction: { Action: Array<string> } = { Action: [`${E2E_ROUTE_BOUND_KEY_NAMESPACE}:*`] };
+const keyOf = (key: string): string => `${E2E_ROUTE_BOUND_KEY_NAMESPACE}/${key}`;
+
+// The statements of each policy of the settings; the principal of a request is named after the policy it holds.
 export const E2E_ROUTE_BOUND_POLICIES: Readonly<Record<string, ReadonlyArray<unknown>>> = {
+	"allow-glob": [{ ...allowAction, Effect: EApiPolicyEffect.ALLOW, Resource: [`${E2E_ROUTE_BOUND_NAMESPACE}/aaaa*`] }],
 	"allow-one": [{ ...allowAction, Effect: EApiPolicyEffect.ALLOW, Resource: [named] }],
 	"allow-one-and-every-row": [
 		{ ...allowAction, Effect: EApiPolicyEffect.ALLOW, Resource: [named] },
@@ -37,8 +44,26 @@ export const E2E_ROUTE_BOUND_POLICIES: Readonly<Record<string, ReadonlyArray<unk
 		{ ...allowAction, Effect: EApiPolicyEffect.ALLOW, Resource: [everyRow] },
 		{ ...allowAction, Effect: EApiPolicyEffect.DENY, Resource: [named] },
 	],
+	"deny-glob": [
+		{ ...allowAction, Effect: EApiPolicyEffect.ALLOW, Resource: [everyRow] },
+		{ ...allowAction, Effect: EApiPolicyEffect.DENY, Resource: [`${E2E_ROUTE_BOUND_NAMESPACE}/aaaa*`] },
+	],
+	"deny-not-resource": [
+		{ ...allowAction, Effect: EApiPolicyEffect.ALLOW, Resource: [everyRow] },
+		{ ...allowAction, Effect: EApiPolicyEffect.DENY, NotResource: [named] },
+	],
 	section: [{ ...allowAction, Condition: { StringEquals: { "resource.section.name": "withdrawal" } }, Effect: EApiPolicyEffect.ALLOW, Resource: [everyRow] }],
 	wildcard: [{ ...allowAction, Effect: EApiPolicyEffect.ALLOW, Resource: [everyRow] }],
+};
+
+// The statements of each policy of the keyed settings.
+export const E2E_ROUTE_BOUND_KEY_POLICIES: Readonly<Record<string, ReadonlyArray<unknown>>> = {
+	"key-allow": [{ ...keyAction, Effect: EApiPolicyEffect.ALLOW, Resource: [keyOf("Secret")] }],
+	"key-allow-glob": [{ ...keyAction, Effect: EApiPolicyEffect.ALLOW, Resource: [keyOf("Sec*")] }],
+	"key-deny": [
+		{ ...keyAction, Effect: EApiPolicyEffect.ALLOW, Resource: [keyOf("*")] },
+		{ ...keyAction, Effect: EApiPolicyEffect.DENY, Resource: [keyOf("Secret")] },
+	],
 };
 
 // The anchor of the controller: it maps the section condition and has no column for `{id}`.
@@ -74,6 +99,12 @@ export class E2eRouteBoundGuard {
 export class E2eRouteBoundParametersDto {
 	@ApiPropertyUUID({ description: "setting id", entity: { name: "ConfigData" }, isRequired: true } as never)
 	public id!: string;
+}
+
+// A key described as text: the policy compares it letter by letter, so the handler must read the setting by exactly that text.
+export class E2eRouteBoundKeyParametersDto {
+	@ApiPropertyString({ description: "setting key", entity: { name: "ConfigKey" }, exampleValue: "Secret", format: EApiPropertyStringType.STRING, isRequired: true, maxLength: 64, minLength: 1, pattern: "/^.+$/" } as never)
+	public key!: string;
 }
 
 export class E2eRouteBoundBodyDto {
@@ -122,9 +153,10 @@ function readAllowed(decision: IApiAuthorizationDecision<E2eRouteBoundAnchorEnti
  * @param {string} options.name - Controller class name.
  * @param {ReadonlyArray<string>} [options.routeParameters] - The routeParameters of its resource definition.
  * @param {string} [options.resourcePath] - Resource path, `<namespace>/{id}` by default.
+ * @param {Array<{ isFilterable: boolean; path: string; queryPath: string }>} [options.fields] - Extra field mappings beside the section field.
  * @returns {new () => unknown} The controller.
  */
-export function E2eRouteBoundBuildController(options: { name: string; resourcePath?: string; routeParameters?: ReadonlyArray<string> }): new () => unknown {
+export function E2eRouteBoundBuildController(options: { fields?: Array<{ isFilterable: boolean; path: string; queryPath: string }>; name: string; resourcePath?: string; routeParameters?: ReadonlyArray<string> }): new () => unknown {
 	class SettingController {
 		@Inject(E2eRouteBoundAnchorService)
 		public readonly service!: E2eRouteBoundAnchorService;
@@ -138,6 +170,18 @@ export function E2eRouteBoundBuildController(options: { name: string; resourcePa
 		} as never)
 		public list(@ApiAuthorizationDecision() decision: IApiAuthorizationDecision<E2eRouteBoundAnchorEntity>): { ids: Array<string> } {
 			return readAllowed(decision);
+		}
+
+		@ApiRouteCustom({
+			documentation: { description: "Creates a setting", summary: "Creates a setting" },
+			dto: { [EApiDtoType.BODY]: E2eRouteBoundBodyDto },
+			resource: { action: "create", entity: E2eRouteBoundAnchorEntity },
+			response: { errors: {}, serialization: { isEnabled: false }, status: HttpStatus.CREATED, type: E2eRouteBoundResponseDto },
+			route: { method: RequestMethod.POST, path: "" },
+			security: { authentication },
+		} as never)
+		public create(@Body() _body: E2eRouteBoundBodyDto, @ApiAuthorizationDecision() decision: IApiAuthorizationDecision<E2eRouteBoundAnchorEntity>): { ids: Array<string> } {
+			return { ids: readSections(decision) ?? [] };
 		}
 
 		@ApiRouteCustom({
@@ -172,7 +216,7 @@ export function E2eRouteBoundBuildController(options: { name: string; resourcePa
 			policyNamespace: E2E_ROUTE_BOUND_NAMESPACE,
 			resourceDefinition: {
 				entity: E2eRouteBoundAnchorEntity,
-				fields: [{ isFilterable: true, path: "resource.section.name", queryPath: "sectionName" }],
+				fields: [{ isFilterable: true, path: "resource.section.name", queryPath: "sectionName" }, ...(options.fields ?? [])],
 				namespace: E2E_ROUTE_BOUND_NAMESPACE,
 				resourcePath: options.resourcePath ?? `${E2E_ROUTE_BOUND_NAMESPACE}/{id}`,
 				resourceType: E2E_ROUTE_BOUND_NAMESPACE,
@@ -187,4 +231,36 @@ export function E2eRouteBoundBuildController(options: { name: string; resourcePa
 	ApiControllerSecurable()(SettingController);
 
 	return SettingController;
+}
+
+/**
+ * The settings addressed by a key described as text, read by exactly the key the path carries.
+ */
+@ApiControllerSecurable()
+@ApiController<E2eRouteBoundAnchorEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.IAM,
+		policyNamespace: E2E_ROUTE_BOUND_KEY_NAMESPACE,
+		resourceDefinition: { entity: E2eRouteBoundAnchorEntity, fields: [], namespace: E2E_ROUTE_BOUND_KEY_NAMESPACE, resourcePath: `${E2E_ROUTE_BOUND_KEY_NAMESPACE}/{key}`, resourceType: E2E_ROUTE_BOUND_KEY_NAMESPACE, routeParameters: ["key"] },
+	},
+	entity: E2eRouteBoundAnchorEntity,
+	name: "E2eRouteBoundKeySetting",
+	path: "route-bound/config-key",
+	routes: NO_GENERATED_ROUTES,
+} as never)
+export class E2eRouteBoundKeyController {
+	@Inject(E2eRouteBoundAnchorService)
+	public readonly service!: E2eRouteBoundAnchorService;
+
+	@ApiRouteCustom({
+		documentation: { description: "Reads one keyed setting", summary: "Reads one keyed setting" },
+		dto: { [EApiDtoType.PARAMETERS]: E2eRouteBoundKeyParametersDto },
+		resource: { action: "read", entity: E2eRouteBoundAnchorEntity },
+		response: { errors: {}, serialization: { isEnabled: false }, status: HttpStatus.OK, type: E2eRouteBoundResponseDto },
+		route: { method: RequestMethod.GET, path: ":key" },
+		security: { authentication },
+	} as never)
+	public read(@Param() parameters: E2eRouteBoundKeyParametersDto): { ids: Array<string> } {
+		return { ids: [parameters.key] };
+	}
 }

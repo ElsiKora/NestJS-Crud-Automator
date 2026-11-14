@@ -1,10 +1,13 @@
 import type { IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiPolicyStatement } from "@interface/class/api/authorization";
 
 import { ApiAuthorizationIamEngine, ApiAuthorizationIamQueryPlanner } from "@class/api/authorization/iam";
+import { ApiAuthorizationRuntime } from "@class/api/authorization/runtime.class";
+import { ApiAuthorizationSimulator } from "@class/api/authorization/simulator.class";
+import { EApiAuthorizationMode } from "@enum/class/authorization";
 import { EApiAuthorizationDecisionType, EApiAuthorizationIamDialect, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
 import { Column, Entity, PrimaryColumn } from "typeorm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // The anchor of a controller whose rows are not an entity of the application: it has no column for `{id}`.
 @Entity("engine_route_bound_anchors")
@@ -174,6 +177,81 @@ describe("ApiAuthorizationIamEngine route-bound placeholders", () => {
 			expect(await readType(unfilled, [allow(EVERY_ROW)])).toBe(ALLOWED);
 			expect(await readType(unfilled, [allow(row("a"))])).toBe(IMPLICIT);
 			expect(await readType(unfilled, [allow(EVERY_ROW), deny(row("a"))])).toBe(DENIED);
+		});
+	});
+
+	describe("on an unloaded row route without the route parameter", () => {
+		it("refuses under a Deny of one id, without the parameter or with an empty one, and grants nothing by an Allow of one id", async () => {
+			const bare: IRequest = { action: `${NAMESPACE}:read`, routeType: EApiRouteType.GET };
+			const empty: IRequest = { action: `${NAMESPACE}:read`, requestMetadata: { parameters: { id: "" } }, routeType: EApiRouteType.GET };
+
+			for (const request of [bare, empty]) {
+				expect(await readType(request, [allow(EVERY_ROW), deny(row("a"))])).toBe(DENIED);
+				expect(await readType(request, [allow(EVERY_ROW), deny(row("a*"))])).toBe(DENIED);
+				expect(await readType(request, [allow(row("a"))])).toBe(IMPLICIT);
+				expect(await readType(request, [allow(EVERY_ROW)])).toBe(ALLOWED);
+			}
+		});
+	});
+
+	describe("through ApiAuthorizationSimulator", () => {
+		const simulate = async (statements: ReadonlyArray<IApiPolicyStatement>, parameters?: Record<string, string>): Promise<EApiAuthorizationDecisionType | undefined> => {
+			const runtime: ApiAuthorizationRuntime = new ApiAuthorizationRuntime(
+				{} as never,
+				{} as never,
+				{} as never,
+				{ resolve: vi.fn().mockResolvedValue({ attachments: [{ policyId: "identity", principalId: principal.id, principalType: principal.type }], boundaries: [] }) } as never,
+				{ resolve: vi.fn().mockResolvedValue([{ document: { Statement: statements, Version: "2012-10-17" }, id: "identity", namespace: NAMESPACE, sourceType: EApiPolicySourceType.MANAGED, version: "1" }]) } as never,
+				new ApiAuthorizationIamEngine(new ApiAuthorizationIamQueryPlanner()),
+				undefined,
+				undefined,
+				{ resolve: vi.fn().mockResolvedValue({ driverType: "postgres", type: EApiAuthorizationIamDialect.POSTGRES }) } as never,
+			);
+
+			const decision = await new ApiAuthorizationSimulator(runtime).evaluate<EngineRouteBoundAnchorEntity>({
+				action: "read",
+				authorization: { defaultMode: EApiAuthorizationMode.IAM, policyNamespace: NAMESPACE, resourceDefinition: definition },
+				entity: EngineRouteBoundAnchorEntity,
+				principal,
+				...(parameters === undefined ? {} : { requestMetadata: { parameters } }),
+				routeType: EApiRouteType.GET,
+			});
+
+			return decision.trace.decisionType;
+		};
+
+		it("refuses a Deny of one id beside an Allow of every row without the parameter or with an empty one", async () => {
+			expect(await simulate([allow(EVERY_ROW), deny(row("a"))])).toBe(DENIED);
+			expect(await simulate([allow(EVERY_ROW), deny(row("a"))], { id: "" })).toBe(DENIED);
+		});
+
+		it("refuses exactly the named id with the parameter", async () => {
+			expect(await simulate([allow(EVERY_ROW), deny(row("a"))], { id: "a" })).toBe(DENIED);
+			expect(await simulate([allow(EVERY_ROW), deny(row("a"))], { id: "b" })).toBe(ALLOWED);
+		});
+
+		it("admits under an Allow of every row and grants nothing by an Allow of one id without the parameter", async () => {
+			expect(await simulate([allow(EVERY_ROW)])).toBe(ALLOWED);
+			expect(await simulate([allow(row("a"))])).toBe(IMPLICIT);
+			expect(await simulate([allow(row("a"))], { id: "a" })).toBe(ALLOWED);
+		});
+	});
+
+	describe("on a row route with a Deny NotResource and globs", () => {
+		it("refuses every id but the named one under a Deny NotResource", async () => {
+			expect(await readType(read("a"), [allow(EVERY_ROW), statement(EApiPolicyEffect.DENY, { NotResource: [row("a")] })])).toBe(ALLOWED);
+			expect(await readType(read("b"), [allow(EVERY_ROW), statement(EApiPolicyEffect.DENY, { NotResource: [row("a")] })])).toBe(DENIED);
+		});
+
+		it("refuses the ids a Deny glob names and admits the others", async () => {
+			expect(await readType(read("ab"), [allow(EVERY_ROW), deny(row("a*"))])).toBe(DENIED);
+			expect(await readType(read("ba"), [allow(EVERY_ROW), deny(row("a*"))])).toBe(ALLOWED);
+		});
+
+		it("reads a path value with a glob character as literal text", async () => {
+			expect(await readType(read("a*"), [allow(row("ab"))])).toBe(IMPLICIT);
+			expect(await readType(read("a*"), [allow(EVERY_ROW), deny(row("ab"))])).toBe(ALLOWED);
+			expect(await readType(read("a?"), [allow(row("a?"))])).toBe(ALLOWED);
 		});
 	});
 });

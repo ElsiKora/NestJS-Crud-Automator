@@ -315,7 +315,8 @@ export class ApiAuthorizationIamEngine {
 	 * resource or none, so a pattern either covers it, misses it, or says nothing exact about it: an Allow then grants
 	 * nothing by the pattern and a `NotResource` or a loaded resource fails closed. A `Resource` of a Deny that says nothing
 	 * exact about the unloaded row of a row route stays out of the request. A pattern that constrains a placeholder bound to
-	 * a route parameter the request does not carry says nothing exact either, as no column holds that placeholder.
+	 * a route parameter the request does not carry says nothing exact either, as no column holds that placeholder, so a
+	 * Deny of it refuses an unloaded row route too, such as a simulator call without the parameter or with an empty one.
 	 * @param {ReadonlyArray<IApiAuthorizationIamToken>} tokens - Resolved pattern tokens.
 	 * @param {IApiAuthorizationIamStatement} statement - Statement of the pattern.
 	 * @param {object} options - Matching options.
@@ -339,6 +340,11 @@ export class ApiAuthorizationIamEngine {
 
 		if (!ApiAuthorizationIamGlob.isOverlapping(tokens, segments)) {
 			return { constraints: [], kind: EApiAuthorizationIamResourceClass.NONE };
+		}
+
+		// A Deny of an unloaded row leaves a column placeholder to the row scope; a route-bound one has no row scope, so a Deny that constrains it refuses.
+		if (isDenyResourceOfUnloadedRow && options.requestResource.unfilledRouteParameters.size > 0 && this.excludeUnfilledRouteParameters(ApiAuthorizationIamResourcePattern.classify(tokens, segments, options.requestResource.alphabets), options.requestResource).kind === EApiAuthorizationIamResourceClass.AMBIGUOUS) {
+			return { constraints: [], kind: EApiAuthorizationIamResourceClass.AMBIGUOUS };
 		}
 
 		return { constraints: [], kind: isDenyResourceOfUnloadedRow ? EApiAuthorizationIamResourceClass.NONE : EApiAuthorizationIamResourceClass.AMBIGUOUS };

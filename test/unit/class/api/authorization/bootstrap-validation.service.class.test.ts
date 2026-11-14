@@ -551,12 +551,12 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 			expect(() => start(RouteBoundController)).not.toThrow();
 		});
 
-		it("starts a route-bound placeholder whose name is also a column of the entity, which it does not read", () => {
+		it("does not start a route-bound placeholder whose name is a column of the entity, which a Deny must be checked on", () => {
 			class RouteBoundColumnNameController {}
 
 			defineRouteBoundControllerMetadata(RouteBoundColumnNameController, { resourcePath: "validation:setting/{id}", routeParameters: ["id"] });
 
-			expect(() => start(RouteBoundColumnNameController)).not.toThrow();
+			expect(() => start(RouteBoundColumnNameController)).toThrow('Controller "RouteBoundColumnNameController" resource "validation:setting" path placeholder "{id}" is listed in resourceDefinition.routeParameters and is also the column "id" of entity "ValidationLabelEntity", and one placeholder reads one value: remove "id" from routeParameters to compare the column, whose stored row a Deny is checked on');
 		});
 
 		it("starts a placeholder that reads a column of the entity, a field or a path scope binding, without routeParameters", () => {

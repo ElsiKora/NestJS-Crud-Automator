@@ -13,7 +13,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, AuthorizationResolveDefaultPrincipal, EApiAuthorizationPrincipalType, EApiPolicySourceType } from "../../src/index";
-import { E2E_ROUTE_BOUND_NAMED_ID, E2E_ROUTE_BOUND_NAMESPACE, E2E_ROUTE_BOUND_OTHER_ID, E2E_ROUTE_BOUND_POLICIES, E2eRouteBoundAnchorEntity, E2eRouteBoundAnchorService, E2eRouteBoundBuildController, E2eRouteBoundGuard } from "./route-bound-resource/fixture";
+import { E2E_ROUTE_BOUND_KEY_NAMESPACE, E2E_ROUTE_BOUND_KEY_POLICIES, E2E_ROUTE_BOUND_NAMED_ID, E2E_ROUTE_BOUND_NAMESPACE, E2E_ROUTE_BOUND_OTHER_ID, E2E_ROUTE_BOUND_POLICIES, E2eRouteBoundAnchorEntity, E2eRouteBoundAnchorService, E2eRouteBoundBuildController, E2eRouteBoundGuard, E2eRouteBoundKeyController } from "./route-bound-resource/fixture";
 
 interface IAnswer {
 	body: { ids?: Array<string> };
@@ -41,9 +41,9 @@ async function buildApplication(controllers: Array<new () => unknown>, container
 						{
 							getDocumentsByIds: async (ids: ReadonlyArray<string>) =>
 								await Promise.resolve(
-									Object.entries(E2E_ROUTE_BOUND_POLICIES)
-										.filter(([id]: [string, ReadonlyArray<unknown>]): boolean => ids.includes(id))
-										.map(([id, statements]: [string, ReadonlyArray<unknown>]) => ({ document: { Statement: statements, Version: "2012-10-17" }, id, namespace: E2E_ROUTE_BOUND_NAMESPACE, sourceType: EApiPolicySourceType.DATABASE, version: "1" })),
+									[...Object.entries(E2E_ROUTE_BOUND_POLICIES).map(([id, statements]: [string, ReadonlyArray<unknown>]) => ({ id, namespace: E2E_ROUTE_BOUND_NAMESPACE, statements })), ...Object.entries(E2E_ROUTE_BOUND_KEY_POLICIES).map(([id, statements]: [string, ReadonlyArray<unknown>]) => ({ id, namespace: E2E_ROUTE_BOUND_KEY_NAMESPACE, statements }))]
+										.filter((policy: { id: string }): boolean => ids.includes(policy.id))
+										.map((policy: { id: string; namespace: string; statements: ReadonlyArray<unknown> }) => ({ document: { Statement: policy.statements, Version: "2012-10-17" }, id: policy.id, namespace: policy.namespace, sourceType: EApiPolicySourceType.DATABASE, version: "1" })),
 								),
 						},
 					],
@@ -73,7 +73,19 @@ describe.each([
 	 * @returns {Promise<IAnswer>} Status and body.
 	 */
 	const send = async (policy: string, method: string, id?: string): Promise<IAnswer> => {
-		const response = await fastify.inject({ ...(method === "PATCH" ? { body: { value: "30" } } : {}), headers: { "x-policy": policy }, method, url: `/route-bound/config-data${id === undefined ? "" : `/${id}`}` });
+		const response = await fastify.inject({ ...(method === "PATCH" || method === "POST" ? { body: { value: "30" } } : {}), headers: { "x-policy": policy }, method, url: `/route-bound/config-data${id === undefined ? "" : `/${id}`}` });
+
+		return { body: response.json() as IAnswer["body"], status: response.statusCode };
+	};
+
+	/**
+	 * Reads a keyed setting as the principal that holds one policy.
+	 * @param {string} policy - Policy of the principal.
+	 * @param {string} key - Key as it is written in the URL, percent-encoded where needed.
+	 * @returns {Promise<IAnswer>} Status and body.
+	 */
+	const sendKey = async (policy: string, key: string): Promise<IAnswer> => {
+		const response = await fastify.inject({ headers: { "x-policy": policy }, method: "GET", url: `/route-bound/config-key/${key}` });
 
 		return { body: response.json() as IAnswer["body"], status: response.statusCode };
 	};
@@ -83,7 +95,7 @@ describe.each([
 			container = await new PostgreSqlContainer("postgres:17-alpine").start();
 		}
 
-		app = await buildApplication([E2eRouteBoundBuildController({ name: "E2eRouteBoundSettingController", routeParameters: ["id"] })], container);
+		app = await buildApplication([E2eRouteBoundBuildController({ name: "E2eRouteBoundSettingController", routeParameters: ["id"] }), E2eRouteBoundKeyController], container);
 		await app.init();
 		fastify = app.getHttpAdapter().getInstance() as typeof fastify;
 		await (fastify as unknown as { ready: () => Promise<void> }).ready();
@@ -143,6 +155,71 @@ describe.each([
 		});
 	});
 
+	describe("a create, which carries no id", () => {
+		it("is admitted by an Allow of every row", async () => {
+			expect((await send("wildcard", "POST")).status).toBe(HttpStatus.CREATED);
+		});
+
+		it("is not admitted by an Allow of one id or of an id glob", async () => {
+			expect((await send("allow-one", "POST")).status).toBe(HttpStatus.FORBIDDEN);
+			expect((await send("allow-glob", "POST")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+
+		it("is refused by a Deny of one id or of an id glob", async () => {
+			expect((await send("deny-one", "POST")).status).toBe(HttpStatus.FORBIDDEN);
+			expect((await send("deny-glob", "POST")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+	});
+
+	describe("a glob over the id", () => {
+		it("admits by an Allow exactly the ids it matches", async () => {
+			expect(await send("allow-glob", "GET", E2E_ROUTE_BOUND_NAMED_ID)).toEqual({ body: { ids: [E2E_ROUTE_BOUND_NAMED_ID] }, status: HttpStatus.OK });
+			expect((await send("allow-glob", "GET", E2E_ROUTE_BOUND_OTHER_ID)).status).toBe(HttpStatus.FORBIDDEN);
+			expect((await send("allow-glob", "GET")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+
+		it("refuses by a Deny exactly the ids it matches, and the whole list", async () => {
+			expect((await send("deny-glob", "GET", E2E_ROUTE_BOUND_NAMED_ID)).status).toBe(HttpStatus.FORBIDDEN);
+			expect(await send("deny-glob", "GET", E2E_ROUTE_BOUND_OTHER_ID)).toEqual({ body: { ids: [E2E_ROUTE_BOUND_OTHER_ID] }, status: HttpStatus.OK });
+			expect((await send("deny-glob", "GET")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+	});
+
+	describe("a Deny NotResource of one id beside an Allow of every row", () => {
+		it("admits only that id and refuses every other id and the list", async () => {
+			expect(await send("deny-not-resource", "GET", E2E_ROUTE_BOUND_NAMED_ID)).toEqual({ body: { ids: [E2E_ROUTE_BOUND_NAMED_ID] }, status: HttpStatus.OK });
+			expect((await send("deny-not-resource", "PATCH", E2E_ROUTE_BOUND_OTHER_ID)).status).toBe(HttpStatus.FORBIDDEN);
+			expect((await send("deny-not-resource", "GET", E2E_ROUTE_BOUND_OTHER_ID)).status).toBe(HttpStatus.FORBIDDEN);
+			expect((await send("deny-not-resource", "GET")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+	});
+
+	describe("a key described as text", () => {
+		it("matches an Allow letter by letter, so another case names another resource", async () => {
+			expect(await sendKey("key-allow", "Secret")).toEqual({ body: { ids: ["Secret"] }, status: HttpStatus.OK });
+			expect((await sendKey("key-allow", "secret")).status).toBe(HttpStatus.FORBIDDEN);
+			expect((await sendKey("key-allow", "SECRET")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+
+		it("refuses by a Deny only the spelling it names, so the handler must read exactly that text", async () => {
+			expect((await sendKey("key-deny", "Secret")).status).toBe(HttpStatus.FORBIDDEN);
+			expect(await sendKey("key-deny", "secret")).toEqual({ body: { ids: ["secret"] }, status: HttpStatus.OK });
+		});
+
+		it("treats a decoded separator as a value that names no resource", async () => {
+			expect((await sendKey("key-allow", "Sec%2Fret")).status).toBe(HttpStatus.FORBIDDEN);
+			expect((await sendKey("key-deny", "Sec%2Fret")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+
+		it("compares a star or a question mark in the value as literal text", async () => {
+			expect((await sendKey("key-allow", "Sec*")).status).toBe(HttpStatus.FORBIDDEN);
+			expect((await sendKey("key-allow", "Secre%3F")).status).toBe(HttpStatus.FORBIDDEN);
+			expect(await sendKey("key-allow-glob", "Sec*")).toEqual({ body: { ids: ["Sec*"] }, status: HttpStatus.OK });
+			expect(await sendKey("key-allow-glob", "Secret")).toEqual({ body: { ids: ["Secret"] }, status: HttpStatus.OK });
+			expect((await sendKey("key-allow-glob", "secret")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+	});
+
 	describe("a section condition on the anchor's column", () => {
 		it("still scopes the list and the rows by section", async () => {
 			expect(await send("section", "GET")).toEqual({ body: { ids: [E2E_ROUTE_BOUND_NAMED_ID] }, status: HttpStatus.OK });
@@ -174,5 +251,17 @@ describe("startup of an IAM resource whose placeholder binds to neither a column
 
 	it("fails for a routeParameters entry that is not a placeholder of the resource path", async () => {
 		expect(await startupError(E2eRouteBoundBuildController({ name: "E2eRouteBoundUnknownController", routeParameters: ["id", "settingId"] }))).toContain(`resourceDefinition.routeParameters names "settingId", which is not a placeholder of "${E2E_ROUTE_BOUND_NAMESPACE}/{id}"`);
+	});
+
+	it("fails for a routeParameters entry listed twice", async () => {
+		expect(await startupError(E2eRouteBoundBuildController({ name: "E2eRouteBoundTwiceController", routeParameters: ["id", "id"] }))).toContain(`Controller "E2eRouteBoundTwiceController" resource "${E2E_ROUTE_BOUND_NAMESPACE}" resourceDefinition.routeParameters lists "id" twice`);
+	});
+
+	it("fails for a route-bound placeholder that a field also maps to a column", async () => {
+		expect(await startupError(E2eRouteBoundBuildController({ fields: [{ isFilterable: true, path: "resource.id", queryPath: "revision" }], name: "E2eRouteBoundFieldController", routeParameters: ["id"] }))).toContain(`path placeholder "{id}" is listed in resourceDefinition.routeParameters and also mapped by the field "resource.id" to "revision"`);
+	});
+
+	it("fails for a route-bound placeholder that is also a column of the anchor", async () => {
+		expect(await startupError(E2eRouteBoundBuildController({ name: "E2eRouteBoundColumnController", resourcePath: `${E2E_ROUTE_BOUND_NAMESPACE}/{sectionName}`, routeParameters: ["sectionName"] }))).toContain(`path placeholder "{sectionName}" is listed in resourceDefinition.routeParameters and is also the column "sectionName" of entity "E2eRouteBoundAnchorEntity", and one placeholder reads one value: remove "sectionName" from routeParameters to compare the column`);
 	});
 });
