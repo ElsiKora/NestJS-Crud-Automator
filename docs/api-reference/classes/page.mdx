@@ -259,6 +259,7 @@ Public helper for running code inside an external TypeORM transaction while maki
 - `setValue<T>(key: symbol, value: T): void` binds a value to the current Automator transaction, the one the async context of the call runs in and `runWithDataSource` joins. It throws when no Automator transaction is active.
 - `getValue<T>(key: symbol): T | undefined` returns that value inside the same transaction, also to `REQUIRED` and `MANDATORY` participants and a `runWithDataSource` that joined it, and `undefined` outside any transaction, in a transaction of another `DataSource` opened inside it, and after commit or rollback.
 - `runWithValue<T, R>(key: symbol, value: T, callback: () => Promise<R>): Promise<R>` binds the value for the callback and puts back the previous value, or its absence, afterwards, also when the callback throws. It throws when no Automator transaction is active.
+- `onAfterCommit(callback: TApiFunctionTransactionAfterCommitCallback): void` registers a callback, `() => Promise<void> | void`, that runs after the outermost COMMIT of the current Automator transaction, in registration order and before the subscribers' `onAfterCommit` hooks. A rollback or an unknown COMMIT outcome drops it. One registered inside a savepoint is dropped when the savepoint rolls back and joins the enclosing level when it is released. A failing callback stops no other callback or hook; it is logged with bounded evidence and ends in one `ApiFunctionTransactionPostCommitException`. It throws when no Automator transaction is active, when the callback is not a function, and when the transaction has ended. See [After-Commit Callbacks](/docs/nestjs-crud-automator/core-concepts/services#after-commit-callbacks).
 
 Values are released when the transaction ends, before `onAfterCommit` and `onAfterRollback` run. See [Transaction-Bound Values](/docs/nestjs-crud-automator/core-concepts/services#transaction-bound-values).
 
@@ -268,7 +269,7 @@ Only service-bound decorated function execution, including generated `@ApiFuncti
 
 #### ApiFunctionTransactionPostCommitException
 
-The database commit succeeded, but one or more `onAfterCommit` or commit-error lifecycle hooks failed. `outcome` is `COMMITTED`; the exception exposes `transactionId`, `owner`, `hookFailures`, and `errorLifecycleFailures`. Do not report or retry this as a rollback.
+The database commit succeeded, but one or more after-commit callbacks registered with `ApiFunctionTransactionScope.onAfterCommit`, `onAfterCommit` hooks or commit-error lifecycle hooks failed. A callback failure has stage `AFTER_COMMIT` and no `subscriberName`. `outcome` is `COMMITTED`; the exception exposes `transactionId`, `owner`, `hookFailures`, and `errorLifecycleFailures`. Do not report or retry this as a rollback.
 
 #### ApiFunctionTransactionCommitUnknownOutcomeException
 

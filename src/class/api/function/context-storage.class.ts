@@ -106,6 +106,7 @@ export class ApiFunctionContextStorage {
 				callback,
 			);
 		} finally {
+			registry.closeAfterCommit();
 			registry.closeValues();
 
 			if (ApiFunctionContextStorage.TRANSACTION_REGISTRIES.get(entityManager) === registry) {

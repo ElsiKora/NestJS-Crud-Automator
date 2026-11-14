@@ -1,6 +1,7 @@
 import type { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/registry.class";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiFunctionContext, IApiFunctionTransactionObservationOptions } from "@interface/class/api/function";
+import type { TApiFunctionTransactionAfterCommitCallback } from "@type/class/api/function";
 import type { DataSource, EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
@@ -20,6 +21,30 @@ export class ApiFunctionTransactionScope {
 	// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 	public static getValue<T>(key: symbol): T | undefined {
 		return ApiFunctionContextStorage.getTransactionRegistry()?.getValue(key) as T | undefined;
+	}
+
+	/**
+	 * Registers a callback that runs after the current Automator transaction commits, see {@link ApiFunctionTransactionScope.getValue} for which transaction that is.
+	 * The callback carries what it closes over, such as the id of a row the transaction inserted.
+	 * Callbacks run after the outermost COMMIT, in registration order, before the `onAfterCommit` hooks of function subscribers; a rollback or an unknown COMMIT outcome drops them.
+	 * A callback registered inside a savepoint, such as `entityManager.transaction` on the manager of the transaction, is dropped when that savepoint rolls back and joins the enclosing level when it is released.
+	 * A callback that fails stops no other callback or hook; the owner logs it and throws an `ApiFunctionTransactionPostCommitException`, whose outcome stays committed.
+	 * @param {TApiFunctionTransactionAfterCommitCallback} callback - Work to run after the commit.
+	 * @returns {void}
+	 * @throws {Error} When no Automator transaction is active, when the callback is not a function, or when the transaction has ended.
+	 */
+	public static onAfterCommit(callback: TApiFunctionTransactionAfterCommitCallback): void {
+		if (typeof callback !== "function") {
+			throw ErrorException("ApiFunctionTransactionScope.onAfterCommit requires a function callback");
+		}
+
+		const registry: ApiFunctionTransactionRegistry | undefined = ApiFunctionContextStorage.getTransactionRegistry();
+
+		if (!registry) {
+			throw ErrorException("ApiFunctionTransactionScope.onAfterCommit requires an active Automator transaction");
+		}
+
+		registry.addAfterCommit(callback);
 	}
 
 	public static async runWithDataSource<R>(dataSource: DataSource, properties: { name: string; observation?: Readonly<IApiFunctionTransactionObservationOptions> }, callback: (entityManager: EntityManager) => Promise<R>): Promise<R> {

@@ -232,4 +232,41 @@ describe("ApiFunctionTransactionRegistry", () => {
 		enabled.settleObservation(EApiFunctionTransactionOutcome.UNKNOWN);
 		expect(observe).toHaveBeenCalledWith({ droppedCount: 3, measurements: [], outcome: EApiFunctionTransactionOutcome.UNKNOWN });
 	});
+
+	it("keeps after-commit callbacks per transaction level and releases only those of levels that committed into the outermost one", () => {
+		const registry = new ApiFunctionTransactionRegistry("transaction-id", { kind: EApiFunctionTransactionOwnerKind.SCOPE, name: "levels" });
+		const callbacks = Array.from({ length: 5 }, () => vi.fn());
+
+		expect(() => registry.addAfterCommit(callbacks[0]!)).toThrow("Cannot register an after-commit callback on an Automator transaction that has ended");
+
+		registry.alignAfterCommitLevels(1, false);
+		registry.addAfterCommit(callbacks[0]!);
+		registry.alignAfterCommitLevels(3, false);
+		registry.addAfterCommit(callbacks[1]!);
+		registry.alignAfterCommitLevels(2, false);
+		registry.addAfterCommit(callbacks[2]!);
+		registry.alignAfterCommitLevels(1, true);
+		registry.alignAfterCommitLevels(2, false);
+		registry.addAfterCommit(callbacks[3]!);
+		registry.alignAfterCommitLevels(0, true);
+
+		expect(registry.takeAfterCommitCallbacks()).toEqual([callbacks[0], callbacks[2], callbacks[3]]);
+		expect(registry.takeAfterCommitCallbacks()).toEqual([]);
+
+		registry.closeAfterCommit();
+		expect(() => registry.addAfterCommit(callbacks[4]!)).toThrow("Cannot register an after-commit callback on an Automator transaction that has ended");
+		registry.alignAfterCommitLevels(1, false);
+		expect(() => registry.addAfterCommit(callbacks[4]!)).toThrow("Cannot register an after-commit callback on an Automator transaction that has ended");
+	});
+
+	it("drops the callbacks of levels that never ended when it closes", () => {
+		const registry = new ApiFunctionTransactionRegistry("transaction-id", { kind: EApiFunctionTransactionOwnerKind.SCOPE, name: "levels" });
+
+		registry.alignAfterCommitLevels(2, false);
+		registry.addAfterCommit(vi.fn());
+		registry.alignAfterCommitLevels(1, true);
+		registry.closeAfterCommit();
+
+		expect(registry.takeAfterCommitCallbacks()).toEqual([]);
+	});
 });

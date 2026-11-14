@@ -8,6 +8,7 @@ import { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { EApiFunctionTransactionFailureStage, EApiFunctionTransactionOutcome, EApiFunctionTransactionOwnerKind, EApiFunctionType } from "@enum/decorator/api";
 import { resetApiSubscriberRegistry } from "@test/unit/fixture";
+import { LoggerUtility } from "@utility/logger.utility";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function createSucceededRegistry(entity: TMetadataStorageTarget, functionTypes: ReadonlyArray<EApiFunctionType>): ApiFunctionTransactionRegistry {
@@ -166,6 +167,58 @@ describe("ApiFunctionTransactionLifecycle", () => {
 		expect(secondSubscriber.onAfterCommit).toHaveBeenCalledTimes(1);
 		expect(firstSubscriber.onAfterErrorCommit).toHaveBeenCalledTimes(1);
 		expect(secondSubscriber.onAfterErrorCommit).toHaveBeenCalledTimes(1);
+	});
+
+	it("runs the after-commit callbacks before the subscriber hooks and joins their failures into one post-commit exception", async () => {
+		class LifecycleCallbackEntity {}
+
+		const order: Array<string> = [];
+		const callbackError = new Error("callback failed");
+		const hookError = new Error("hook failed");
+		let rawFailures: ReadonlyArray<Readonly<IApiFunctionTransactionFailure>> | undefined;
+		const subscriber: IApiSubscriberFunction<LifecycleCallbackEntity> = {
+			onAfterCommit: vi.fn(async () => {
+				order.push("subscriber hook");
+
+				throw hookError;
+			}),
+			onAfterErrorCommit: vi.fn(async () => undefined),
+			onBeforeErrorCommit: vi.fn(async (_context: IApiSubscriberFunctionTransactionContext, failures: ReadonlyArray<Readonly<IApiFunctionTransactionFailure>>) => {
+				rawFailures = failures;
+			}),
+		};
+
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: LifecycleCallbackEntity }, subscriber);
+
+		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleCallbackEntity, [EApiFunctionType.CREATE]);
+
+		registry.alignAfterCommitLevels(1, false);
+		registry.addAfterCommit(() => {
+			order.push("first callback");
+
+			throw callbackError;
+		});
+		registry.addAfterCommit(() => {
+			order.push("second callback");
+		});
+		registry.alignAfterCommitLevels(0, true);
+
+		const thrown: unknown = await ApiFunctionTransactionLifecycle.executeAfterCommit(registry).catch((error: unknown) => error);
+
+		expect(order).toEqual(["first callback", "second callback", "subscriber hook"]);
+		expect(thrown).toBeInstanceOf(ApiFunctionTransactionPostCommitException);
+		expect(thrown).toMatchObject({
+			cause: callbackError,
+			hookFailures: [
+				{ error: callbackError, stage: EApiFunctionTransactionFailureStage.AFTER_COMMIT, subscriberName: undefined },
+				{ error: hookError, stage: EApiFunctionTransactionFailureStage.AFTER_COMMIT },
+			],
+			outcome: EApiFunctionTransactionOutcome.COMMITTED,
+		});
+		expect(rawFailures).toHaveLength(2);
+		expect(subscriber.onAfterErrorCommit).toHaveBeenCalledOnce();
+		await expect(ApiFunctionTransactionLifecycle.executeAfterCommit(registry)).rejects.toMatchObject({ hookFailures: [{ error: hookError }] });
 	});
 
 	it("runs rollback hooks and preserves the original operation error when handling succeeds", async () => {

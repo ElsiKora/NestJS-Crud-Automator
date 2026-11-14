@@ -2,13 +2,19 @@ import type { EApiFunctionTransactionOutcome } from "@enum/decorator/api";
 import type { IApiFunctionTransaction, IApiFunctionTransactionObservationMeasurement, IApiFunctionTransactionObservationOptions, IApiFunctionTransactionObservationSelector, IApiFunctionTransactionObservationSnapshot } from "@interface/class/api/function";
 import type { IApiSubscriberFunctionTransactionContext } from "@interface/class/api/subscriber/function";
 import type { TMetadataStorageTarget } from "@type/class";
-import type { TApiFunctionTransactionEvent, TApiFunctionTransactionOwner, TApiFunctionTransactionTraceType } from "@type/class/api/function/transaction";
+import type { TApiFunctionTransactionAfterCommitCallback, TApiFunctionTransactionEvent, TApiFunctionTransactionOwner, TApiFunctionTransactionTraceType } from "@type/class/api/function/transaction";
 
 import { API_FUNCTION_TRANSACTION_OBSERVATION_CONSTANT } from "@constant/api-function-transaction-observation.constant";
 import { EApiFunctionTransactionEventStatus, EApiFunctionTransactionTraceType, EApiFunctionType } from "@enum/decorator/api";
 import { ErrorException } from "@utility/error/exception.utility";
 
 export class ApiFunctionTransactionRegistry {
+	// Callbacks of each open transaction level, the outermost first: one level for the transaction and one for each savepoint open inside it.
+	private readonly AFTER_COMMIT_LEVELS: Array<Array<TApiFunctionTransactionAfterCommitCallback>> = [];
+
+	// Callbacks whose levels the outermost COMMIT released.
+	private readonly COMMITTED_CALLBACKS: Array<TApiFunctionTransactionAfterCommitCallback> = [];
+
 	private readonly EVENTS: Array<{
 		action?: string;
 		entity: TMetadataStorageTarget;
@@ -22,6 +28,8 @@ export class ApiFunctionTransactionRegistry {
 	}> = [];
 
 	private eventSnapshot?: ReadonlyArray<TApiFunctionTransactionEvent>;
+
+	private isAfterCommitClosed: boolean = false;
 
 	private isObservationClosed: boolean = false;
 
@@ -83,6 +91,45 @@ export class ApiFunctionTransactionRegistry {
 	}
 
 	/**
+	 * Keeps a callback on the innermost open level of this transaction, to run after the outermost COMMIT.
+	 * @param {TApiFunctionTransactionAfterCommitCallback} callback - Callback to run after the commit.
+	 * @returns {void}
+	 * @throws {Error} When the transaction has ended.
+	 */
+	public addAfterCommit(callback: TApiFunctionTransactionAfterCommitCallback): void {
+		const level: Array<TApiFunctionTransactionAfterCommitCallback> | undefined = this.AFTER_COMMIT_LEVELS.at(-1);
+
+		if (this.isAfterCommitClosed || !level) {
+			throw ErrorException("Cannot register an after-commit callback on an Automator transaction that has ended");
+		}
+
+		level.push(callback);
+	}
+
+	/**
+	 * Lines the callback levels up with the transaction depth of the query runner after a transaction start, COMMIT or ROLLBACK.
+	 * A level that opens starts empty. A level that a COMMIT or RELEASE SAVEPOINT ends joins its parent, and the outermost one joins the committed callbacks. A level that a ROLLBACK ends is dropped.
+	 * @param {number} depth - Transaction depth of the query runner after the call.
+	 * @param {boolean} isReleased - Whether the call was a COMMIT, whose ended levels are kept.
+	 * @returns {void}
+	 */
+	public alignAfterCommitLevels(depth: number, isReleased: boolean): void {
+		if (this.isAfterCommitClosed) return;
+
+		while (this.AFTER_COMMIT_LEVELS.length < depth) {
+			this.AFTER_COMMIT_LEVELS.push([]);
+		}
+
+		while (this.AFTER_COMMIT_LEVELS.length > depth) {
+			const level: Array<TApiFunctionTransactionAfterCommitCallback> = this.AFTER_COMMIT_LEVELS.pop() ?? [];
+
+			if (isReleased) {
+				(this.AFTER_COMMIT_LEVELS.at(-1) ?? this.COMMITTED_CALLBACKS).push(...level);
+			}
+		}
+	}
+
+	/**
 	 * Registers a pending function event of this transaction.
 	 * @param {{ action?: string; entity: TMetadataStorageTarget; functionType: TApiFunctionTransactionTraceType; isSubscriberObservable: boolean; methodName: string }} options - Event details.
 	 * @param {string} [options.action] - Custom action of the function.
@@ -139,6 +186,15 @@ export class ApiFunctionTransactionRegistry {
 		}
 
 		return index;
+	}
+
+	/**
+	 * Ends registration of after-commit callbacks once the transaction has ended, and drops the callbacks of levels that never ended.
+	 * @returns {void}
+	 */
+	public closeAfterCommit(): void {
+		this.isAfterCommitClosed = true;
+		this.AFTER_COMMIT_LEVELS.length = 0;
 	}
 
 	/**
@@ -347,6 +403,14 @@ export class ApiFunctionTransactionRegistry {
 		const event: (typeof this.EVENTS)[number] = this.getPendingEvent(sequence);
 
 		event.status = EApiFunctionTransactionEventStatus.SUCCEEDED;
+	}
+
+	/**
+	 * Hands over the callbacks that the outermost COMMIT released, in registration order, once.
+	 * @returns {ReadonlyArray<TApiFunctionTransactionAfterCommitCallback>} The committed callbacks.
+	 */
+	public takeAfterCommitCallbacks(): ReadonlyArray<TApiFunctionTransactionAfterCommitCallback> {
+		return this.COMMITTED_CALLBACKS.splice(0);
 	}
 
 	public takeWorkAfterSettlement(): ReadonlyArray<() => Promise<void>> {

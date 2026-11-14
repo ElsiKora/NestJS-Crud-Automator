@@ -3,16 +3,27 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiFunctionTransaction, IApiFunctionTransactionFailure } from "@interface/class/api/function";
 import type { IApiSubscriberFunction, IApiSubscriberFunctionTransactionContext } from "@interface/class/api/subscriber/function";
 import type { IApiFunctionSubscriberProperties } from "@interface/decorator/api/subscriber";
-import type { TApiFunctionTransactionEvent } from "@type/class/api/function";
+import type { TApiFunctionTransactionAfterCommitCallback, TApiFunctionTransactionEvent } from "@type/class/api/function";
 
 import { ApiFunctionTransactionCommitUnknownOutcomeException, ApiFunctionTransactionPostCommitException, ApiFunctionTransactionRollbackException } from "@class/api/function/transaction/exception";
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { EApiFunctionTransactionFailureStage, EApiFunctionTransactionTraceType } from "@enum/decorator/api";
+import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
+import { LoggerUtility } from "@utility/logger.utility";
+
+const lifecycleLogger: LoggerUtility = LoggerUtility.getLogger("ApiFunctionTransactionLifecycle");
 
 export class ApiFunctionTransactionLifecycle {
+	/**
+	 * Runs the after-commit callbacks of a committed transaction in registration order, then the `onAfterCommit` hooks of its matching function subscribers.
+	 * A callback or hook that fails stops none of the others; the failures go through the commit-error hooks and end in one post-commit exception, whose outcome stays committed.
+	 * @param {ApiFunctionTransactionRegistry} registry - Registry of the committed transaction.
+	 * @returns {Promise<void>} Resolves when every callback and hook succeeded.
+	 * @throws {ApiFunctionTransactionPostCommitException} When a callback or hook failed.
+	 */
 	public static async executeAfterCommit(registry: ApiFunctionTransactionRegistry): Promise<void> {
 		const subscribers: Array<{ context: IApiSubscriberFunctionTransactionContext; subscriber: IApiSubscriberFunction<IApiBaseEntity> }> = ApiFunctionTransactionLifecycle.getMatchingSubscribers(registry);
-		const hookFailures: Array<IApiFunctionTransactionFailure> = [];
+		const hookFailures: Array<IApiFunctionTransactionFailure> = await ApiFunctionTransactionLifecycle.executeAfterCommitCallbacks(registry);
 
 		for (const { context, subscriber } of subscribers) {
 			if (!subscriber.onAfterCommit) {
@@ -125,6 +136,22 @@ export class ApiFunctionTransactionLifecycle {
 			stage,
 			subscriberName: subscriber?.constructor.name,
 		});
+	}
+
+	private static async executeAfterCommitCallbacks(registry: ApiFunctionTransactionRegistry): Promise<Array<IApiFunctionTransactionFailure>> {
+		const callbacks: ReadonlyArray<TApiFunctionTransactionAfterCommitCallback> = registry.takeAfterCommitCallbacks();
+		const failures: Array<IApiFunctionTransactionFailure> = [];
+
+		for (const [index, callback] of callbacks.entries()) {
+			try {
+				await callback();
+			} catch (error) {
+				lifecycleLogger.error(`After-commit callback ${String(index + 1)} of transaction ${registry.getTransaction().id} failed: ${FormatErrorEvidenceForLog(error)}`);
+				failures.push(ApiFunctionTransactionLifecycle.createFailure(EApiFunctionTransactionFailureStage.AFTER_COMMIT, error));
+			}
+		}
+
+		return failures;
 	}
 
 	private static async executeAfterCommitErrorSubscribers(subscribers: ReadonlyArray<{ context: IApiSubscriberFunctionTransactionContext; subscriber: IApiSubscriberFunction<IApiBaseEntity> }>, error: Error): Promise<Array<IApiFunctionTransactionFailure>> {

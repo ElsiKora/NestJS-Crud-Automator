@@ -153,7 +153,7 @@ Generated routes check every path value against the type its column has in `@Api
 
 Transaction completion failures must be handled by outcome:
 
-- `ApiFunctionTransactionPostCommitException` has `outcome: COMMITTED`. Database work succeeded, but a post-commit or commit-error lifecycle hook failed. Do not retry it as if the transaction rolled back.
+- `ApiFunctionTransactionPostCommitException` has `outcome: COMMITTED`. Database work succeeded, but an after-commit callback (`ApiFunctionTransactionScope.onAfterCommit`), a post-commit hook or a commit-error lifecycle hook failed. Do not retry it as if the transaction rolled back.
 - `ApiFunctionTransactionCommitUnknownOutcomeException` has `outcome: UNKNOWN`. The driver did not confirm COMMIT; Automator runs commit-error lifecycle but neither post-commit nor post-rollback hooks.
 - A clean confirmed rollback rethrows the original operation error. `ApiFunctionTransactionRollbackException` is used only when rollback handling adds a database rollback, hook, or error-lifecycle failure; it preserves `operationError` and reports `ROLLED_BACK` after confirmed database rollback or `UNKNOWN` when rollback itself failed.
 

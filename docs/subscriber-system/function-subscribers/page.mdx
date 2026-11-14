@@ -219,7 +219,7 @@ private calculateReadingTime(content: string): number {
 
 ### Post-Transaction Hooks
 
-`onAfterCommit` and `onAfterRollback` run once per matching subscriber after the outer transaction owner confirms the database result. They do not run for `NONE`, nontransactional `SUPPORTS`, or an unknown COMMIT outcome.
+`onAfterCommit` and `onAfterRollback` run once per matching subscriber after the outer transaction owner confirms the database result. They do not run for `NONE`, nontransactional `SUPPORTS`, or an unknown COMMIT outcome. Their context carries no value from the transaction. To release an effect with a value the subscriber computed, such as the id of the row `onAfterCreate` received, register `ApiFunctionTransactionScope.onAfterCommit(() => publish(message.id))` inside the transaction; see [After-Commit Callbacks](/docs/nestjs-crud-automator/core-concepts/services#after-commit-callbacks).
 
 On a [generated `CREATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-create) that carries a scope, `onAfterCreate` runs before the scope decision, so on a `403` it has already finished. The rollback undoes only what it wrote through `DATA.repository`; a write through an injected `Repository` and side effects outside the transaction, such as an email or a queue message, stay done. Put them in `onAfterCommit`. The scope checks the row the `create` function stored, not a value that `onAfterCreate` returns.
 

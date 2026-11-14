@@ -8,16 +8,24 @@ export function createTransactionFixture(entityManager?: EntityManager): { dataS
 		({
 			getRepository: vi.fn(),
 		} as unknown as EntityManager);
+	// The depth TypeORM keeps on a query runner: the transaction and each savepoint open inside it.
 	const queryRunner = {
-		commitTransaction: vi.fn(async () => undefined),
+		commitTransaction: vi.fn(async () => {
+			queryRunner.transactionDepth = Math.max(0, queryRunner.transactionDepth - 1);
+		}),
 		connect: vi.fn(async () => undefined),
 		manager: resolvedEntityManager,
 		release: vi.fn(async () => undefined),
-		rollbackTransaction: vi.fn(async () => undefined),
-		startTransaction: vi.fn(async () => undefined),
-	} as unknown as QueryRunner;
+		rollbackTransaction: vi.fn(async () => {
+			queryRunner.transactionDepth = Math.max(0, queryRunner.transactionDepth - 1);
+		}),
+		startTransaction: vi.fn(async () => {
+			queryRunner.transactionDepth += 1;
+		}),
+		transactionDepth: 0,
+	};
 	const dataSource = {
-		createQueryRunner: vi.fn(() => queryRunner),
+		createQueryRunner: vi.fn(() => queryRunner as unknown as QueryRunner),
 		options: { type: "postgres" },
 	} as unknown as DataSource;
 	Object.assign(resolvedEntityManager, { dataSource });
@@ -25,6 +33,6 @@ export function createTransactionFixture(entityManager?: EntityManager): { dataS
 	return {
 		dataSource,
 		entityManager: resolvedEntityManager,
-		queryRunner,
+		queryRunner: queryRunner as unknown as QueryRunner,
 	};
 }

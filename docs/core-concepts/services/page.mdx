@@ -290,7 +290,39 @@ const authority: IAuthority | undefined = ApiFunctionTransactionScope.getValue<I
 - `getValue(key)` returns it to everything that runs in that same transaction: the owner, every `REQUIRED` or `MANDATORY` function and step that joined it (with `context.eventManager`, the service repository bound to it, and its function subscribers), and a `runWithDataSource` on the same `DataSource`, which joins it. It returns `undefined` outside any transaction, in a different transaction, and after the transaction committed or rolled back.
 - `runWithValue(key, value, callback)` binds the value for the callback and puts back the previous value, or its absence, when the callback settles, also when it throws. The value belongs to the transaction, not to the callback's async context, so other work running in parallel in the same transaction sees it too.
 
-The current transaction is the one the async context of the call runs in, the same one `runWithDataSource` joins. A transaction that a call opens on another `DataSource` inside it is a different transaction with values of its own, and a call back into the first `DataSource` joins the first transaction and sees its values again; a call on another `DataSource` that opens no transaction sees no value and cannot bind one. Values are released when the transaction ends, before `onAfterCommit` and `onAfterRollback` run, and are never shared between transactions: two transactions running in parallel each see only their own value under the same key. Route subscribers of a generated route run outside the transaction the route owns, so they see no value bound inside it.
+The current transaction is the one the async context of the call runs in, the same one `runWithDataSource` joins. A transaction that a call opens on another `DataSource` inside it is a different transaction with values of its own, and a call back into the first `DataSource` joins the first transaction and sees its values again; a call on another `DataSource` that opens no transaction sees no value and cannot bind one. Values are released when the transaction ends, before `onAfterCommit` and `onAfterRollback` run, so an effect that needs one after the commit registers an [after-commit callback](#after-commit-callbacks) that carries it. Values are never shared between transactions: two transactions running in parallel each see only their own value under the same key. Route subscribers of a generated route run outside the transaction the route owns, so they see no value bound inside it.
+
+### After-Commit Callbacks
+
+An effect that needs a value computed inside the transaction, such as publishing the id of a row it just inserted, is registered with `ApiFunctionTransactionScope.onAfterCommit`. The callback carries the value it closes over and runs only once the transaction has committed:
+
+```typescript filename="message-publication.subscriber.ts" copy
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, ApiFunctionTransactionScope, type IApiSubscriberFunctionExecutionContext } from "@elsikora/nestjs-crud-automator";
+
+@ApiFunctionSubscriber({ entity: ChatMessage })
+export class ChatMessagePublicationSubscriber extends ApiFunctionSubscriberBase<ChatMessage> {
+	constructor(private readonly realtime: RealtimePublisher) {
+		super();
+	}
+
+	async onAfterCreate(context: IApiSubscriberFunctionExecutionContext<ChatMessage, ChatMessage>): Promise<undefined> {
+		const message: ChatMessage = context.result;
+
+		ApiFunctionTransactionScope.onAfterCommit(async () => await this.realtime.publish({ id: message.id, text: message.text }));
+
+		return undefined;
+	}
+}
+```
+
+- It works from any code that runs in the current Automator transaction, the one `getValue` reads: the owner, a `REQUIRED` or `MANDATORY` function or step that joined it, their function subscribers, and a `runWithDataSource` that joined it.
+- Callbacks run after the outermost COMMIT, one after another in registration order, before the `onAfterCommit` hooks of function subscribers. The owner awaits them before it returns its result.
+- A rollback drops them, and so does an unknown COMMIT outcome.
+- A savepoint keeps its own callbacks. A nested TypeORM transaction on the manager of the transaction (`entityManager.transaction(...)`, or `startTransaction()` again on its query runner) opens a savepoint. A callback registered inside it is dropped when the savepoint rolls back and joins the enclosing level when it is released, so it runs only if the outermost transaction commits.
+- A callback that throws or rejects stops no other callback and no subscriber hook. Each failure is logged with bounded evidence (the error type and a validated SQLSTATE, never its message). Once all have run, the owner throws one [`ApiFunctionTransactionPostCommitException`](/docs/nestjs-crud-automator/guides/error-handling): its `outcome` stays `COMMITTED`, its `hookFailures` list the callback failures with stage `AFTER_COMMIT` and no `subscriberName`, and its `cause` is the first failure. Do not retry it as a rollback.
+- `onAfterCommit` throws when no Automator transaction is active and when the callback is not a function. It never runs the callback at once. It also throws from code that still holds the async context of a transaction that has ended, such as a timer started inside it, and from inside a running callback.
+- Route subscribers of a generated route run outside the transaction the route owns, so `onAfterCommit` throws there unless the route runs inside an outer transaction, such as a `MANDATORY` route called within a named scope. A route `AFTER` subscriber already runs after the route's transaction committed and can publish directly.
+- A transaction on another `DataSource` opened inside the current one keeps callbacks of its own and runs them when that transaction commits.
 
 ## Observable Services
 

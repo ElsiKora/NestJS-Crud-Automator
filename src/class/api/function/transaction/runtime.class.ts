@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionLifecycle } from "@class/api/function/transaction/lifecycle.class";
 import { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/registry.class";
+import { ApiFunctionTransactionSavepointTracker } from "@class/api/function/transaction/savepoint-tracker.class";
 import { DATABASE_DRIVER_TYPE_CONSTANT } from "@constant/database-driver-type.constant";
 import { EApiFunctionTransactionFailureStage, EApiFunctionTransactionOutcome } from "@enum/decorator/api";
 import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
@@ -37,36 +38,39 @@ export class ApiFunctionTransactionRuntime {
 		await ApiFunctionTransactionRuntime.runInTurn(options.dataSource, async (): Promise<void> => {
 			const queryRunner: QueryRunner = options.dataSource.createQueryRunner();
 
-			try {
-				await queryRunner.connect();
-				await queryRunner.startTransaction();
-			} catch (error) {
-				await ApiFunctionTransactionRuntime.releaseBestEffort(queryRunner);
-
-				throw error;
-			}
-
-			await ApiFunctionContextStorage.runTransaction(queryRunner.manager, queryRunner, registry, async (): Promise<void> => {
+			// The tracker puts the transaction methods of the query runner back once it is released, also when a step throws.
+			await ApiFunctionTransactionSavepointTracker.run(queryRunner, registry, async (): Promise<void> => {
 				try {
-					result.value = await options.callback(queryRunner.manager);
+					await queryRunner.connect();
+					await queryRunner.startTransaction();
 				} catch (error) {
-					hasOperationError = true;
-					operationError = error;
-					rollbackFailure = await ApiFunctionTransactionRuntime.rollbackBestEffort(queryRunner);
 					await ApiFunctionTransactionRuntime.releaseBestEffort(queryRunner);
 
-					return;
+					throw error;
 				}
 
-				try {
-					await queryRunner.commitTransaction();
-				} catch (error) {
-					commitError = error;
-					hasCommitError = true;
-					commitCleanupFailure = await ApiFunctionTransactionRuntime.rollbackBestEffort(queryRunner);
-				}
+				await ApiFunctionContextStorage.runTransaction(queryRunner.manager, queryRunner, registry, async (): Promise<void> => {
+					try {
+						result.value = await options.callback(queryRunner.manager);
+					} catch (error) {
+						hasOperationError = true;
+						operationError = error;
+						rollbackFailure = await ApiFunctionTransactionRuntime.rollbackBestEffort(queryRunner);
+						await ApiFunctionTransactionRuntime.releaseBestEffort(queryRunner);
 
-				await ApiFunctionTransactionRuntime.releaseBestEffort(queryRunner);
+						return;
+					}
+
+					try {
+						await queryRunner.commitTransaction();
+					} catch (error) {
+						commitError = error;
+						hasCommitError = true;
+						commitCleanupFailure = await ApiFunctionTransactionRuntime.rollbackBestEffort(queryRunner);
+					}
+
+					await ApiFunctionTransactionRuntime.releaseBestEffort(queryRunner);
+				});
 			});
 		});
 

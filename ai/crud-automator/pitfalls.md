@@ -157,6 +157,8 @@ When generated route `REQUIRED` opens and owns the transaction, keep request tra
 
 Omitted route config and `SUPPORTS` must not add a new `BEGIN`, except for a generated CREATE, which always runs its insert, identity read, and reload in one transaction, scoped or not, and a scoped UPDATE/PARTIAL_UPDATE, which runs its write and reload in one. A non-scoped UPDATE must still open none. `MANDATORY` requires an outer Automator owner, `NONE` rejects one, and custom routes remain function/step/scope-owned. A route-after failure for a route-owned transaction occurs after commit and must not be described as rollback.
 
+Do not queue an effect that needs a value from the transaction on its query runner or release it from a TypeORM transaction subscriber, and do not read a transaction value in `onAfterCommit`: values are gone by then. Register `ApiFunctionTransactionScope.onAfterCommit(() => publish(message.id))` inside the transaction. Do not expect it to run at once outside a transaction, or from a generated route's route subscriber: it throws there. Do not treat a callback failure as a rollback: the owner throws `ApiFunctionTransactionPostCommitException` with outcome `COMMITTED`.
+
 `ApiFunctionTransactionScope.runWithDataSource` requires `(dataSource, { name }, callback)`, and the callback receives the exact owning `EntityManager`. Do not use the old two-argument signature or treat `runWithEntityManager` as a context-establishing scope; it only joins an existing Automator owner.
 
 ## Custom Route Runtime Assumptions

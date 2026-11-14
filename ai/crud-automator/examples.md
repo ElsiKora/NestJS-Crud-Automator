@@ -474,6 +474,30 @@ const current: IAuthority | undefined = ApiFunctionTransactionScope.getValue<IAu
 
 The value is visible only inside that transaction and released at commit or rollback. A transaction of another `DataSource` opened inside sees none. Use `runWithValue(AUTHORITY, narrowed, callback)` to narrow it for one call; it puts back the previous value afterwards.
 
+## After-Commit Callback With a Value
+
+```ts
+@Injectable()
+@ApiFunctionSubscriber<ChatMessageEntity>({ entity: ChatMessageEntity })
+export class ChatMessagePublicationSubscriber extends ApiFunctionSubscriberBase<ChatMessageEntity> {
+	async onAfterCreate(context: IApiSubscriberFunctionExecutionContext<ChatMessageEntity, ChatMessageEntity>): Promise<undefined> {
+		const message: ChatMessageEntity = context.result;
+
+		ApiFunctionTransactionScope.onAfterCommit(async () => await this.realtime.publish({ id: message.id }));
+
+		return undefined;
+	}
+}
+
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "chat-send" }, async (entityManager) => {
+	await chatMessageService.create({ text });
+	// A savepoint that rolls back drops the callbacks registered inside it; one that is released keeps them for the commit.
+	await entityManager.transaction(async () => await chatMessageService.create({ text: echo })).catch(() => undefined);
+});
+```
+
+The callback runs only after the outermost COMMIT, in registration order. A failing callback leaves the commit in place, the later callbacks still run, and the owner throws `ApiFunctionTransactionPostCommitException` (`COMMITTED`) at the end.
+
 ## Selected Native Execution Durations
 
 ```ts
