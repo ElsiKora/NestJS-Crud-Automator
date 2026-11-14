@@ -22,6 +22,8 @@ import {
 	ApiFunctionTransactionPostCommitException,
 	ApiFunctionTransactionScope,
 	ApiPropertyDescribe,
+	ApiRouteSubscriber,
+	ApiRouteSubscriberBase,
 	ApiService,
 	ApiServiceBase,
 	ApiServiceObservable,
@@ -57,7 +59,7 @@ interface IPublished {
 }
 
 // What the callbacks published, and whether each published row was visible outside its transaction.
-const probe: { failText?: string; published: Array<IPublished>; read?: (id: string) => Promise<boolean> } = { published: [] };
+const probe: { failText?: string; published: Array<IPublished>; read?: (id: string) => Promise<boolean>; routeRefusals: Array<string> } = { published: [], routeRefusals: [] };
 
 @Injectable()
 @ApiServiceObservable()
@@ -85,6 +87,32 @@ class MessagePublicationSubscriber extends ApiFunctionSubscriberBase<MessageEnti
 		});
 
 		return undefined;
+	}
+}
+
+// Route subscribers of a generated route run outside the transaction the route owns: before it opens and after it committed.
+@Injectable()
+@ApiRouteSubscriber({ entity: MessageEntity })
+class MessageRouteSubscriber extends ApiRouteSubscriberBase<MessageEntity> {
+	public async onAfterCreate(): Promise<undefined> {
+		MessageRouteSubscriber.register("after");
+
+		return undefined;
+	}
+
+	public async onBeforeCreate(): Promise<undefined> {
+		MessageRouteSubscriber.register("before");
+
+		return undefined;
+	}
+
+	private static register(stage: string): void {
+		try {
+			ApiFunctionTransactionScope.onAfterCommit(() => undefined);
+			probe.routeRefusals.push(`${stage}: registered`);
+		} catch (error) {
+			probe.routeRefusals.push(`${stage}: ${(error as Error).message}`);
+		}
 	}
 }
 
@@ -179,7 +207,7 @@ describe.each(DRIVERS)("After-commit callbacks of an Automator transaction on $n
 		@Module({
 			controllers: [MessageController],
 			imports: [TypeOrmModule.forRoot({ ...started.options, dropSchema: true, entities: [MessageEntity], logging: false, synchronize: true } as never), TypeOrmModule.forFeature([MessageEntity]), ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) } } as never), ApiSubscriberModule],
-			providers: [MessagePublicationSubscriber, MessageService],
+			providers: [MessagePublicationSubscriber, MessageRouteSubscriber, MessageService],
 		})
 		class AfterCommitModule {}
 
@@ -203,6 +231,7 @@ describe.each(DRIVERS)("After-commit callbacks of an Automator transaction on $n
 		await messages.clear();
 		probe.failText = undefined;
 		probe.published = [];
+		probe.routeRefusals = [];
 		// Outside every transaction: a row is visible here only once its transaction committed.
 		probe.read = async (id: string): Promise<boolean> => await messages.existsBy({ id });
 	});
@@ -221,6 +250,36 @@ describe.each(DRIVERS)("After-commit callbacks of an Automator transaction on $n
 
 		expect(response.statusCode).toBe(201);
 		expect(probe.published).toEqual([{ id: (response.json() as MessageEntity).id, isCommitted: true, text: "hello" }]);
+	});
+
+	it("refuses a callback in the route subscribers of a generated route, which run outside the transaction the route owns", async () => {
+		const response = await app
+			.getHttpAdapter()
+			.getInstance()
+			.inject({ method: "POST", payload: { text: "routed" }, url: "/messages" });
+
+		expect(response.statusCode).toBe(201);
+		expect(probe.routeRefusals).toEqual(["before: [NestJS-Crud-Automator] ApiFunctionTransactionScope.onAfterCommit requires an active Automator transaction", "after: [NestJS-Crud-Automator] ApiFunctionTransactionScope.onAfterCommit requires an active Automator transaction"]);
+		expect(sent()).toEqual(["routed"]);
+	});
+
+	it("lets a callback open a new transaction once the first one has committed", async () => {
+		let followUpId: string | undefined;
+
+		await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "chat send" }, async (manager: EntityManager) => {
+			const message: MessageEntity = await send(manager, "first");
+
+			ApiFunctionTransactionScope.onAfterCommit(async () => {
+				const followUp: MessageEntity = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "follow-up" }, async (followUpManager: EntityManager) => await send(followUpManager, `reply to ${message.id}`));
+
+				followUpId = followUp.id;
+			});
+		});
+
+		expect(followUpId).toBeDefined();
+		expect(await messages.findOneBy({ id: followUpId })).toMatchObject({ text: expect.stringMatching(/^reply to /u) });
+		// The follow-up transaction committed on its own and released its own callback.
+		expect(sent()).toEqual(["first", expect.stringMatching(/^reply to /u)]);
 	});
 
 	it("publishes after the commit of a named scope in registration order", async () => {

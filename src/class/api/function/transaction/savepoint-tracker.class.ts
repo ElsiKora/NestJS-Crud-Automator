@@ -8,6 +8,7 @@ import { ErrorException } from "@utility/error/exception.utility";
  * TypeORM opens a savepoint when a transaction starts on a query runner that is already in one, as `entityManager.transaction` does on the manager of the transaction, and releases or rolls back that savepoint on its COMMIT or ROLLBACK.
  * The tracker wraps those three methods on the query runner instance only and puts them back when the transaction has ended.
  * After each call, also one that throws, it lines the levels of the registry up with the transaction depth TypeORM keeps, so a failed RELEASE SAVEPOINT or a TypeORM transaction subscriber that throws cannot leave them out of step.
+ * A driver whose open transaction keeps the depth at 0 gets no callbacks: registering one is refused with the name of the driver.
  */
 export class ApiFunctionTransactionSavepointTracker {
 	/**
@@ -32,7 +33,14 @@ export class ApiFunctionTransactionSavepointTracker {
 			try {
 				await call();
 			} finally {
-				registry.alignAfterCommitLevels(ApiFunctionTransactionSavepointTracker.readDepth(queryRunner), isReleased);
+				const depth: number = ApiFunctionTransactionSavepointTracker.readDepth(queryRunner);
+
+				// A driver that runs transactions without counting them, such as SAP or Spanner in TypeORM 1.1, cannot tell a savepoint from the transaction.
+				if (depth === 0 && queryRunner.isTransactionActive) {
+					registry.refuseAfterCommit(`Automator after-commit callbacks need the TypeORM transaction depth, which the ${queryRunner.dataSource.options.type} driver does not keep`);
+				} else {
+					registry.alignAfterCommitLevels(depth, isReleased);
+				}
 			}
 		};
 

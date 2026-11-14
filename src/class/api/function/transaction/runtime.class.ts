@@ -108,6 +108,8 @@ export class ApiFunctionTransactionRuntime {
 
 			return result.value as R;
 		} finally {
+			// A rollback or an unknown COMMIT outcome runs no callback, and none of their closures stays reachable through the registry.
+			registry.takeAfterCommitCallbacks();
 			registry.settleObservation(outcome);
 		}
 	}

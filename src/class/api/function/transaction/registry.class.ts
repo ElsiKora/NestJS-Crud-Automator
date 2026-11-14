@@ -12,6 +12,9 @@ export class ApiFunctionTransactionRegistry {
 	// Callbacks of each open transaction level, the outermost first: one level for the transaction and one for each savepoint open inside it.
 	private readonly AFTER_COMMIT_LEVELS: Array<Array<TApiFunctionTransactionAfterCommitCallback>> = [];
 
+	// Why this transaction takes no after-commit callback, when its query runner keeps no transaction depth.
+	private afterCommitRefusal?: string;
+
 	// Callbacks whose levels the outermost COMMIT released.
 	private readonly COMMITTED_CALLBACKS: Array<TApiFunctionTransactionAfterCommitCallback> = [];
 
@@ -94,12 +97,20 @@ export class ApiFunctionTransactionRegistry {
 	 * Keeps a callback on the innermost open level of this transaction, to run after the outermost COMMIT.
 	 * @param {TApiFunctionTransactionAfterCommitCallback} callback - Callback to run after the commit.
 	 * @returns {void}
-	 * @throws {Error} When the transaction has ended.
+	 * @throws {Error} When the transaction has ended, or when it takes no after-commit callback.
 	 */
 	public addAfterCommit(callback: TApiFunctionTransactionAfterCommitCallback): void {
+		if (this.isAfterCommitClosed) {
+			throw ErrorException("Cannot register an after-commit callback on an Automator transaction that has ended");
+		}
+
+		if (this.afterCommitRefusal !== undefined) {
+			throw ErrorException(this.afterCommitRefusal);
+		}
+
 		const level: Array<TApiFunctionTransactionAfterCommitCallback> | undefined = this.AFTER_COMMIT_LEVELS.at(-1);
 
-		if (this.isAfterCommitClosed || !level) {
+		if (!level) {
 			throw ErrorException("Cannot register an after-commit callback on an Automator transaction that has ended");
 		}
 
@@ -114,7 +125,7 @@ export class ApiFunctionTransactionRegistry {
 	 * @returns {void}
 	 */
 	public alignAfterCommitLevels(depth: number, isReleased: boolean): void {
-		if (this.isAfterCommitClosed) return;
+		if (this.isAfterCommitClosed || this.afterCommitRefusal !== undefined) return;
 
 		while (this.AFTER_COMMIT_LEVELS.length < depth) {
 			this.AFTER_COMMIT_LEVELS.push([]);
@@ -334,6 +345,17 @@ export class ApiFunctionTransactionRegistry {
 	 */
 	public hasValue(key: symbol): boolean {
 		return this.VALUES.has(key);
+	}
+
+	/**
+	 * Refuses every after-commit callback of this transaction from now on, because its levels cannot be followed, and drops the callbacks kept so far.
+	 * @param {string} reason - Message of the error that refuses a callback.
+	 * @returns {void}
+	 */
+	public refuseAfterCommit(reason: string): void {
+		this.afterCommitRefusal = reason;
+		this.AFTER_COMMIT_LEVELS.length = 0;
+		this.COMMITTED_CALLBACKS.length = 0;
 	}
 
 	/**
